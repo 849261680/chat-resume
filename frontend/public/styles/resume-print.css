@@ -1,0 +1,221 @@
+/* 简历打印样式 */
+
+@media print {
+  /* 页面设置 */
+  @page {
+    size: A4;
+    margin: 0;
+    padding: 0;
+  }
+
+  /* 隐藏不需要打印的元素 */
+  .no-print {
+    display: none !important;
+  }
+
+  /* 页面容器 */
+  .resume-page {
+    page-break-after: always;
+    page-break-inside: avoid;
+    margin: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    width: 100% !important;
+    min-height: 100vh !important;
+    background: white !important;
+  }
+
+  /* 最后一页不需要分页 */
+  .resume-page:last-child {
+    page-break-after: avoid;
+  }
+
+  /* 确保内容在页面内 */
+  .resume-page > div {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* 字体优化 */
+  body, .resume-page {
+    font-family: 'Times New Roman', serif !important;
+    color: #000 !important;
+    background: white !important;
+  }
+
+  /* 标题样式 */
+  h1, h2, h3, h4, h5, h6 {
+    color: #000 !important;
+    page-break-after: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* 段落样式 */
+  p {
+    page-break-inside: avoid;
+    orphans: 3;
+    widows: 3;
+  }
+
+  /* 列表样式 */
+  ul, ol {
+    page-break-inside: avoid;
+  }
+
+  /* 链接样式 */
+  a {
+    color: #000 !important;
+    text-decoration: none !important;
+  }
+
+  /* 隐藏颜色背景 */
+  .bg-blue-50,
+  .bg-green-50,
+  .bg-yellow-50,
+  .bg-red-50,
+  .bg-purple-50,
+  .bg-gray-50,
+  .bg-gray-100 {
+    background: transparent !important;
+  }
+
+  /* 边框优化 */
+  .border,
+  .border-t,
+  .border-b,
+  .border-l,
+  .border-r {
+    border-color: #000 !important;
+  }
+
+  /* 阴影移除 */
+  .shadow,
+  .shadow-sm,
+  .shadow-md,
+  .shadow-lg,
+  .shadow-xl {
+    box-shadow: none !important;
+  }
+
+  /* 技能标签样式 */
+  .skill-tag {
+    border: 1px solid #000 !important;
+    background: transparent !important;
+    color: #000 !important;
+  }
+
+  /* 项目卡片样式 */
+  .project-card {
+    border: 1px solid #ccc !important;
+    background: transparent !important;
+    page-break-inside: avoid;
+  }
+
+  /* 页码样式 */
+  .page-number {
+    position: fixed;
+    bottom: 1cm;
+    right: 1cm;
+    font-size: 10pt;
+    color: #666;
+  }
+
+  /* 确保图标不显示 */
+  .emoji,
+  .icon {
+    display: none !important;
+  }
+
+  /* 响应式调整 */
+  .hidden {
+    display: none !important;
+  }
+
+  .print\\:block {
+    display: block !important;
+  }
+
+  .print\\:hidden {
+    display: none !important;
+  }
+
+  .print\\:break-after-page {
+    page-break-after: always;
+  }
+
+  .print\\:break-before-page {
+    page-break-before: always;
+  }
+
+  .print\\:break-inside-avoid {
+    page-break-inside: avoid;
+  }
+}
+
+/* 屏幕显示时的样式优化 */
+@media screen {
+  .resume-page {
+    /* A4纸张效果 */
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    border: 1px solid #e5e7eb;
+    background: white;
+  }
+
+  /* 页面间距 */
+  .resume-page + .resume-page {
+    margin-top: 24px;
+  }
+
+  /* 页码水印 */
+  .page-number {
+    opacity: 0.5;
+    transition: opacity 0.2s;
+  }
+
+  .resume-page:hover .page-number {
+    opacity: 0.8;
+  }
+
+  /* 分页指示线 */
+  .page-divider {
+    height: 1px;
+    background: linear-gradient(to right, transparent, #d1d5db, transparent);
+    margin: 12px 0;
+  }
+}
+
+/* 响应式适配 */
+@media screen and (max-width: 768px) {
+  .resume-page {
+    width: 100% !important;
+    margin: 0 auto 16px auto !important;
+    padding: 16px !important;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+  }
+
+  .page-number {
+    font-size: 10px;
+    bottom: 8px;
+    right: 12px;
+  }
+}
+
+/* 打印预览模式 */
+.print-preview {
+  .resume-page {
+    transform: scale(0.8);
+    transform-origin: top center;
+    margin-bottom: 20px;
+  }
+}
+
+/* 深色模式支持 */
+@media (prefers-color-scheme: dark) {
+  @media screen {
+    .resume-page {
+      background: white !important;
+      color: #000 !important;
+      border-color: #d1d5db !important;
+    }
+  }
+}

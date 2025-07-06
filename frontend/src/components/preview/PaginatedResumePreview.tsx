@@ -1,0 +1,226 @@
+'use client'
+
+import React, { useRef, useMemo } from 'react'
+import { useResumePagination } from './hooks/useResumePagination'
+import ResumePage from './ResumePage'
+import PersonalInfoPreview from './sections/PersonalInfoPreview'
+import EducationPreview from './sections/EducationPreview'
+import WorkExperiencePreview from './sections/WorkExperiencePreview'
+import SkillsPreview from './sections/SkillsPreview'
+import ProjectsPreview from './sections/ProjectsPreview'
+
+interface PersonalInfo {
+  name?: string
+  email?: string
+  phone?: string
+  position?: string
+  github?: string
+  linkedin?: string
+  website?: string
+  address?: string
+}
+
+interface Education {
+  id?: number
+  school: string
+  major: string
+  degree: string
+  duration: string
+  description?: string
+}
+
+interface WorkExperience {
+  id?: number
+  company: string
+  position: string
+  duration: string
+  description: string
+}
+
+interface Skill {
+  id?: number
+  name: string
+  level: string
+  category: string
+}
+
+interface Project {
+  id?: number
+  name: string
+  description: string
+  technologies: string[]
+  role: string
+  duration: string
+  github_url?: string
+  demo_url?: string
+  achievements: string[]
+}
+
+interface ResumeContent {
+  personal_info?: PersonalInfo
+  education?: Education[]
+  work_experience?: WorkExperience[]
+  skills?: Skill[]
+  projects?: Project[]
+}
+
+interface PaginatedResumePreviewProps {
+  content: ResumeContent
+}
+
+export default function PaginatedResumePreview({ content }: PaginatedResumePreviewProps) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
+
+  const { pages, totalPages, isCalculating } = useResumePagination({
+    containerRef,
+    contentRef
+  })
+
+  // 渲染所有section的内容用于测量
+  const measurementContent = useMemo(() => (
+    <div ref={contentRef} className="invisible absolute -top-[9999px] left-0 w-full pointer-events-none">
+      {content.personal_info && (
+        <div id="personal-info-section">
+          <PersonalInfoPreview data={content.personal_info} />
+        </div>
+      )}
+      {content.education && content.education.length > 0 && (
+        <div id="education-section">
+          <EducationPreview data={content.education} />
+        </div>
+      )}
+      {content.work_experience && content.work_experience.length > 0 && (
+        <div id="work-experience-section">
+          <WorkExperiencePreview data={content.work_experience} />
+        </div>
+      )}
+      {content.skills && content.skills.length > 0 && (
+        <div id="skills-section">
+          <SkillsPreview data={content.skills} />
+        </div>
+      )}
+      {content.projects && content.projects.length > 0 && (
+        <div id="projects-section">
+          <ProjectsPreview data={content.projects} />
+        </div>
+      )}
+    </div>
+  ), [content])
+
+  // 根据分页信息渲染内容
+  const renderPageContent = (pageIndex: number) => {
+    const page = pages[pageIndex]
+    if (!page || page.sections.length === 0) {
+      return null
+    }
+
+    return page.sections.map((section) => {
+      switch (section.id) {
+        case 'personal-info-section':
+          return content.personal_info ? (
+            <div key={section.id} className="mb-6">
+              <PersonalInfoPreview data={content.personal_info} />
+            </div>
+          ) : null
+        case 'education-section':
+          return content.education && content.education.length > 0 ? (
+            <div key={section.id} className="mb-6">
+              <EducationPreview data={content.education} />
+            </div>
+          ) : null
+        case 'work-experience-section':
+          return content.work_experience && content.work_experience.length > 0 ? (
+            <div key={section.id} className="mb-6">
+              <WorkExperiencePreview data={content.work_experience} />
+            </div>
+          ) : null
+        case 'skills-section':
+          return content.skills && content.skills.length > 0 ? (
+            <div key={section.id} className="mb-6">
+              <SkillsPreview data={content.skills} />
+            </div>
+          ) : null
+        case 'projects-section':
+          return content.projects && content.projects.length > 0 ? (
+            <div key={section.id} className="mb-6">
+              <ProjectsPreview data={content.projects} />
+            </div>
+          ) : null
+        default:
+          return null
+      }
+    }).filter(Boolean) // 过滤掉null值
+  }
+
+  // 检查是否有任何内容
+  const hasContent = content.personal_info || 
+                    (content.education && content.education.length > 0) ||
+                    (content.work_experience && content.work_experience.length > 0) ||
+                    (content.skills && content.skills.length > 0) ||
+                    (content.projects && content.projects.length > 0)
+
+  if (!hasContent) {
+    return (
+      <div className="h-full flex items-center justify-center text-gray-500">
+        <div className="text-center">
+          <div className="text-6xl mb-4">📄</div>
+          <p className="text-lg font-medium mb-2">开始编辑简历</p>
+          <p className="text-sm">在左侧编辑区域填写信息，实时预览将在这里显示</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div ref={containerRef} className="w-full">
+      {/* 用于测量的隐藏内容 */}
+      {measurementContent}
+
+      {/* 加载状态 */}
+      {isCalculating && (
+        <div className="flex items-center justify-center py-8">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+          <span className="ml-2 text-sm text-gray-600">正在计算分页...</span>
+        </div>
+      )}
+
+      {/* 分页显示 */}
+      {!isCalculating && pages.length > 0 && (
+        <div className="space-y-0">
+          {/* 页面总数提示 */}
+          {totalPages > 1 && (
+            <div className="text-center mb-4 text-sm text-gray-500">
+              共 {totalPages} 页
+            </div>
+          )}
+
+          {/* 渲染所有页面 */}
+          {pages.map((_, pageIndex) => (
+            <ResumePage
+              key={pageIndex}
+              pageNumber={pageIndex + 1}
+              totalPages={totalPages}
+              className="print:break-after-page"
+            >
+              {renderPageContent(pageIndex)}
+            </ResumePage>
+          ))}
+        </div>
+      )}
+
+      {/* 简单回退：如果分页计算失败，显示原始内容 */}
+      {!isCalculating && pages.length === 0 && (
+        <ResumePage pageNumber={1} totalPages={1}>
+          <div className="space-y-6">
+            <PersonalInfoPreview data={content.personal_info || {}} />
+            <EducationPreview data={content.education || []} />
+            <WorkExperiencePreview data={content.work_experience || []} />
+            <SkillsPreview data={content.skills || []} />
+            <ProjectsPreview data={content.projects || []} />
+          </div>
+        </ResumePage>
+      )}
+    </div>
+  )
+}

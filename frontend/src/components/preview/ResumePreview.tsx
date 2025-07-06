@@ -1,10 +1,7 @@
 'use client'
 
-import PersonalInfoPreview from './sections/PersonalInfoPreview'
-import EducationPreview from './sections/EducationPreview'
-import WorkExperiencePreview from './sections/WorkExperiencePreview'
-import SkillsPreview from './sections/SkillsPreview'
-import ProjectsPreview from './sections/ProjectsPreview'
+import { useEffect } from 'react'
+import PaginatedResumePreview from './PaginatedResumePreview'
 
 interface PersonalInfo {
   name?: string
@@ -66,43 +63,28 @@ interface ResumePreviewProps {
 }
 
 export default function ResumePreview({ content }: ResumePreviewProps) {
-  // 检查是否有任何内容
-  const hasContent = content.personal_info || 
-                    (content.education && content.education.length > 0) ||
-                    (content.work_experience && content.work_experience.length > 0) ||
-                    (content.skills && content.skills.length > 0) ||
-                    (content.projects && content.projects.length > 0)
+  // 加载打印样式
+  useEffect(() => {
+    // 动态加载打印样式
+    const loadPrintStyles = () => {
+      if (typeof document !== 'undefined') {
+        const existingLink = document.getElementById('resume-print-styles')
+        if (!existingLink) {
+          const link = document.createElement('link')
+          link.id = 'resume-print-styles'
+          link.rel = 'stylesheet'
+          link.href = '/styles/resume-print.css'
+          document.head.appendChild(link)
+        }
+      }
+    }
 
-  if (!hasContent) {
-    return (
-      <div className="h-full flex items-center justify-center text-gray-500">
-        <div className="text-center">
-          <div className="text-6xl mb-4">📄</div>
-          <p className="text-lg font-medium mb-2">开始编辑简历</p>
-          <p className="text-sm">在左侧编辑区域填写信息，实时预览将在这里显示</p>
-        </div>
-      </div>
-    )
-  }
+    loadPrintStyles()
+  }, [])
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg p-8 h-full overflow-y-auto">
-      <div className="max-w-none mx-auto space-y-6">
-        {/* 个人信息 */}
-        <PersonalInfoPreview data={content.personal_info || {}} />
-        
-        {/* 教育背景 */}
-        <EducationPreview data={content.education || []} />
-        
-        {/* 工作经验 */}
-        <WorkExperiencePreview data={content.work_experience || []} />
-        
-        {/* 技能专长 */}
-        <SkillsPreview data={content.skills || []} />
-        
-        {/* 项目经验 */}
-        <ProjectsPreview data={content.projects || []} />
-      </div>
+    <div className="h-full overflow-y-auto bg-gray-50 p-4">
+      <PaginatedResumePreview content={content} />
     </div>
   )
 }

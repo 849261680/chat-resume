@@ -40,18 +40,18 @@ export default function MarkdownMessage({ content, className = '' }: MarkdownMes
         components={{
           // 自定义标题样式
           h1: ({ children }) => (
-            <h1 className="text-lg font-bold mb-3 text-gray-900">{children}</h1>
+            <h1 className="text-xl font-bold mb-3 text-gray-900">{children}</h1>
           ),
           h2: ({ children }) => (
-            <h2 className="text-base font-semibold mb-2 text-gray-800">{children}</h2>
+            <h2 className="text-lg font-semibold mb-2 text-gray-800">{children}</h2>
           ),
           h3: ({ children }) => (
-            <h3 className="text-sm font-medium mb-2 text-gray-700">{children}</h3>
+            <h3 className="text-base font-medium mb-2 text-gray-700">{children}</h3>
           ),
           
           // 自定义段落样式
           p: ({ children }) => (
-            <p className="mb-3 leading-relaxed text-gray-700 last:mb-0">{children}</p>
+            <p className="mb-3 leading-relaxed text-sm text-gray-700 last:mb-0">{children}</p>
           ),
           
           // 自定义列表样式
@@ -62,7 +62,7 @@ export default function MarkdownMessage({ content, className = '' }: MarkdownMes
             <ol className="mb-3 ml-4 space-y-1 list-decimal">{children}</ol>
           ),
           li: ({ children }) => (
-            <li className="text-gray-700 leading-relaxed">{children}</li>
+            <li className="text-sm text-gray-700 leading-relaxed">{children}</li>
           ),
           
           // 自定义强调样式

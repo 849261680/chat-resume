@@ -18,9 +18,9 @@ export default function StreamingMessage({
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          h1: ({ children }) => <h1 className="text-lg font-semibold text-gray-900 mb-2">{children}</h1>,
-          h2: ({ children }) => <h2 className="text-base font-semibold text-gray-900 mb-2">{children}</h2>,
-          h3: ({ children }) => <h3 className="text-sm font-medium text-gray-900 mb-1">{children}</h3>,
+          h1: ({ children }) => <h1 className="text-xl font-bold text-gray-900 mb-3">{children}</h1>,
+          h2: ({ children }) => <h2 className="text-lg font-semibold text-gray-900 mb-2">{children}</h2>,
+          h3: ({ children }) => <h3 className="text-base font-medium text-gray-900 mb-2">{children}</h3>,
           p: ({ children }) => <p className="text-sm text-gray-700 mb-2 last:mb-0">{children}</p>,
           ul: ({ children }) => <ul className="list-disc list-inside text-sm text-gray-700 mb-2 space-y-1">{children}</ul>,
           ol: ({ children }) => <ol className="list-decimal list-inside text-sm text-gray-700 mb-2 space-y-1">{children}</ol>,

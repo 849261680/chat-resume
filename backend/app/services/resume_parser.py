@@ -3,7 +3,11 @@ import json
 import asyncio
 from typing import Dict, Any, Optional
 import httpx
+from dotenv import load_dotenv
 from app.services.file_service import FileService
+
+# 加载环境变量
+load_dotenv()
 
 
 class AIResumeParser:
@@ -67,6 +71,11 @@ class AIResumeParser:
     
     async def _parse_with_ai(self, text: str) -> Dict[str, Any]:
         """使用AI解析简历"""
+        # 首先检查API密钥
+        if not self.api_key or self.api_key.strip() == '':
+            print(f"[ERROR] OpenRouter API密钥未配置，无法进行AI解析")
+            raise Exception("OpenRouter API密钥未配置")
+        
         prompt = self._create_prompt(text)
         
         for attempt in range(self.max_retries):
@@ -74,7 +83,7 @@ class AIResumeParser:
                 print(f"[DEBUG] AI解析尝试 {attempt + 1}/{self.max_retries}")
                 print(f"[DEBUG] API Base: {self.api_base}")
                 print(f"[DEBUG] Model: {self.model}")
-                print(f"[DEBUG] API Key配置: {'已配置' if self.api_key else '未配置'}")
+                print(f"[DEBUG] API Key长度: {len(self.api_key) if self.api_key else 0}")
                 print(f"[DEBUG] Prompt长度: {len(prompt)}")
                 
                 # 配置更详细的超时和连接设置
@@ -130,17 +139,24 @@ class AIResumeParser:
                     result = response.json()
                     ai_content = result['choices'][0]['message']['content']
                     print(f"[DEBUG] AI响应长度: {len(ai_content)}")
+                    print(f"[DEBUG] AI完整响应: {ai_content}")
                     
                     # 解析AI返回的JSON
-                    parsed_data = self._parse_ai_response(ai_content)
+                    try:
+                        parsed_data = self._parse_ai_response(ai_content)
+                        print(f"[DEBUG] JSON解析成功，解析的数据: {parsed_data}")
+                    except Exception as e:
+                        print(f"[ERROR] JSON解析失败: {e}")
+                        print(f"[ERROR] 原始AI响应: {ai_content}")
+                        raise e
                     
                     # 验证和增强数据
                     validated_data = self._validate_and_enhance(parsed_data, text)
                     
-                    print(f"[SUCCESS] AI解析成功")
+                    print(f"[SUCCESS] AI解析成功，最终数据: {validated_data}")
                     return validated_data
                 else:
-                    print(f"[ERROR] API请求失败: {response.status_code} - {response.text}")
+                    print(f"[ERROR] API请求失败: {response.status_code} - {response.text[:500]}")
                     
             except httpx.TimeoutException as e:
                 print(f"[ERROR] 第 {attempt + 1} 次尝试超时: {e}")
@@ -170,45 +186,132 @@ class AIResumeParser:
     
     def _create_prompt(self, text: str) -> str:
         """创建解析prompt"""
-        return f"""解析以下简历为JSON格式：
+        return f"""你是一个专业的简历解析专家。请将以下简历内容解析为标准JSON格式。
 
-简历内容：
+**重要要求：**
+1. 只返回JSON数据，不要包含任何其他文字说明
+2. 确保JSON格式完全正确，可以被json.loads()解析
+3. 如果某个字段没有信息，使用空字符串""或空数组[]
+
+**简历内容：**
 {text}
 
-输出JSON格式：
+**请严格按照以下JSON格式返回数据：**
 {{
-  "personal_info": {{"name": "", "email": "", "phone": "", "position": "", "github": "", "linkedin": "", "website": "", "address": ""}},
-  "education": [{{"school": "", "major": "", "degree": "", "duration": "", "description": ""}}],
-  "work_experience": [{{"company": "", "position": "", "duration": "", "description": ""}}],
-  "skills": [{{"name": "", "level": "", "category": ""}}],
-  "projects": [{{"name": "", "description": "", "technologies": [], "role": "", "duration": "", "github_url": "", "demo_url": "", "achievements": []}}]
+  "personal_info": {{
+    "name": "姓名",
+    "email": "邮箱地址", 
+    "phone": "电话号码",
+    "position": "求职岗位",
+    "github": "GitHub链接",
+    "linkedin": "LinkedIn链接", 
+    "website": "个人网站",
+    "address": "地址"
+  }},
+  "education": [
+    {{
+      "school": "学校名称",
+      "major": "专业", 
+      "degree": "学位",
+      "duration": "时间段",
+      "description": "描述"
+    }}
+  ],
+  "work_experience": [
+    {{
+      "company": "公司名称",
+      "position": "职位",
+      "duration": "时间段", 
+      "description": "工作描述"
+    }}
+  ],
+  "skills": [
+    {{
+      "name": "技能名称",
+      "level": "熟练程度",
+      "category": "技能类别"
+    }}
+  ],
+  "projects": [
+    {{
+      "name": "项目名称",
+      "description": "项目描述",
+      "technologies": ["技术1", "技术2"],
+      "role": "承担角色", 
+      "duration": "项目时间",
+      "github_url": "代码链接",
+      "demo_url": "演示链接",
+      "achievements": ["成就1", "成就2"]
+    }}
+  ]
 }}
 
-要求：
-1. 准确提取所有项目信息
-2. 技能按类别分组（编程语言/框架/工具等）
-3. 保持JSON格式正确
-4. 时间格式统一"""
+**再次提醒：只返回JSON数据，不要添加任何解释文字！**"""
     
     def _parse_ai_response(self, ai_content: str) -> Dict[str, Any]:
         """解析AI返回的JSON内容"""
         try:
-            # 提取JSON部分（去除可能的多余文字）
+            print(f"[DEBUG] 开始解析AI响应，长度: {len(ai_content)}")
+            
+            # 尝试多种方式提取JSON
+            json_str = None
+            
+            # 方式1: 寻找完整的JSON对象
             start_idx = ai_content.find('{')
             end_idx = ai_content.rfind('}') + 1
             
-            if start_idx != -1 and end_idx != 0:
+            if start_idx != -1 and end_idx > start_idx:
                 json_str = ai_content[start_idx:end_idx]
-                parsed_data = json.loads(json_str)
-                print(f"[DEBUG] JSON解析成功")
-                return parsed_data
-            else:
-                raise ValueError("无法找到有效的JSON格式")
+                print(f"[DEBUG] 提取的JSON字符串长度: {len(json_str)}")
+                print(f"[DEBUG] JSON前200字符: {json_str[:200]}")
+            
+            # 方式2: 如果找不到完整JSON，尝试整个内容
+            if not json_str:
+                json_str = ai_content.strip()
+                print(f"[DEBUG] 使用完整响应作为JSON")
+            
+            # 尝试解析JSON
+            if json_str:
+                try:
+                    parsed_data = json.loads(json_str)
+                    print(f"[DEBUG] JSON解析成功，包含字段: {list(parsed_data.keys())}")
+                    return parsed_data
+                except json.JSONDecodeError as e:
+                    print(f"[ERROR] 第一次JSON解析失败: {e}")
+                    
+                    # 尝试清理和修复JSON
+                    cleaned_json = self._clean_json_string(json_str)
+                    print(f"[DEBUG] 尝试清理后的JSON")
+                    parsed_data = json.loads(cleaned_json)
+                    print(f"[DEBUG] 清理后JSON解析成功")
+                    return parsed_data
+            
+            raise ValueError("无法找到有效的JSON格式")
                 
         except json.JSONDecodeError as e:
-            print(f"[ERROR] JSON解析失败: {e}")
-            print(f"[DEBUG] AI响应内容: {ai_content[:500]}...")
+            print(f"[ERROR] 最终JSON解析失败: {e}")
+            print(f"[DEBUG] 失败的JSON内容: {json_str[:1000] if json_str else 'None'}")
             raise
+        except Exception as e:
+            print(f"[ERROR] 解析过程出现异常: {type(e).__name__}: {e}")
+            raise
+    
+    def _clean_json_string(self, json_str: str) -> str:
+        """清理和修复JSON字符串"""
+        print(f"[DEBUG] 开始清理JSON字符串")
+        
+        # 移除可能的markdown代码块标记
+        json_str = json_str.replace('```json', '').replace('```', '')
+        
+        # 移除可能的前后空白和换行
+        json_str = json_str.strip()
+        
+        # 移除可能的BOM标记
+        if json_str.startswith('\ufeff'):
+            json_str = json_str[1:]
+        
+        print(f"[DEBUG] 清理后JSON长度: {len(json_str)}")
+        return json_str
     
     def _validate_and_enhance(self, data: Dict[str, Any], original_text: str) -> Dict[str, Any]:
         """验证和增强数据"""
@@ -272,8 +375,12 @@ class AIResumeParser:
         # 计算解析质量分
         quality_score = self._calculate_parsing_quality(validated_data)
         validated_data["parsing_quality"] = quality_score
+        validated_data["parsing_method"] = "ai"
         
         print(f"[DEBUG] 数据验证完成，质量分: {quality_score:.2f}")
+        print(f"[DEBUG] 个人信息字段: {list(validated_data['personal_info'].keys())}")
+        print(f"[DEBUG] 技能数量: {len(validated_data['skills'])}")
+        print(f"[DEBUG] 项目数量: {len(validated_data['projects'])}")
         return validated_data
     
     def _calculate_parsing_quality(self, resume_data: Dict[str, Any]) -> float:

@@ -33,10 +33,16 @@ async def upload_resume(
         
         # 提取文本
         text = file_service.extract_text_from_file(file_path, file.filename)
+        print(f"[UPLOAD] 提取文本长度: {len(text)}")
+        print(f"[UPLOAD] 文本前500字符: {text[:500]}")
         
         # 解析简历
         parser = ResumeParser()
+        print(f"[UPLOAD] 开始AI解析...")
         resume_data = await parser.parse_resume_text_async(text)
+        print(f"[UPLOAD] AI解析完成，数据: {resume_data}")
+        print(f"[UPLOAD] 解析质量分: {resume_data.get('parsing_quality', 0)}")
+        print(f"[UPLOAD] 解析方法: {resume_data.get('parsing_method', 'unknown')}")
         
         # 保存到数据库
         resume_service = ResumeService(db)

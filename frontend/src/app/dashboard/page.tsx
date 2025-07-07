@@ -92,16 +92,37 @@ export default function DashboardPage() {
       
       const result = await resumeApi.uploadResume(file)
       
-      toast.success('简历上传成功！', { id: 'upload' })
+      // 检查解析质量并提供相应反馈
+      const parsingQuality = result.content?.parsing_quality || 0
+      const parsingMethod = result.content?.parsing_method || 'unknown'
+      
+      console.log('Upload result:', result)
+      console.log('Parsing quality:', parsingQuality)
+      console.log('Parsing method:', parsingMethod)
+      
+      if (parsingMethod === 'fallback' || parsingQuality === 0) {
+        toast.success('简历上传成功，但AI解析失败，请手动编辑简历信息', { 
+          id: 'upload',
+          duration: 5000
+        })
+      } else if (parsingQuality < 0.3) {
+        toast.success(`简历上传成功，但解析质量较低(${Math.round(parsingQuality * 100)}%)，建议检查并完善信息`, { 
+          id: 'upload',
+          duration: 5000 
+        })
+      } else {
+        toast.success(`简历上传并解析成功！解析质量: ${Math.round(parsingQuality * 100)}%`, { 
+          id: 'upload' 
+        })
+      }
       
       // 刷新简历列表
       await fetchResumes()
       
-      console.log('Upload result:', result)
-      
     } catch (error: any) {
       console.error('Upload error:', error)
-      toast.error('上传失败，请重试', { id: 'upload' })
+      const errorMessage = error.response?.data?.detail || '上传失败，请重试'
+      toast.error(errorMessage, { id: 'upload' })
     } finally {
       setUploadLoading(false)
       // 清空文件输入
@@ -121,15 +142,19 @@ export default function DashboardPage() {
     }
 
     try {
-      // TODO: 实现删除API调用
-      // await resumeApi.deleteResume(resumeId)
+      toast.loading('正在删除简历...', { id: 'delete' })
       
-      // 暂时从本地状态中移除
+      // 调用删除API
+      await resumeApi.deleteResume(resumeId)
+      
+      // 从本地状态中移除
       setResumes(prev => prev.filter(resume => resume.id !== resumeId))
-      toast.success('简历已删除')
-    } catch (error) {
+      
+      toast.success('简历已删除', { id: 'delete' })
+    } catch (error: any) {
       console.error('Delete error:', error)
-      toast.error('删除失败，请重试')
+      const errorMessage = error.response?.data?.detail || '删除失败，请重试'
+      toast.error(errorMessage, { id: 'delete' })
     }
   }
 

@@ -49,3 +49,37 @@ async def get_resume(
         )
     
     return ResumeResponse.from_orm(resume)
+
+@router.delete("/{resume_id}")
+async def delete_resume(
+    resume_id: int,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """删除简历"""
+    resume_service = ResumeService(db)
+    
+    # 检查简历是否存在
+    resume = resume_service.get_by_id(resume_id)
+    if not resume:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Resume not found"
+        )
+    
+    # 检查权限
+    if resume.owner_id != current_user["id"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions"
+        )
+    
+    # 删除简历
+    success = resume_service.delete(resume_id)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete resume"
+        )
+    
+    return {"message": "Resume deleted successfully"}

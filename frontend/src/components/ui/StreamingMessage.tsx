@@ -25,8 +25,8 @@ export default function StreamingMessage({
           ul: ({ children }) => <ul className="list-disc list-inside text-sm text-gray-700 mb-2 space-y-1">{children}</ul>,
           ol: ({ children }) => <ol className="list-decimal list-inside text-sm text-gray-700 mb-2 space-y-1">{children}</ol>,
           li: ({ children }) => <li className="text-sm">{children}</li>,
-          code: ({ children, inline }) => 
-            inline ? (
+          code: ({ children, ...props }) => 
+            (props as any).inline ? (
               <code className="bg-gray-100 text-gray-800 px-1 py-0.5 rounded text-xs font-mono">
                 {children}
               </code>

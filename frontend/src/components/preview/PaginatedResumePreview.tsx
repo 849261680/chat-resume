@@ -71,11 +71,51 @@ interface PaginatedResumePreviewProps {
 export default function PaginatedResumePreview({ content }: PaginatedResumePreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
+  const [scale, setScale] = React.useState(1)
 
   const { pages, totalPages, isCalculating } = useResumePagination({
     containerRef,
     contentRef
   })
+
+  // 计算合适的缩放比例
+  React.useEffect(() => {
+    const calculateScale = () => {
+      if (!containerRef.current) return
+
+      const container = containerRef.current
+      const containerWidth = container.clientWidth
+      const A4_WIDTH = 816 // A4宽度
+      const padding = 8 // 最小边距，充分利用空间
+
+      // 计算可用宽度
+      const availableWidth = containerWidth - padding * 2
+
+      // 计算缩放比例，充分利用可用空间，最大不超过3倍
+      const rawScale = availableWidth / A4_WIDTH
+      const calculatedScale = Math.min(3.0, Math.max(0.3, rawScale)) // 允许放大到3倍
+      
+      console.log('缩放计算:', { containerWidth, availableWidth, rawScale, calculatedScale })
+      setScale(calculatedScale)
+    }
+
+    calculateScale()
+
+    // 监听窗口大小变化
+    const handleResize = () => calculateScale()
+    window.addEventListener('resize', handleResize)
+
+    // 监听容器大小变化
+    const resizeObserver = new ResizeObserver(calculateScale)
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current)
+    }
+
+    return () => {
+      window.removeEventListener('resize', handleResize)
+      resizeObserver.disconnect()
+    }
+  }, [])
 
   // 渲染所有section的内容用于测量
   const measurementContent = useMemo(() => (
@@ -173,7 +213,7 @@ export default function PaginatedResumePreview({ content }: PaginatedResumePrevi
   }
 
   return (
-    <div ref={containerRef} className="w-full">
+    <div ref={containerRef} className="w-full flex flex-col items-center">
       {/* 用于测量的隐藏内容 */}
       {measurementContent}
 
@@ -188,38 +228,48 @@ export default function PaginatedResumePreview({ content }: PaginatedResumePrevi
       {/* 分页显示 */}
       {!isCalculating && pages.length > 0 && (
         <div className="space-y-0">
-          {/* 页面总数提示 */}
-          {totalPages > 1 && (
-            <div className="text-center mb-4 text-sm text-gray-500">
-              共 {totalPages} 页
-            </div>
-          )}
 
           {/* 渲染所有页面 */}
-          {pages.map((_, pageIndex) => (
-            <ResumePage
-              key={pageIndex}
-              pageNumber={pageIndex + 1}
-              totalPages={totalPages}
-              className="print:break-after-page"
-            >
-              {renderPageContent(pageIndex)}
-            </ResumePage>
-          ))}
+          <div 
+            className="w-full flex flex-col items-center"         
+            style={{
+              transform: `scale(${scale})`,
+              transformOrigin: 'top center'
+            }}
+          >
+            {pages.map((_, pageIndex) => (
+              <ResumePage
+                key={pageIndex}
+                pageNumber={pageIndex + 1}
+                totalPages={totalPages}
+                className="print:break-after-page"
+              >
+                {renderPageContent(pageIndex)}
+              </ResumePage>
+            ))}
+          </div>
         </div>
       )}
 
       {/* 简单回退：如果分页计算失败，显示原始内容 */}
       {!isCalculating && pages.length === 0 && (
-        <ResumePage pageNumber={1} totalPages={1}>
-          <div className="space-y-6">
-            <PersonalInfoPreview data={content.personal_info || {}} />
-            <EducationPreview data={content.education || []} />
-            <WorkExperiencePreview data={content.work_experience || []} />
-            <SkillsPreview data={content.skills || []} />
-            <ProjectsPreview data={content.projects || []} />
-          </div>
-        </ResumePage>
+        <div 
+          className="w-full flex flex-col items-center"
+          style={{
+            transform: `scale(${scale})`,
+            transformOrigin: 'top center'
+          }}
+        >
+          <ResumePage pageNumber={1} totalPages={1}>
+            <div className="space-y-6">
+              <PersonalInfoPreview data={content.personal_info || {}} />
+              <EducationPreview data={content.education || []} />
+              <WorkExperiencePreview data={content.work_experience || []} />
+              <SkillsPreview data={content.skills || []} />
+              <ProjectsPreview data={content.projects || []} />
+            </div>
+          </ResumePage>
+        </div>
       )}
     </div>
   )

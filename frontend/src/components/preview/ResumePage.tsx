@@ -10,21 +10,23 @@ interface ResumePageProps {
 
 const ResumePage = forwardRef<HTMLDivElement, ResumePageProps>(
   ({ pageNumber, totalPages, children, className = '' }, ref) => {
+    // A4纸张比例: 210mm x 297mm = 0.7070
+    const A4_RATIO = 210 / 297
+    
     return (
       <div
         ref={ref}
         className={`resume-page relative bg-white shadow-lg border border-gray-200 mx-auto mb-6 ${className}`}
         style={{
-          width: `${A4_WIDTH}px`,
-          minHeight: '1056px', // A4高度
-          maxWidth: '100%',
+          width: `${A4_WIDTH}px`, // 基础宽度，会被transform scale缩放
+          aspectRatio: `${A4_RATIO}`, // 保持A4比例
           margin: '0 auto 24px auto',
           padding: `${PAGE_PADDING}px`,
           boxSizing: 'border-box'
         }}
       >
         {/* 页面内容 */}
-        <div className="relative z-10 h-full">
+        <div className="relative z-10 h-full overflow-hidden">
           {children}
         </div>
 

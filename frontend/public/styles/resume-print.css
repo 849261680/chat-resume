@@ -159,11 +159,27 @@
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
     border: 1px solid #e5e7eb;
     background: white;
+    
+    /* 强制A4比例约束 */
+    aspect-ratio: 0.7070 !important; /* 210/297 */
+    contain: layout size; /* 现代浏览器优化 */
+    overflow: hidden; /* 防止内容撑开容器 */
+  }
+  
+  /* 内容区域适配A4比例 */
+  .resume-page > div {
+    height: 100%;
+    overflow: hidden; /* PDF样式：不允许滚动 */
   }
 
-  /* 页面间距 */
+  /* 页面间距 - 动态调整以适应缩放 */
   .resume-page + .resume-page {
     margin-top: 24px;
+  }
+  
+  /* 确保缩放时页面间距合理 */
+  .resume-page {
+    margin-bottom: 24px;
   }
 
   /* 页码水印 */
@@ -188,9 +204,11 @@
 @media screen and (max-width: 768px) {
   .resume-page {
     width: 100% !important;
+    max-width: 95vw !important;
     margin: 0 auto 16px auto !important;
     padding: 16px !important;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+    aspect-ratio: 0.7070 !important; /* 保持A4比例 */
   }
 
   .page-number {
@@ -198,6 +216,25 @@
     bottom: 8px;
     right: 12px;
   }
+}
+
+/* 超大屏幕适配 */
+@media screen and (min-width: 1920px) {
+  .resume-page {
+    max-width: 816px; /* 限制最大宽度为A4标准 */
+  }
+}
+
+/* 确保缩放时的平滑过渡 */
+.resume-page {
+  transition: transform 0.2s ease-in-out;
+}
+
+/* 防止内容溢出 */
+.resume-page * {
+  max-width: 100%;
+  word-wrap: break-word;
+  hyphens: auto;
 }
 
 /* 打印预览模式 */

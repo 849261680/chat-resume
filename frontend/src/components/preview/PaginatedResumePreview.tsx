@@ -227,49 +227,52 @@ export default function PaginatedResumePreview({ content }: PaginatedResumePrevi
 
       {/* 分页显示 */}
       {!isCalculating && pages.length > 0 && (
-        <div className="flex-1 w-full overflow-y-auto">
-
-          {/* 渲染所有页面 */}
-          <div 
-            className="w-full flex flex-col items-center"         
-            style={{
-              transform: `scale(${scale})`,
-              transformOrigin: 'top center'
-            }}
-          >
-            {pages.map((_, pageIndex) => (
-              <ResumePage
-                key={pageIndex}
-                pageNumber={pageIndex + 1}
-                totalPages={totalPages}
-                className="print:break-after-page"
-              >
-                {renderPageContent(pageIndex)}
-              </ResumePage>
-            ))}
+        <div className="flex-1 w-full overflow-x-hidden overflow-y-auto">
+          <div className="w-full flex justify-center">
+            {/* 渲染所有页面 */}
+            <div 
+              className="flex flex-col items-center"         
+              style={{
+                transform: `scale(${scale})`,
+                transformOrigin: 'top center'
+              }}
+            >
+              {pages.map((_, pageIndex) => (
+                <ResumePage
+                  key={pageIndex}
+                  pageNumber={pageIndex + 1}
+                  totalPages={totalPages}
+                  className="print:break-after-page"
+                >
+                  {renderPageContent(pageIndex)}
+                </ResumePage>
+              ))}
+            </div>
           </div>
         </div>
       )}
 
       {/* 简单回退：如果分页计算失败，显示原始内容 */}
       {!isCalculating && pages.length === 0 && (
-        <div className="flex-1 w-full overflow-y-auto">
-          <div 
-            className="w-full flex flex-col items-center"
-            style={{
-              transform: `scale(${scale})`,
-              transformOrigin: 'top center'
-            }}
-          >
-            <ResumePage pageNumber={1} totalPages={1}>
-              <div className="space-y-6">
-                <PersonalInfoPreview data={content.personal_info || {}} />
-                <EducationPreview data={content.education || []} />
-                <WorkExperiencePreview data={content.work_experience || []} />
-                <SkillsPreview data={content.skills || []} />
-                <ProjectsPreview data={content.projects || []} />
-              </div>
-            </ResumePage>
+        <div className="flex-1 w-full overflow-x-hidden overflow-y-auto">
+          <div className="w-full flex justify-center">
+            <div 
+              className="flex flex-col items-center"
+              style={{
+                transform: `scale(${scale})`,
+                transformOrigin: 'top center'
+              }}
+            >
+              <ResumePage pageNumber={1} totalPages={1}>
+                <div className="space-y-6">
+                  <PersonalInfoPreview data={content.personal_info || {}} />
+                  <EducationPreview data={content.education || []} />
+                  <WorkExperiencePreview data={content.work_experience || []} />
+                  <SkillsPreview data={content.skills || []} />
+                  <ProjectsPreview data={content.projects || []} />
+                </div>
+              </ResumePage>
+            </div>
           </div>
         </div>
       )}

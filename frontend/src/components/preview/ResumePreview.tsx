@@ -83,7 +83,7 @@ export default function ResumePreview({ content }: ResumePreviewProps) {
   }, [])
 
   return (
-    <div className="h-full overflow-y-auto bg-gray-50 p-1">
+    <div className="h-full overflow-hidden bg-gray-50 p-1">
       <PaginatedResumePreview content={content} />
     </div>
   )

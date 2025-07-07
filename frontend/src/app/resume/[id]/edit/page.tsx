@@ -19,6 +19,7 @@ import WorkExperienceEditor from '@/components/editor/WorkExperienceEditor'
 import SkillsEditor from '@/components/editor/SkillsEditor'
 import ProjectsEditor from '@/components/editor/ProjectsEditor'
 import ResumePreview from '@/components/preview/ResumePreview'
+import MarkdownMessage from '@/components/ui/MarkdownMessage'
 // 已移除错误的前端Gemini集成
 
 interface ChatMessage {
@@ -514,13 +515,17 @@ export default function ResumeEditPage() {
                       className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
                       <div
-                        className={`max-w-[80%] px-4 py-2 rounded-lg text-sm ${
+                        className={`max-w-[85%] px-4 py-3 rounded-lg ${
                           message.type === 'user'
-                            ? 'bg-blue-600 text-white rounded-br-sm'
-                            : 'bg-gray-100 text-gray-800 rounded-bl-sm'
+                            ? 'bg-blue-600 text-white rounded-br-sm text-sm'
+                            : 'bg-gray-50 text-gray-800 rounded-bl-sm border border-gray-200'
                         }`}
                       >
-                        {message.content}
+                        {message.type === 'ai' ? (
+                          <MarkdownMessage content={message.content} />
+                        ) : (
+                          <span className="text-sm">{message.content}</span>
+                        )}
                       </div>
                     </div>
                   ))}

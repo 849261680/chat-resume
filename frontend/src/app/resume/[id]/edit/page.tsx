@@ -1,7 +1,7 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth'
 import { resumeApi } from '@/lib/api'
@@ -10,7 +10,8 @@ import Link from 'next/link'
 import { 
   ArrowLeftIcon,
   EyeIcon,
-  CheckIcon
+  CheckIcon,
+  PaperAirplaneIcon
 } from '@heroicons/react/24/outline'
 import PersonalInfoEditor from '@/components/editor/PersonalInfoEditor'
 import EducationEditor from '@/components/editor/EducationEditor'
@@ -18,6 +19,13 @@ import WorkExperienceEditor from '@/components/editor/WorkExperienceEditor'
 import SkillsEditor from '@/components/editor/SkillsEditor'
 import ProjectsEditor from '@/components/editor/ProjectsEditor'
 import ResumePreview from '@/components/preview/ResumePreview'
+
+interface ChatMessage {
+  id: string
+  type: 'user' | 'ai'
+  content: string
+  timestamp: Date
+}
 
 interface Resume {
   id: number
@@ -76,6 +84,19 @@ export default function ResumeEditPage() {
   const [resumeLoading, setResumeLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [activeSection, setActiveSection] = useState('personal')
+  
+  // 聊天相关状态
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    {
+      id: '1',
+      type: 'ai',
+      content: '您好！我是您的AI简历助手，可以帮您优化简历内容。请告诉我您需要什么帮助？',
+      timestamp: new Date()
+    }
+  ])
+  const [inputMessage, setInputMessage] = useState('')
+  const [isSending, setIsSending] = useState(false)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const resumeId = params?.id as string
 
@@ -141,6 +162,50 @@ export default function ResumeEditPage() {
       }
     }))
   }
+
+  // 聊天功能
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }
+
+  const sendMessage = async () => {
+    if (!inputMessage.trim() || isSending) return
+
+    const userMessage: ChatMessage = {
+      id: Date.now().toString(),
+      type: 'user',
+      content: inputMessage.trim(),
+      timestamp: new Date()
+    }
+
+    setMessages(prev => [...prev, userMessage])
+    setInputMessage('')
+    setIsSending(true)
+
+    // 模拟AI响应
+    setTimeout(() => {
+      const aiMessage: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        type: 'ai',
+        content: '我理解您的需求，让我帮您分析一下...',
+        timestamp: new Date()
+      }
+      setMessages(prev => [...prev, aiMessage])
+      setIsSending(false)
+    }, 1000)
+  }
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      sendMessage()
+    }
+  }
+
+  // 自动滚动到底部
+  useEffect(() => {
+    scrollToBottom()
+  }, [messages])
 
   if (!mounted || isLoading || resumeLoading) {
     return (
@@ -214,22 +279,22 @@ export default function ResumeEditPage() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 min-h-[calc(100vh-200px)]">
+      <main className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-140px)]">
           {/* Left Panel - Editor */}
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.8 }}
-            className="flex flex-col"
+            className="flex flex-col min-h-0"
           >
-            <div className="card p-6 flex-1 overflow-hidden">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+            <div className="card p-4 flex-1 overflow-hidden flex flex-col">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center flex-shrink-0">
                 📝 编辑区域
               </h2>
-              <div className="h-full flex flex-col">
+              <div className="flex-1 flex flex-col min-h-0">
                 {/* Section Tabs */}
-                <div className="flex space-x-1 mb-4 bg-gray-100 p-1 rounded-lg">
+                <div className="flex space-x-1 mb-4 bg-gray-100 p-1 rounded-lg flex-shrink-0">
                   {[
                     { key: 'personal', label: '个人信息', icon: '👤' },
                     { key: 'education', label: '教育经历', icon: '🎓' },
@@ -253,7 +318,7 @@ export default function ResumeEditPage() {
                 </div>
 
                 {/* Editor Content */}
-                <div className="flex-1 overflow-y-auto">
+                <div className="flex-1 overflow-y-auto min-h-0 pr-2">
                   {activeSection === 'personal' && (
                     <PersonalInfoEditor
                       data={resume.content.personal_info || {}}
@@ -293,82 +358,68 @@ export default function ResumeEditPage() {
             </div>
           </motion.div>
 
-          {/* Middle Panel - AI Assistant */}
+          {/* Middle Panel - AI Chat */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.2 }}
-            className="flex flex-col"
+            className="flex flex-col min-h-0"
           >
-            <div className="card p-6 flex-1 overflow-hidden">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+            <div className="card p-4 flex-1 overflow-hidden flex flex-col">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center flex-shrink-0">
                 🤖 AI助手
               </h2>
-              <div className="h-full flex flex-col space-y-4">
-                {/* JD Input */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    目标职位描述 (可选)
-                  </label>
-                  <textarea
-                    placeholder="粘贴目标职位JD，获取更精准的优化建议..."
-                    className="w-full p-3 border border-gray-300 rounded-lg text-sm resize-none"
-                    rows={3}
-                  />
-                  <button className="mt-2 btn-primary w-full text-sm">
-                    🎯 获取针对性优化建议
-                  </button>
+              <div className="flex-1 flex flex-col min-h-0">
+                {/* Messages Display Area */}
+                <div className="flex-1 overflow-y-auto mb-4 space-y-3 pr-2 min-h-0 max-h-full">
+                  {messages.map((message) => (
+                    <div
+                      key={message.id}
+                      className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div
+                        className={`max-w-[80%] px-4 py-2 rounded-lg text-sm ${
+                          message.type === 'user'
+                            ? 'bg-blue-600 text-white rounded-br-sm'
+                            : 'bg-gray-100 text-gray-800 rounded-bl-sm'
+                        }`}
+                      >
+                        {message.content}
+                      </div>
+                    </div>
+                  ))}
+                  {isSending && (
+                    <div className="flex justify-start">
+                      <div className="bg-gray-100 text-gray-800 px-4 py-2 rounded-lg rounded-bl-sm text-sm">
+                        <div className="flex items-center space-x-1">
+                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  <div ref={messagesEndRef} />
                 </div>
 
-                {/* AI Suggestions */}
-                <div className="flex-1 overflow-y-auto">
-                  <h3 className="font-medium text-gray-900 mb-3">✨ 实时优化建议</h3>
-                  
-                  <div className="space-y-3">
-                    {/* Sample Suggestions */}
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-blue-900">💡 个人信息建议</span>
-                        <button className="text-xs bg-blue-600 text-white px-2 py-1 rounded">
-                          应用
-                        </button>
-                      </div>
-                      <p className="text-xs text-blue-800">
-                        建议添加GitHub链接展示技术能力
-                      </p>
-                    </div>
-
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-green-900">💡 工作经验建议</span>
-                        <button className="text-xs bg-green-600 text-white px-2 py-1 rounded">
-                          应用
-                        </button>
-                      </div>
-                      <p className="text-xs text-green-800">
-                        建议增加具体项目和技术栈描述
-                      </p>
-                      <div className="mt-2 text-xs text-green-700 bg-green-100 p-2 rounded">
-                        <strong>预览:</strong> "负责后端开发..." → "负责后端开发，使用Python/Django..."
-                      </div>
-                    </div>
-
-                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-orange-900">💡 技能建议</span>
-                        <button className="text-xs bg-orange-600 text-white px-2 py-1 rounded">
-                          应用
-                        </button>
-                      </div>
-                      <p className="text-xs text-orange-800">
-                        建议添加Docker、Kubernetes等容器化技术
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 pt-4 border-t">
-                    <button className="btn-primary w-full text-sm">
-                      ✅ 应用所有建议
+                {/* Input Area */}
+                <div className="border-t pt-3 flex-shrink-0">
+                  <div className="flex space-x-2">
+                    <textarea
+                      value={inputMessage}
+                      onChange={(e) => setInputMessage(e.target.value)}
+                      onKeyPress={handleKeyPress}
+                      placeholder="输入消息..."
+                      className="flex-1 p-2 border border-gray-300 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      rows={2}
+                      disabled={isSending}
+                    />
+                    <button
+                      onClick={sendMessage}
+                      disabled={!inputMessage.trim() || isSending}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+                    >
+                      <PaperAirplaneIcon className="w-5 h-5" />
                     </button>
                   </div>
                 </div>
@@ -381,13 +432,13 @@ export default function ResumeEditPage() {
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.8, delay: 0.4 }}
-            className="flex flex-col"
+            className="flex flex-col min-h-0"
           >
-            <div className="card p-6 flex-1 overflow-hidden">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+            <div className="card p-4 flex-1 overflow-hidden flex flex-col">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center flex-shrink-0">
                 👁️ 实时预览
               </h2>
-              <div className="h-full overflow-y-auto">
+              <div className="flex-1 overflow-hidden min-h-0">
                 <ResumePreview content={resume.content} />
               </div>
             </div>

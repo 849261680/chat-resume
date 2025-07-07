@@ -213,7 +213,7 @@ export default function PaginatedResumePreview({ content }: PaginatedResumePrevi
   }
 
   return (
-    <div ref={containerRef} className="w-full flex flex-col items-center">
+    <div ref={containerRef} className="w-full h-full flex flex-col items-center">
       {/* 用于测量的隐藏内容 */}
       {measurementContent}
 
@@ -227,7 +227,7 @@ export default function PaginatedResumePreview({ content }: PaginatedResumePrevi
 
       {/* 分页显示 */}
       {!isCalculating && pages.length > 0 && (
-        <div className="space-y-0">
+        <div className="flex-1 w-full overflow-y-auto">
 
           {/* 渲染所有页面 */}
           <div 
@@ -253,22 +253,24 @@ export default function PaginatedResumePreview({ content }: PaginatedResumePrevi
 
       {/* 简单回退：如果分页计算失败，显示原始内容 */}
       {!isCalculating && pages.length === 0 && (
-        <div 
-          className="w-full flex flex-col items-center"
-          style={{
-            transform: `scale(${scale})`,
-            transformOrigin: 'top center'
-          }}
-        >
-          <ResumePage pageNumber={1} totalPages={1}>
-            <div className="space-y-6">
-              <PersonalInfoPreview data={content.personal_info || {}} />
-              <EducationPreview data={content.education || []} />
-              <WorkExperiencePreview data={content.work_experience || []} />
-              <SkillsPreview data={content.skills || []} />
-              <ProjectsPreview data={content.projects || []} />
-            </div>
-          </ResumePage>
+        <div className="flex-1 w-full overflow-y-auto">
+          <div 
+            className="w-full flex flex-col items-center"
+            style={{
+              transform: `scale(${scale})`,
+              transformOrigin: 'top center'
+            }}
+          >
+            <ResumePage pageNumber={1} totalPages={1}>
+              <div className="space-y-6">
+                <PersonalInfoPreview data={content.personal_info || {}} />
+                <EducationPreview data={content.education || []} />
+                <WorkExperiencePreview data={content.work_experience || []} />
+                <SkillsPreview data={content.skills || []} />
+                <ProjectsPreview data={content.projects || []} />
+              </div>
+            </ResumePage>
+          </div>
         </div>
       )}
     </div>

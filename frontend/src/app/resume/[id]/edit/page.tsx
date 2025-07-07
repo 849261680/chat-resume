@@ -20,6 +20,8 @@ import SkillsEditor from '@/components/editor/SkillsEditor'
 import ProjectsEditor from '@/components/editor/ProjectsEditor'
 import ResumePreview from '@/components/preview/ResumePreview'
 import MarkdownMessage from '@/components/ui/MarkdownMessage'
+import StreamingMessage from '@/components/ui/StreamingMessage'
+import { useStreamingChat } from '@/hooks/useStreamingChat'
 // 已移除错误的前端Gemini集成
 
 interface ChatMessage {
@@ -103,6 +105,28 @@ export default function ResumeEditPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const resumeId = params?.id as string
+  
+  // 流式聊天Hook
+  const {
+    isStreaming,
+    currentStreamingMessage,
+    sendStreamingMessage,
+    stopStreaming
+  } = useStreamingChat(parseInt(resumeId), {
+    onMessage: (message) => {
+      setMessages(prev => [...prev, message])
+    },
+    onError: (error) => {
+      setApiError(error)
+      const errorMessage: ChatMessage = {
+        id: Date.now().toString(),
+        type: 'ai',
+        content: `抱歉，发生了错误：${error}`,
+        timestamp: new Date()
+      }
+      setMessages(prev => [...prev, errorMessage])
+    }
+  })
 
   useEffect(() => {
     setMounted(true)
@@ -173,7 +197,7 @@ export default function ResumeEditPage() {
   }
 
   const sendMessage = async () => {
-    if (!inputMessage.trim() || isSending) return
+    if (!inputMessage.trim() || isSending || isStreaming) return
 
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
@@ -186,76 +210,14 @@ export default function ResumeEditPage() {
     const currentMessage = inputMessage.trim()
     setInputMessage('')
     setIsSending(true)
+    setApiError(null)
 
     try {
-      setApiError(null) // 清除之前的错误
-      let aiResponse: string
-
-      // 使用后端API调用OpenRouter
-      try {
-        const response = await fetch('http://localhost:8000/api/v1/ai/chat', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            message: currentMessage,
-            resume_id: parseInt(resumeId)
-          })
-        })
-
-        if (!response.ok) {
-          throw new Error(`API request failed: ${response.status}`)
-        }
-
-        const data = await response.json()
-        
-        if (data.error) {
-          throw new Error(data.error)
-        }
-
-        aiResponse = data.response
-        
-        // 设置状态信息
-        setCurrentService(data.service)
-        if (data.service === 'openrouter') {
-          // OpenRouter API 成功
-          setApiError(null)
-        } else if (data.service === 'gemini') {
-          // Gemini API 成功
-          setApiError(null)
-        } else {
-          setApiError(data.error || '使用模拟响应')
-        }
-
-      } catch (error) {
-        console.error('API call error:', error)
-        // 最后的回退：使用简单模拟响应
-        aiResponse = '抱歉，AI服务暂时不可用。请稍后再试，或联系管理员检查服务配置。'
-        setCurrentService('mock')
-        setApiError('AI服务连接失败')
-      }
-
-      const aiMessage: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        type: 'ai',
-        content: aiResponse,
-        timestamp: new Date()
-      }
-
-      setMessages(prev => [...prev, aiMessage])
+      // 使用流式聊天
+      await sendStreamingMessage(currentMessage)
     } catch (error) {
-      console.error('Chat error:', error)
-      
-      const errorMessage: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        type: 'ai',
-        content: '抱歉，我现在无法响应您的请求。请稍后再试，或检查网络连接。',
-        timestamp: new Date()
-      }
-
-      setMessages(prev => [...prev, errorMessage])
-      setApiError('发送消息失败，请重试')
+      console.error('Streaming chat error:', error)
+      setApiError('流式聊天发送失败，请重试')
     } finally {
       setIsSending(false)
     }
@@ -529,7 +491,17 @@ export default function ResumeEditPage() {
                       </div>
                     </div>
                   ))}
-                  {isSending && (
+                  {/* 流式传输中的消息 */}
+                  {isStreaming && currentStreamingMessage && (
+                    <div className="flex justify-start">
+                      <div className="max-w-[85%] px-4 py-3 rounded-lg bg-gray-50 text-gray-800 rounded-bl-sm border border-gray-200">
+                        <StreamingMessage content={currentStreamingMessage} isComplete={false} />
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* 等待响应动画 */}
+                  {(isSending || isStreaming) && !currentStreamingMessage && (
                     <div className="flex justify-start">
                       <div className="bg-gray-100 text-gray-800 px-4 py-2 rounded-lg rounded-bl-sm text-sm">
                         <div className="flex items-center space-x-1">
@@ -553,11 +525,11 @@ export default function ResumeEditPage() {
                       placeholder="输入消息..."
                       className="flex-1 p-2 border border-gray-300 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       rows={2}
-                      disabled={isSending}
+                      disabled={isSending || isStreaming}
                     />
                     <button
                       onClick={sendMessage}
-                      disabled={!inputMessage.trim() || isSending}
+                      disabled={!inputMessage.trim() || isSending || isStreaming}
                       className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
                     >
                       <PaperAirplaneIcon className="w-5 h-5" />

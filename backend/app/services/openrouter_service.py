@@ -43,6 +43,52 @@ class OpenRouterService:
             response.raise_for_status()
             return response.json()
     
+    async def chat_completion_stream(self, messages: List[Dict[str, str]], temperature: float = 0.7):
+        """调用 OpenRouter Chat API（流式传输）"""
+        url = f"{self.api_base}/chat/completions"
+        
+        # 转换消息格式为OpenAI格式
+        openai_messages = []
+        
+        for message in messages:
+            if message["role"] in ["system", "user", "assistant"]:
+                openai_messages.append({
+                    "role": message["role"],
+                    "content": message["content"]
+                })
+        
+        payload = {
+            "model": self.model,
+            "messages": openai_messages,
+            "temperature": temperature,
+            "max_tokens": 2000,
+            "stream": True
+        }
+        
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            async with client.stream('POST', url, json=payload, headers=self.headers) as response:
+                response.raise_for_status()
+                
+                async for line in response.aiter_lines():
+                    if line.startswith('data: '):
+                        data_str = line[6:]  # 移除 'data: ' 前缀
+                        
+                        if data_str.strip() == '[DONE]':
+                            break
+                            
+                        try:
+                            import json
+                            data = json.loads(data_str)
+                            
+                            if 'choices' in data and len(data['choices']) > 0:
+                                delta = data['choices'][0].get('delta', {})
+                                if 'content' in delta:
+                                    content = delta['content']
+                                    if content:
+                                        yield content
+                        except json.JSONDecodeError:
+                            continue
+    
     async def analyze_resume_jd_match(self, resume_content: Dict[str, Any], jd_content: str) -> Dict[str, Any]:
         """分析简历与JD的匹配度"""
         

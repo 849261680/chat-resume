@@ -19,6 +19,7 @@ import WorkExperienceEditor from '@/components/editor/WorkExperienceEditor'
 import SkillsEditor from '@/components/editor/SkillsEditor'
 import ProjectsEditor from '@/components/editor/ProjectsEditor'
 import ResumePreview from '@/components/preview/ResumePreview'
+// 已移除错误的前端Gemini集成
 
 interface ChatMessage {
   id: string
@@ -90,12 +91,14 @@ export default function ResumeEditPage() {
     {
       id: '1',
       type: 'ai',
-      content: '您好！我是您的AI简历助手，可以帮您优化简历内容。请告诉我您需要什么帮助？',
+      content: '您好！我是您的AI简历助手，可以帮您优化简历内容。正在检测AI服务状态，请告诉我您需要什么帮助？',
       timestamp: new Date()
     }
   ])
   const [inputMessage, setInputMessage] = useState('')
   const [isSending, setIsSending] = useState(false)
+  const [apiError, setApiError] = useState<string | null>(null)
+  const [currentService, setCurrentService] = useState<'openrouter' | 'gemini' | 'deepseek' | 'mock'>('mock')
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const resumeId = params?.id as string
@@ -179,20 +182,82 @@ export default function ResumeEditPage() {
     }
 
     setMessages(prev => [...prev, userMessage])
+    const currentMessage = inputMessage.trim()
     setInputMessage('')
     setIsSending(true)
 
-    // 模拟AI响应
-    setTimeout(() => {
+    try {
+      setApiError(null) // 清除之前的错误
+      let aiResponse: string
+
+      // 使用后端API调用OpenRouter
+      try {
+        const response = await fetch('http://localhost:8000/api/v1/ai/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            message: currentMessage,
+            resume_id: parseInt(resumeId)
+          })
+        })
+
+        if (!response.ok) {
+          throw new Error(`API request failed: ${response.status}`)
+        }
+
+        const data = await response.json()
+        
+        if (data.error) {
+          throw new Error(data.error)
+        }
+
+        aiResponse = data.response
+        
+        // 设置状态信息
+        setCurrentService(data.service)
+        if (data.service === 'openrouter') {
+          // OpenRouter API 成功
+          setApiError(null)
+        } else if (data.service === 'gemini') {
+          // Gemini API 成功
+          setApiError(null)
+        } else {
+          setApiError(data.error || '使用模拟响应')
+        }
+
+      } catch (error) {
+        console.error('API call error:', error)
+        // 最后的回退：使用简单模拟响应
+        aiResponse = '抱歉，AI服务暂时不可用。请稍后再试，或联系管理员检查服务配置。'
+        setCurrentService('mock')
+        setApiError('AI服务连接失败')
+      }
+
       const aiMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         type: 'ai',
-        content: '我理解您的需求，让我帮您分析一下...',
+        content: aiResponse,
         timestamp: new Date()
       }
+
       setMessages(prev => [...prev, aiMessage])
+    } catch (error) {
+      console.error('Chat error:', error)
+      
+      const errorMessage: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        type: 'ai',
+        content: '抱歉，我现在无法响应您的请求。请稍后再试，或检查网络连接。',
+        timestamp: new Date()
+      }
+
+      setMessages(prev => [...prev, errorMessage])
+      setApiError('发送消息失败，请重试')
+    } finally {
       setIsSending(false)
-    }, 1000)
+    }
   }
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -201,6 +266,48 @@ export default function ResumeEditPage() {
       sendMessage()
     }
   }
+
+  // 检测AI服务状态
+  const checkAIService = async () => {
+    try {
+      const response = await fetch('http://localhost:8000/api/v1/ai/status', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setCurrentService(data.service)
+        
+        // 更新欢迎消息
+        const serviceText = data.service === 'openrouter' 
+          ? '我已经接入了OpenRouter Gemini-2.5-flash AI，' 
+          : data.service === 'gemini' 
+          ? '我已经接入了Google Gemini AI，' 
+          : data.service === 'deepseek'
+          ? '我已经接入了DeepSeek AI，'
+          : '当前使用模拟模式，'
+        
+        setMessages(prev => prev.map((msg, index) => 
+          index === 0 
+            ? { ...msg, content: `您好！我是您的AI简历助手，可以帮您优化简历内容。${serviceText}请告诉我您需要什么帮助？` }
+            : msg
+        ))
+      }
+    } catch (error) {
+      console.log('AI service check failed, using mock mode')
+      setCurrentService('mock')
+    }
+  }
+
+  // 组件挂载时检测AI服务
+  useEffect(() => {
+    if (mounted) {
+      checkAIService()
+    }
+  }, [mounted])
 
   // 自动滚动到底部
   useEffect(() => {
@@ -366,9 +473,38 @@ export default function ResumeEditPage() {
             className="flex flex-col min-h-0"
           >
             <div className="card p-4 flex-1 overflow-hidden flex flex-col">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center flex-shrink-0">
-                🤖 AI助手
-              </h2>
+              <div className="flex items-center justify-between mb-4 flex-shrink-0">
+                <h2 className="text-lg font-semibold text-gray-900 flex items-center">
+                  🤖 AI助手
+                  {currentService === 'openrouter' && (
+                    <span className="ml-2 px-2 py-1 text-xs bg-green-100 text-green-700 rounded-full">
+                      OpenRouter已连接
+                    </span>
+                  )}
+                  {currentService === 'gemini' && (
+                    <span className="ml-2 px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded-full">
+                      Gemini已连接
+                    </span>
+                  )}
+                  {currentService === 'deepseek' && (
+                    <span className="ml-2 px-2 py-1 text-xs bg-purple-100 text-purple-700 rounded-full">
+                      DeepSeek备用
+                    </span>
+                  )}
+                  {currentService === 'mock' && (
+                    <span className="ml-2 px-2 py-1 text-xs bg-yellow-100 text-yellow-700 rounded-full">
+                      模拟模式
+                    </span>
+                  )}
+                </h2>
+              </div>
+              
+              {/* API错误提示 */}
+              {apiError && (
+                <div className="mb-3 p-2 bg-orange-50 border border-orange-200 rounded-lg text-sm text-orange-700 flex-shrink-0">
+                  ⚠️ {apiError}
+                </div>
+              )}
               <div className="flex-1 flex flex-col min-h-0">
                 {/* Messages Display Area */}
                 <div className="flex-1 overflow-y-auto mb-4 space-y-3 pr-2 min-h-0 max-h-full">

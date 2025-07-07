@@ -2,7 +2,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.services.deepseek_service import DeepSeekService
+from app.services.openrouter_service import OpenRouterService
 from app.services.resume_service import ResumeService
 from app.models.resume import InterviewSession
 from app.schemas.interview import (
@@ -43,8 +43,8 @@ async def start_interview(
     
     try:
         # 生成初始面试问题
-        deepseek_service = DeepSeekService()
-        questions = await deepseek_service.generate_interview_questions(
+        openrouter_service = OpenRouterService()
+        questions = await openrouter_service.generate_interview_questions(
             resume.content, 
             session_create.jd_content if session_create.jd_content else ""
         )
@@ -115,7 +115,7 @@ async def get_next_question(
     
     # 如果已经回答完所有预设问题，根据对话历史生成新问题
     try:
-        deepseek_service = DeepSeekService()
+        openrouter_service = OpenRouterService()
         
         # 构建对话历史
         conversation_history = []
@@ -127,7 +127,7 @@ async def get_next_question(
                 })
         
         # 生成新问题
-        new_question = await deepseek_service.generate_next_interview_question(
+        new_question = await openrouter_service.generate_next_interview_question(
             conversation_history, 
             resume.content
         )
@@ -191,9 +191,9 @@ async def submit_answer(
         
         current_question = interview_session.questions[question_index]["question"]
         
-        # 使用 DeepSeek 评估答案
-        deepseek_service = DeepSeekService()
-        evaluation = await deepseek_service.evaluate_interview_answer(
+        # 使用 OpenRouter 评估答案
+        openrouter_service = OpenRouterService()
+        evaluation = await openrouter_service.evaluate_interview_answer(
             current_question,
             answer_request.answer,
             resume.content

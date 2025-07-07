@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.services.deepseek_service import DeepSeekService
+from app.services.openrouter_service import OpenRouterService
 from app.services.resume_service import ResumeService
 from app.schemas.resume import OptimizationRequest, OptimizationResponse
 from app.models.resume import OptimizationRecord
@@ -35,9 +35,9 @@ async def optimize_resume(
         )
     
     try:
-        # 调用 DeepSeek API 进行分析
-        deepseek_service = DeepSeekService()
-        analysis_result = await deepseek_service.analyze_resume_jd_match(
+        # 调用 OpenRouter API 进行分析
+        openrouter_service = OpenRouterService()
+        analysis_result = await openrouter_service.analyze_resume_jd_match(
             resume.content, 
             optimization_request.jd_content
         )

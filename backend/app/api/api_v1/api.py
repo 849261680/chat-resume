@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.api_v1.endpoints import auth, users, resumes, upload, optimization, interview, export
+from app.api.api_v1.endpoints import auth, users, resumes, upload, optimization, interview, export, chat
 
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
@@ -9,3 +9,4 @@ api_router.include_router(upload.router, prefix="/upload", tags=["upload"])
 api_router.include_router(optimization.router, prefix="/resumes", tags=["optimization"])
 api_router.include_router(interview.router, prefix="/resumes", tags=["interview"])
 api_router.include_router(export.router, prefix="/resumes", tags=["export"])
+api_router.include_router(chat.router, prefix="/ai", tags=["chat"])

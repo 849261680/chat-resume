@@ -7,18 +7,18 @@ from app.services.file_service import FileService
 
 
 class AIResumeParser:
-    """基于DEEPSEEK大模型的智能简历解析器"""
+    """基于OpenRouter Gemini-2.5-flash模型的智能简历解析器"""
     
     def __init__(self):
         self.file_service = FileService()
-        self.api_key = os.getenv('DEEPSEEK_API_KEY', '')
-        self.api_base = os.getenv('DEEPSEEK_API_BASE', 'https://api.deepseek.com/v1')
-        self.model = 'deepseek-chat'
+        self.api_key = os.getenv('OPENROUTER_API_KEY', '')
+        self.api_base = os.getenv('OPENROUTER_API_BASE', 'https://openrouter.ai/api/v1')
+        self.model = os.getenv('OPENROUTER_MODEL', 'google/gemini-2.5-flash')
         self.max_retries = 3
         self.timeout = 30
         
         if not self.api_key:
-            print("[WARNING] DEEPSEEK_API_KEY not found in environment variables")
+            print("[WARNING] OPENROUTER_API_KEY not found in environment variables")
     
     def parse_resume_text(self, text: str) -> Dict[str, Any]:
         """解析简历文本并结构化 - 主入口方法"""
@@ -101,7 +101,9 @@ class AIResumeParser:
                         f"{self.api_base}/chat/completions",
                         headers={
                             "Authorization": f"Bearer {self.api_key}",
-                            "Content-Type": "application/json"
+                            "Content-Type": "application/json",
+                            "HTTP-Referer": "https://chat-resume.com",
+                            "X-Title": "Chat Resume Parser"
                         },
                         json={
                             "model": self.model,
@@ -111,12 +113,13 @@ class AIResumeParser:
                                     "content": "你是一个专业的简历解析助手，擅长将简历文本转换为结构化的JSON数据。"
                                 },
                                 {
-                                    "role": "user", 
+                                    "role": "user",
                                     "content": prompt
                                 }
                             ],
                             "temperature": 0.1,
-                            "max_tokens": 4000
+                            "max_tokens": 4000,
+                            "stream": False
                         }
                     )
                 
@@ -147,7 +150,7 @@ class AIResumeParser:
             except httpx.ConnectError as e:
                 print(f"[ERROR] 第 {attempt + 1} 次连接失败: {e}")
                 if attempt == self.max_retries - 1:
-                    raise Exception(f"无法连接到DEEPSEEK API服务器: {e}")
+                    raise Exception(f"无法连接到OpenRouter API服务器: {e}")
                 await asyncio.sleep(2)
             except httpx.HTTPStatusError as e:
                 print(f"[ERROR] 第 {attempt + 1} 次HTTP错误: {e.response.status_code}")

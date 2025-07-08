@@ -91,7 +91,7 @@ export default function HomePage() {
               并通过模拟面试训练帮助您获得理想工作
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link href="/register" className="btn-primary btn-lg">
+              <Link href="/login" className="btn-primary btn-lg">
                 立即开始
                 <ArrowRightIcon className="w-5 h-5 ml-2" />
               </Link>

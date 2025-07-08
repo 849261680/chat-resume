@@ -37,10 +37,9 @@ export default function HomePage() {
 
   const steps = [
     { step: '01', title: '上传简历', description: '支持PDF、Word、TXT格式' },
-    { step: '02', title: '粘贴JD', description: '输入目标岗位描述' },
-    { step: '03', title: 'AI分析', description: '获得匹配度和优化建议' },
-    { step: '04', title: '优化简历', description: '一键应用或手动编辑' },
-    { step: '05', title: '模拟面试', description: '练习面试技巧' }
+    { step: '02', title: '与AI交流', description: '获得匹配度和优化建议' },
+    { step: '03', title: '优化简历', description: '一键应用或手动编辑' },
+    { step: '04', title: '模拟面试', description: '练习面试技巧' }
   ]
 
   const benefits = [
@@ -144,7 +143,7 @@ export default function HomePage() {
             使用流程
           </h2>
           <p className="text-lg text-gray-600">
-            五个简单步骤，让您的简历脱颖而出
+            四个简单步骤，让您的简历脱颖而出
           </p>
         </div>
 
@@ -276,7 +275,7 @@ export default function HomePage() {
           </div>
           <div className="divider border-gray-800"></div>
           <div className="text-center text-gray-400">
-            <p>&copy; 2024 Chat Resume. All rights reserved.</p>
+            <p>&copy; 2025 Chat Resume. All rights reserved.</p>
           </div>
         </div>
       </footer>

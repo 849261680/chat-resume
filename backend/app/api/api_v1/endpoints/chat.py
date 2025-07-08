@@ -1,7 +1,12 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 from app.services.openrouter_service import OpenRouterService
+from app.services.resume_service import ResumeService
+from app.core.prompts import ResumeAssistantPrompts
+from app.core.database import get_db
+from app.api.deps import get_current_user
 import json
 
 router = APIRouter()
@@ -10,6 +15,7 @@ class ChatRequest(BaseModel):
     """聊天请求模型"""
     message: str
     resume_id: int
+    chat_history: list = []  # 聊天历史，可选
 
 class ChatResponse(BaseModel):
     """聊天响应模型"""
@@ -19,37 +25,45 @@ class ChatResponse(BaseModel):
 
 @router.post("/chat", response_model=ChatResponse)
 async def chat_with_resume(
-    chat_request: ChatRequest
+    chat_request: ChatRequest,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
-    """与AI助手聊天，基于简历内容（简化版本，用于测试）"""
-    
-    # 简化版本：使用模拟简历内容进行测试
-    mock_resume_content = {
-        "personal_info": {
-            "name": "测试用户",
-            "email": "test@example.com",
-            "phone": "13800138000",
-            "position": "软件工程师"
-        },
-        "skills": [
-            {"name": "Python", "level": "熟练", "category": "编程语言"},
-            {"name": "React", "level": "熟练", "category": "前端框架"}
-        ],
-        "projects": [
-            {
-                "name": "简历管理系统",
-                "description": "AI驱动的简历优化平台",
-                "technologies": ["Python", "React", "FastAPI"]
-            }
-        ]
-    }
+    """与AI助手聊天，基于用户真实简历内容"""
     
     try:
-        # 使用 OpenRouter 服务进行聊天
+        # 获取用户真实简历数据
+        resume_service = ResumeService(db)
+        resume = resume_service.get_by_id(chat_request.resume_id)
+        
+        # 验证简历存在性和用户权限
+        if not resume:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="简历不存在"
+            )
+            
+        if resume.owner_id != current_user["id"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="没有权限访问此简历"
+            )
+        
+        # 使用真实简历数据
+        resume_content = resume.content
+        
+        # 使用新的提示词管理系统，包含聊天历史
         openrouter_service = OpenRouterService()
-        ai_response = await openrouter_service.chat_with_resume(
+        messages = ResumeAssistantPrompts.build_chat_messages(
             chat_request.message,
-            mock_resume_content
+            resume_content,
+            chat_request.chat_history
+        )
+        
+        # 调用AI服务
+        response = await openrouter_service.chat_completion(messages)
+        ai_response = openrouter_service._clean_ai_response(
+            response["choices"][0]["message"]["content"]
         )
         
         return ChatResponse(
@@ -58,8 +72,11 @@ async def chat_with_resume(
             is_configured=True
         )
         
+    except HTTPException:
+        # 重新抛出HTTP异常
+        raise
     except Exception as e:
-        # 如果AI服务失败，返回错误信息
+        # 处理其他异常
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"AI服务暂时不可用: {str(e)}"
@@ -67,69 +84,46 @@ async def chat_with_resume(
 
 @router.post("/chat/stream")
 async def chat_with_resume_stream(
-    chat_request: ChatRequest
+    chat_request: ChatRequest,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
-    """与AI助手进行流式聊天，基于简历内容"""
-    
-    # 简化版本：使用模拟简历内容进行测试
-    mock_resume_content = {
-        "personal_info": {
-            "name": "测试用户",
-            "email": "test@example.com",
-            "phone": "13800138000",
-            "position": "软件工程师"
-        },
-        "skills": [
-            {"name": "Python", "level": "熟练", "category": "编程语言"},
-            {"name": "React", "level": "熟练", "category": "前端框架"}
-        ],
-        "projects": [
-            {
-                "name": "简历管理系统",
-                "description": "AI驱动的简历优化平台",
-                "technologies": ["Python", "React", "FastAPI"]
-            }
-        ]
-    }
+    """与AI助手进行流式聊天，基于用户真实简历内容"""
     
     async def generate_stream():
         try:
+            # 获取用户真实简历数据
+            resume_service = ResumeService(db)
+            resume = resume_service.get_by_id(chat_request.resume_id)
+            
+            # 验证简历存在性和用户权限
+            if not resume:
+                error_data = {
+                    "error": "简历不存在",
+                    "done": True
+                }
+                yield f"data: {json.dumps(error_data, ensure_ascii=False)}\n\n"
+                return
+                
+            if resume.owner_id != current_user["id"]:
+                error_data = {
+                    "error": "没有权限访问此简历",
+                    "done": True
+                }
+                yield f"data: {json.dumps(error_data, ensure_ascii=False)}\n\n"
+                return
+            
+            # 使用真实简历数据
+            resume_content = resume.content
+            
             openrouter_service = OpenRouterService()
             
-            # 构建消息上下文
-            resume_text = openrouter_service._format_resume_content(mock_resume_content)
-            system_prompt = f"""你是一位资深的简历优化专家和职业顾问，拥有多年的HR和招聘经验。请基于用户的简历内容提供专业、有针对性的建议。
-
-用户当前简历信息：
-{resume_text}
-
-## 核心服务能力
-
-作为专业的简历顾问，我可以提供以下服务：
-
-1. **内容优化** - 改进表达方式，使用行业术语和关键词
-2. **结构调整** - 优化信息层次，提高可读性  
-3. **亮点突出** - 识别并强化核心竞争力
-4. **匹配度提升** - 针对目标职位定制内容
-5. **专业建议** - 基于行业标准提供改进方案
-
-## 回复格式要求
-
-请用Markdown格式回复，遵循以下规范：
-
-- 使用清晰的标题结构（## 主标题，### 副标题）
-- 用有序或无序列表组织要点
-- 重要内容用**粗体**强调
-- 用代码块展示具体的文案示例
-- 保持段落简洁，逻辑清晰
-- 使用中文回复，考虑中国职场文化
-
-请根据用户的具体问题，提供专业的指导意见。"""
-            
-            messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": chat_request.message}
-            ]
+            # 使用新的提示词管理系统构建消息，包含聊天历史
+            messages = ResumeAssistantPrompts.build_chat_messages(
+                chat_request.message,
+                resume_content,
+                chat_request.chat_history
+            )
             
             # 流式响应
             async for content_chunk in openrouter_service.chat_completion_stream(messages):

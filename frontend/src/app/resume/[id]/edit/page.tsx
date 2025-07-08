@@ -213,8 +213,8 @@ export default function ResumeEditPage() {
     setApiError(null)
 
     try {
-      // 使用流式聊天
-      await sendStreamingMessage(currentMessage)
+      // 使用流式聊天，传递当前的聊天历史
+      await sendStreamingMessage(currentMessage, messages)
     } catch (error) {
       console.error('Streaming chat error:', error)
       setApiError('流式聊天发送失败，请重试')

@@ -1,6 +1,7 @@
 import httpx
 from typing import Dict, Any, List
 from app.core.config import settings
+from app.core.prompts import ResumeAssistantPrompts
 
 class OpenRouterService:
     """OpenRouter API服务类，用于访问Gemini-2.5-flash模型进行简历分析和优化"""
@@ -92,30 +93,8 @@ class OpenRouterService:
     async def analyze_resume_jd_match(self, resume_content: Dict[str, Any], jd_content: str) -> Dict[str, Any]:
         """分析简历与JD的匹配度"""
         
-        # 构建提示词
-        prompt = f"""
-        请分析以下简历与岗位描述的匹配度，并提供优化建议。
-
-        简历内容：
-        {self._format_resume_content(resume_content)}
-
-        岗位描述：
-        {jd_content}
-
-        请按以下格式返回分析结果：
-        1. 匹配度评分（0-100分）
-        2. 匹配的技能和经验
-        3. 缺失的关键技能
-        4. 简历优化建议（具体的修改建议）
-        5. 关键词优化建议
-
-        请用中文回答，并提供具体、可操作的建议。
-        """
-        
-        messages = [
-            {"role": "system", "content": "你是一个专业的HR顾问和简历优化专家，擅长分析简历与岗位要求的匹配度并提供优化建议。"},
-            {"role": "user", "content": prompt}
-        ]
+        # 使用新的提示词管理系统
+        messages = ResumeAssistantPrompts.build_analysis_messages(resume_content, jd_content)
         
         response = await self.chat_completion(messages)
         return self._parse_optimization_response(response)
@@ -123,34 +102,8 @@ class OpenRouterService:
     async def generate_interview_questions(self, resume_content: Dict[str, Any], jd_content: str = "") -> List[Dict[str, str]]:
         """根据简历和JD生成面试问题"""
         
-        resume_text = self._format_resume_content(resume_content)
-        
-        prompt = f"""
-        根据以下简历信息{"和岗位描述" if jd_content else ""}，生成5-8个面试问题。
-
-        简历信息：
-        {resume_text}
-
-        {"岗位描述：" + jd_content if jd_content else ""}
-
-        请生成以下类型的问题：
-        1. 基础背景问题（1-2个）
-        2. 技能验证问题（2-3个）
-        3. 项目经验问题（2-3个）
-        4. 行为面试问题（1-2个）
-
-        每个问题请包含：
-        - 问题内容
-        - 问题类型
-        - 考察要点
-
-        请用中文回答。
-        """
-        
-        messages = [
-            {"role": "system", "content": "你是一个专业的面试官，擅长根据简历和岗位要求设计面试问题。"},
-            {"role": "user", "content": prompt}
-        ]
+        # 使用新的提示词管理系统
+        messages = ResumeAssistantPrompts.build_interview_questions_messages(resume_content, jd_content if jd_content else None)
         
         response = await self.chat_completion(messages)
         return self._parse_interview_questions(response)
@@ -158,29 +111,8 @@ class OpenRouterService:
     async def evaluate_interview_answer(self, question: str, answer: str, resume_content: Dict[str, Any]) -> Dict[str, Any]:
         """评估面试回答"""
         
-        prompt = f"""
-        请评估以下面试回答：
-
-        问题：{question}
-        回答：{answer}
-
-        候选人简历信息：
-        {self._format_resume_content(resume_content)}
-
-        请从以下几个方面进行评估：
-        1. 回答的完整性和逻辑性
-        2. 技术深度和准确性
-        3. 与简历信息的一致性
-        4. 沟通表达能力
-        5. 改进建议
-
-        请给出评分（1-5分）和具体的反馈建议。
-        """
-        
-        messages = [
-            {"role": "system", "content": "你是一个专业的面试官，擅长评估候选人的面试回答。"},
-            {"role": "user", "content": prompt}
-        ]
+        # 使用新的提示词管理系统
+        messages = ResumeAssistantPrompts.build_interview_evaluation_messages(question, answer, resume_content)
         
         response = await self.chat_completion(messages)
         return self._parse_evaluation_response(response)
@@ -219,40 +151,8 @@ class OpenRouterService:
     async def chat_with_resume(self, user_message: str, resume_content: Dict[str, Any]) -> str:
         """简历优化聊天功能"""
         
-        resume_text = self._format_resume_content(resume_content)
-        
-        system_prompt = f"""你是一位资深的简历优化专家和职业顾问，拥有多年的HR和招聘经验。请基于用户的简历内容提供专业、有针对性的建议。
-
-用户当前简历信息：
-{resume_text}
-
-## 核心服务能力
-
-作为专业的简历顾问，我可以提供以下服务：
-
-1. **内容优化** - 改进表达方式，使用行业术语和关键词
-2. **结构调整** - 优化信息层次，提高可读性  
-3. **亮点突出** - 识别并强化核心竞争力
-4. **匹配度提升** - 针对目标职位定制内容
-5. **专业建议** - 基于行业标准提供改进方案
-
-## 回复格式要求
-
-请用Markdown格式回复，遵循以下规范：
-
-- 使用清晰的标题结构（## 主标题，### 副标题）
-- 用有序或无序列表组织要点
-- 重要内容用**粗体**强调
-- 用代码块展示具体的文案示例
-- 保持段落简洁，逻辑清晰
-- 使用中文回复，考虑中国职场文化
-
-请根据用户的具体问题，提供专业的指导意见。"""
-        
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_message}
-        ]
+        # 使用新的提示词管理系统
+        messages = ResumeAssistantPrompts.build_chat_messages(user_message, resume_content)
         
         response = await self.chat_completion(messages)
         raw_content = response["choices"][0]["message"]["content"]

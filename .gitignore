@@ -31,7 +31,7 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+# lib/  # 注释掉，避免忽略前端 src/lib 目录
 lib64/
 parts/
 sdist/

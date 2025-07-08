@@ -6,7 +6,7 @@ from app.core.database import get_db
 from app.core.security import create_access_token, verify_password
 from app.core.config import settings
 from app.models.user import User
-from app.schemas.auth import Token, UserCreate, UserResponse
+from app.schemas.auth import Token, UserCreate, UserResponse, LoginResponse
 from app.services.user_service import UserService
 
 router = APIRouter()
@@ -30,10 +30,11 @@ async def register(user_create: UserCreate, db: Session = Depends(get_db)):
         id=user.id,
         email=user.email,
         full_name=user.full_name,
-        is_active=user.is_active
+        is_active=user.is_active,
+        created_at=user.created_at
     )
 
-@router.post("/login", response_model=Token)
+@router.post("/login", response_model=LoginResponse)
 async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user_service = UserService(db)
     
@@ -52,4 +53,15 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = 
         subject=user.id, expires_delta=access_token_expires
     )
     
-    return Token(access_token=access_token, token_type="bearer")
+    # 返回包含用户信息的响应
+    return LoginResponse(
+        access_token=access_token, 
+        token_type="bearer",
+        user=UserResponse(
+            id=user.id,
+            email=user.email,
+            full_name=user.full_name,
+            is_active=user.is_active,
+            created_at=user.created_at
+        )
+    )

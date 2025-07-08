@@ -32,5 +32,6 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
         "id": user.id,
         "email": user.email,
         "full_name": user.full_name,
-        "is_active": user.is_active
+        "is_active": user.is_active,
+        "created_at": user.created_at
     }

@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth'
+import toast from 'react-hot-toast'
 import { 
   UserIcon, 
   EnvelopeIcon, 
@@ -27,13 +28,17 @@ export default function LoginPage() {
 
   const onSubmit = async (data: LoginForm) => {
     try {
+      toast.loading('正在登录...', { id: 'login' })
       const success = await login(data.email, data.password)
       if (success) {
+        toast.success('登录成功！', { id: 'login' })
         // 登录成功，跳转到仪表板
         router.push('/dashboard')
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('登录失败:', error)
+      const errorMessage = error.message || '登录失败，请重试'
+      toast.error(errorMessage, { id: 'login' })
     }
   }
 

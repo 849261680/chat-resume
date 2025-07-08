@@ -289,7 +289,7 @@ export default function DashboardPage() {
             </motion.div>
           ) : (
             // Resume Grid
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {resumes.map((resume, index) => {
                 return (
                   <motion.div
@@ -297,7 +297,7 @@ export default function DashboardPage() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.8, delay: index * 0.1 }}
-                    className="card p-6 hover:shadow-lg transition-shadow"
+                    className="card px-7 py-5 hover:shadow-lg transition-shadow"
                   >
                     {/* Resume Header */}
                     <div className="flex items-start justify-between mb-4">
@@ -319,7 +319,7 @@ export default function DashboardPage() {
                     <div className="flex space-x-2">
                       <Link
                         href={`/resume/${resume.id}/edit`}
-                        className="btn-primary flex-1 flex items-center justify-center space-x-1 text-sm "
+                        className="btn-primary flex-1 items-center justify-center space-x-1 text-sm px-2 py-2"
                       >
                         <ChatBubbleLeftIcon className="w-4 h-4" />
                         <span>Chat Resume</span>

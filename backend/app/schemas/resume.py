@@ -7,6 +7,11 @@ class ResumeCreate(BaseModel):
     content: Dict[str, Any]
     original_filename: Optional[str] = None
 
+class ResumeUpdate(BaseModel):
+    title: Optional[str] = None
+    content: Optional[Dict[str, Any]] = None
+    original_filename: Optional[str] = None
+
 class ResumeResponse(BaseModel):
     id: int
     title: str

@@ -11,8 +11,7 @@ import {
   UserIcon, 
   DocumentIcon, 
   PlusIcon,
-  PencilIcon,
-  ChatBubbleLeftRightIcon,
+  ChatBubbleLeftIcon,
   TrashIcon,
   CloudArrowUpIcon,
   CalendarIcon
@@ -169,26 +168,6 @@ export default function DashboardPage() {
     })
   }
 
-  const getResumeCompleteness = (content: any) => {
-    const sections = ['personal_info', 'education', 'work_experience', 'skills']
-    const completed = sections.filter(section => {
-      const sectionData = content[section]
-      if (Array.isArray(sectionData)) {
-        return sectionData.length > 0
-      }
-      return sectionData && Object.keys(sectionData).length > 0
-    })
-    return {
-      completed: completed.length,
-      total: sections.length,
-      sections: {
-        personal_info: content.personal_info && Object.keys(content.personal_info).length > 0,
-        education: content.education && content.education.length > 0,
-        work_experience: content.work_experience && content.work_experience.length > 0,
-        skills: content.skills && content.skills.length > 0
-      }
-    }
-  }
 
   if (!mounted || isLoading || !isAuthenticated) {
     return (
@@ -312,7 +291,6 @@ export default function DashboardPage() {
             // Resume Grid
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {resumes.map((resume, index) => {
-                const completeness = getResumeCompleteness(resume.content)
                 return (
                   <motion.div
                     key={resume.id}
@@ -334,61 +312,21 @@ export default function DashboardPage() {
                           </span>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className="text-sm font-medium text-gray-900">
-                          {completeness.completed}/{completeness.total}
-                        </div>
-                        <div className="text-xs text-gray-500">完成度</div>
-                      </div>
                     </div>
 
-                    {/* Completeness Indicators */}
-                    <div className="flex items-center space-x-4 text-sm mb-6">
-                      <div className="flex items-center">
-                        <span className="text-gray-600">个人信息</span>
-                        <span className={`ml-1 ${completeness.sections.personal_info ? 'text-green-600' : 'text-gray-400'}`}>
-                          {completeness.sections.personal_info ? '✓' : '○'}
-                        </span>
-                      </div>
-                      <div className="flex items-center">
-                        <span className="text-gray-600">工作经验</span>
-                        <span className={`ml-1 ${completeness.sections.work_experience ? 'text-green-600' : 'text-orange-500'}`}>
-                          {completeness.sections.work_experience ? '✓' : '⚠️'}
-                        </span>
-                      </div>
-                      <div className="flex items-center">
-                        <span className="text-gray-600">教育</span>
-                        <span className={`ml-1 ${completeness.sections.education ? 'text-green-600' : 'text-gray-400'}`}>
-                          {completeness.sections.education ? '✓' : '○'}
-                        </span>
-                      </div>
-                      <div className="flex items-center">
-                        <span className="text-gray-600">技能</span>
-                        <span className={`ml-1 ${completeness.sections.skills ? 'text-green-600' : 'text-gray-400'}`}>
-                          {completeness.sections.skills ? '✓' : '○'}
-                        </span>
-                      </div>
-                    </div>
 
                     {/* Action Buttons */}
                     <div className="flex space-x-2">
                       <Link
                         href={`/resume/${resume.id}/edit`}
-                        className="btn-primary flex-1 flex items-center justify-center space-x-1 text-sm"
+                        className="btn-primary flex-1 flex items-center justify-center space-x-1 text-sm "
                       >
-                        <PencilIcon className="w-4 h-4" />
-                        <span>编辑</span>
-                      </Link>
-                      <Link
-                        href={`/resume/${resume.id}/interview`}
-                        className="btn-secondary flex-1 flex items-center justify-center space-x-1 text-sm"
-                      >
-                        <ChatBubbleLeftRightIcon className="w-4 h-4" />
-                        <span>面试</span>
+                        <ChatBubbleLeftIcon className="w-4 h-4" />
+                        <span>Chat Resume</span>
                       </Link>
                       <button
                         onClick={() => handleDeleteResume(resume.id, resume.title)}
-                        className="btn-danger flex items-center justify-center px-3"
+                        className="btn-danger flex items-center justify-center "
                         title="删除简历"
                       >
                         <TrashIcon className="w-4 h-4" />

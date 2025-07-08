@@ -9,7 +9,6 @@ import toast from 'react-hot-toast'
 import Link from 'next/link'
 import { 
   ArrowLeftIcon,
-  EyeIcon,
   CheckIcon,
   PaperAirplaneIcon
 } from '@heroicons/react/24/outline'
@@ -101,7 +100,6 @@ export default function ResumeEditPage() {
   const [inputMessage, setInputMessage] = useState('')
   const [isSending, setIsSending] = useState(false)
   const [apiError, setApiError] = useState<string | null>(null)
-  const [currentService, setCurrentService] = useState<'openrouter' | 'gemini' | 'deepseek' | 'mock'>('mock')
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const resumeId = params?.id as string
@@ -167,8 +165,11 @@ export default function ResumeEditPage() {
 
     try {
       setSaving(true)
-      // TODO: 实现保存API调用
-      // await resumeApi.updateResume(resume.id, { content: resume.content })
+      // 调用API更新简历
+      await resumeApi.updateResume(resume.id, { 
+        title: resume.title,
+        content: resume.content 
+      })
       toast.success('简历保存成功')
     } catch (error) {
       console.error('Save error:', error)
@@ -230,47 +231,7 @@ export default function ResumeEditPage() {
     }
   }
 
-  // 检测AI服务状态
-  const checkAIService = async () => {
-    try {
-      const response = await fetch('http://localhost:8000/api/v1/ai/status', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      })
 
-      if (response.ok) {
-        const data = await response.json()
-        setCurrentService(data.service)
-        
-        // 更新欢迎消息
-        const serviceText = data.service === 'openrouter' 
-          ? '我已经接入了OpenRouter Gemini-2.5-flash AI，' 
-          : data.service === 'gemini' 
-          ? '我已经接入了Google Gemini AI，' 
-          : data.service === 'deepseek'
-          ? '我已经接入了DeepSeek AI，'
-          : '当前使用模拟模式，'
-        
-        setMessages(prev => prev.map((msg, index) => 
-          index === 0 
-            ? { ...msg, content: `您好！我是您的AI简历助手，可以帮您优化简历内容。${serviceText}请告诉我您需要什么帮助？` }
-            : msg
-        ))
-      }
-    } catch (error) {
-      console.log('AI service check failed, using mock mode')
-      setCurrentService('mock')
-    }
-  }
-
-  // 组件挂载时检测AI服务
-  useEffect(() => {
-    if (mounted) {
-      checkAIService()
-    }
-  }, [mounted])
 
   // 自动滚动到底部
   useEffect(() => {
@@ -339,10 +300,6 @@ export default function ResumeEditPage() {
                   </>
                 )}
               </button>
-              <button className="btn-secondary flex items-center space-x-2">
-                <EyeIcon className="w-4 h-4" />
-                <span>预览</span>
-              </button>
             </div>
           </div>
         </div>
@@ -360,7 +317,7 @@ export default function ResumeEditPage() {
           >
             <div className="card p-4 flex-1 overflow-hidden flex flex-col">
               <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center flex-shrink-0">
-                📝 编辑区域
+                编辑区域
               </h2>
               <div className="flex-1 flex flex-col min-h-0">
                 {/* Section Tabs */}
@@ -437,28 +394,8 @@ export default function ResumeEditPage() {
           >
             <div className="card p-4 flex-1 overflow-hidden flex flex-col">
               <div className="flex items-center justify-between mb-4 flex-shrink-0">
-                <h2 className="text-lg font-semibold text-gray-900 flex items-center">
-                  🤖 AI助手
-                  {currentService === 'openrouter' && (
-                    <span className="ml-2 px-2 py-1 text-xs bg-green-100 text-green-700 rounded-full">
-                      OpenRouter已连接
-                    </span>
-                  )}
-                  {currentService === 'gemini' && (
-                    <span className="ml-2 px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded-full">
-                      Gemini已连接
-                    </span>
-                  )}
-                  {currentService === 'deepseek' && (
-                    <span className="ml-2 px-2 py-1 text-xs bg-purple-100 text-purple-700 rounded-full">
-                      DeepSeek备用
-                    </span>
-                  )}
-                  {currentService === 'mock' && (
-                    <span className="ml-2 px-2 py-1 text-xs bg-yellow-100 text-yellow-700 rounded-full">
-                      模拟模式
-                    </span>
-                  )}
+                <h2 className="text-lg font-semibold text-gray-900">
+                  AI助手
                 </h2>
               </div>
               
@@ -549,7 +486,7 @@ export default function ResumeEditPage() {
           >
             <div className="card p-4 flex-1 overflow-hidden flex flex-col">
               <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center flex-shrink-0">
-                👁️ 实时预览
+                实时预览
               </h2>
               <div className="flex-1 overflow-hidden min-h-0">
                 <ResumePreview content={resume.content} />

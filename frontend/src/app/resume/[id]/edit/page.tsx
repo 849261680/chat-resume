@@ -10,7 +10,7 @@ import Link from 'next/link'
 import { 
   ArrowLeftIcon,
   CheckIcon,
-  PaperAirplaneIcon
+  ArrowUpIcon
 } from '@heroicons/react/24/outline'
 import PersonalInfoEditor from '@/components/editor/PersonalInfoEditor'
 import EducationEditor from '@/components/editor/EducationEditor'
@@ -93,7 +93,7 @@ export default function ResumeEditPage() {
     {
       id: '1',
       type: 'ai',
-      content: '您好！我是您的AI简历助手，可以帮您优化简历内容。正在检测AI服务状态，请告诉我您需要什么帮助？',
+      content: '您好！我是您的AI简历优化师，可以帮您优化简历内容，请告诉我您需要什么帮助？',
       timestamp: new Date()
     }
   ])
@@ -453,23 +453,27 @@ export default function ResumeEditPage() {
                 </div>
 
                 {/* Input Area */}
-                <div className="border-t pt-3 flex-shrink-0">
-                  <div className="flex space-x-2">
+                <div className="pt-3 flex-shrink-0">
+                  <div className="relative">
                     <textarea
                       value={inputMessage}
                       onChange={(e) => setInputMessage(e.target.value)}
                       onKeyPress={handleKeyPress}
                       placeholder="输入消息..."
-                      className="flex-1 p-2 border border-gray-300 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full p-2 pr-12 border border-gray-300 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       rows={2}
                       disabled={isSending || isStreaming}
                     />
                     <button
                       onClick={sendMessage}
                       disabled={!inputMessage.trim() || isSending || isStreaming}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+                      className={`absolute right-2 top-1/2 transform -translate-y-1/2 w-8 h-8 rounded-full transition-colors flex items-center justify-center ${
+                        inputMessage.trim() 
+                          ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      } disabled:cursor-not-allowed`}
                     >
-                      <PaperAirplaneIcon className="w-5 h-5" />
+                      <ArrowUpIcon className="w-4 h-4" />
                     </button>
                   </div>
                 </div>

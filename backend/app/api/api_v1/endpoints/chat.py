@@ -42,11 +42,17 @@ async def chat_with_resume(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="简历不存在"
             )
+        
+        # 调试信息
+        print(f"Debug - Resume ID: {chat_request.resume_id}")
+        print(f"Debug - Resume owner_id: {resume.owner_id}")
+        print(f"Debug - Current user ID: {current_user['id']}")
+        print(f"Debug - Current user: {current_user}")
             
         if resume.owner_id != current_user["id"]:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="没有权限访问此简历"
+                detail=f"没有权限访问此简历 (简历所有者: {resume.owner_id}, 当前用户: {current_user['id']})"
             )
         
         # 使用真实简历数据
@@ -104,10 +110,16 @@ async def chat_with_resume_stream(
                 }
                 yield f"data: {json.dumps(error_data, ensure_ascii=False)}\n\n"
                 return
+            
+            # 调试信息
+            print(f"Debug Stream - Resume ID: {chat_request.resume_id}")
+            print(f"Debug Stream - Resume owner_id: {resume.owner_id}")
+            print(f"Debug Stream - Current user ID: {current_user['id']}")
+            print(f"Debug Stream - Current user: {current_user}")
                 
             if resume.owner_id != current_user["id"]:
                 error_data = {
-                    "error": "没有权限访问此简历",
+                    "error": f"没有权限访问此简历 (简历所有者: {resume.owner_id}, 当前用户: {current_user['id']})",
                     "done": True
                 }
                 yield f"data: {json.dumps(error_data, ensure_ascii=False)}\n\n"

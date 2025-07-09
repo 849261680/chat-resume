@@ -104,6 +104,11 @@ export default function ResumeEditPage() {
 
   const resumeId = params?.id as string
   
+  // 调试信息
+  console.log('Resume ID from params:', resumeId)
+  console.log('Parsed Resume ID:', parseInt(resumeId))
+  console.log('Current user:', user)
+  
   // 流式聊天Hook
   const {
     isStreaming,

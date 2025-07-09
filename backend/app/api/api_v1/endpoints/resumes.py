@@ -42,6 +42,13 @@ async def get_resume(
             detail="Resume not found"
         )
     
+    # 添加调试信息
+    print(f"Debug: resume_id = {resume_id}, type = {type(resume_id)}")
+    print(f"Debug: resume.owner_id = {resume.owner_id}, type = {type(resume.owner_id)}")
+    print(f"Debug: current_user['id'] = {current_user['id']}, type = {type(current_user['id'])}")
+    print(f"Debug: comparison result = {resume.owner_id != current_user['id']}")
+    print(f"Debug: current_user = {current_user}")
+    
     if resume.owner_id != current_user["id"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

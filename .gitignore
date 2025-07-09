@@ -92,11 +92,9 @@ coverage.xml
 .pytest_cache/
 cover/
 
-# Vercel
-.vercel
-
-# Railway
-railway.json
+# Vercel (keep deployment configs but ignore sensitive data)
+.vercel/
+# railway.json  # 注释掉，Railway配置应该被跟踪
 
 # Local development
-Procfile.dev
+# Procfile.dev  # 注释掉，开发配置可能需要被跟踪

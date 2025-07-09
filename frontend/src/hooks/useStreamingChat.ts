@@ -21,7 +21,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
   const {
     onMessage,
     onError,
-    apiBaseUrl = 'http://localhost:8000'
+    apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
   } = options
 
   const sendStreamingMessage = async (message: string, chatHistory: ChatMessage[] = []) => {

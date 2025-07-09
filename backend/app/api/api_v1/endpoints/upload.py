@@ -58,7 +58,7 @@ async def upload_resume(
         # 清理临时文件
         file_service.delete_file(file_path)
         
-        return ResumeResponse.from_orm(resume)
+        return ResumeResponse.model_validate(resume)
         
     except Exception as e:
         # 清理临时文件

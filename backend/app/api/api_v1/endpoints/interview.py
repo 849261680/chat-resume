@@ -62,7 +62,7 @@ async def start_interview(
         db.commit()
         db.refresh(interview_session)
         
-        return InterviewSessionResponse.from_orm(interview_session)
+        return InterviewSessionResponse.model_validate(interview_session)
         
     except Exception as e:
         raise HTTPException(
@@ -295,4 +295,4 @@ async def get_interview_sessions(
         InterviewSession.resume_id == resume_id
     ).order_by(InterviewSession.created_at.desc()).all()
     
-    return [InterviewSessionResponse.from_orm(session) for session in sessions]
+    return [InterviewSessionResponse.model_validate(session) for session in sessions]

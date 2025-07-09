@@ -15,7 +15,7 @@ async def get_resumes(
 ):
     resume_service = ResumeService(db)
     resumes = resume_service.get_by_owner(current_user["id"])
-    return [ResumeResponse.from_orm(resume) for resume in resumes]
+    return [ResumeResponse.model_validate(resume) for resume in resumes]
 
 @router.post("/", response_model=ResumeResponse)
 async def create_resume(
@@ -25,7 +25,7 @@ async def create_resume(
 ):
     resume_service = ResumeService(db)
     resume = resume_service.create(resume_create, current_user["id"])
-    return ResumeResponse.from_orm(resume)
+    return ResumeResponse.model_validate(resume)
 
 @router.get("/{resume_id}", response_model=ResumeResponse)
 async def get_resume(
@@ -42,12 +42,6 @@ async def get_resume(
             detail="Resume not found"
         )
     
-    # 添加调试信息
-    print(f"Debug: resume_id = {resume_id}, type = {type(resume_id)}")
-    print(f"Debug: resume.owner_id = {resume.owner_id}, type = {type(resume.owner_id)}")
-    print(f"Debug: current_user['id'] = {current_user['id']}, type = {type(current_user['id'])}")
-    print(f"Debug: comparison result = {resume.owner_id != current_user['id']}")
-    print(f"Debug: current_user = {current_user}")
     
     if resume.owner_id != current_user["id"]:
         raise HTTPException(
@@ -55,7 +49,7 @@ async def get_resume(
             detail="Not enough permissions"
         )
     
-    return ResumeResponse.from_orm(resume)
+    return ResumeResponse.model_validate(resume)
 
 @router.put("/{resume_id}", response_model=ResumeResponse)
 async def update_resume(
@@ -83,7 +77,7 @@ async def update_resume(
         )
     
     # 只更新提供的字段
-    update_data = resume_update.dict(exclude_unset=True)
+    update_data = resume_update.model_dump(exclude_unset=True)
     if not update_data:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -98,7 +92,7 @@ async def update_resume(
             detail="Failed to update resume"
         )
     
-    return ResumeResponse.from_orm(updated_resume)
+    return ResumeResponse.model_validate(updated_resume)
 
 @router.delete("/{resume_id}")
 async def delete_resume(

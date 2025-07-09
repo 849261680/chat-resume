@@ -58,6 +58,7 @@ interface Resume {
   title: string
   content: ResumeContent
   original_filename?: string
+  owner_id: number
   created_at: string
   updated_at?: string
 }

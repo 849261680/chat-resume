@@ -52,7 +52,7 @@ async def optimize_resume(
         db.commit()
         db.refresh(optimization_record)
         
-        return OptimizationResponse.from_orm(optimization_record)
+        return OptimizationResponse.model_validate(optimization_record)
         
     except Exception as e:
         raise HTTPException(
@@ -89,4 +89,4 @@ async def get_optimizations(
         OptimizationRecord.resume_id == resume_id
     ).order_by(OptimizationRecord.created_at.desc()).all()
     
-    return [OptimizationResponse.from_orm(opt) for opt in optimizations]
+    return [OptimizationResponse.model_validate(opt) for opt in optimizations]

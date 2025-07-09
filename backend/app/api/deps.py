@@ -18,23 +18,16 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
         user_id_str = payload.get("sub")
-        print(f"Debug JWT: payload = {payload}")
-        print(f"Debug JWT: user_id_str = {user_id_str}, type = {type(user_id_str)}")
         if user_id_str is None:
             raise credentials_exception
         user_id = int(user_id_str)
-        print(f"Debug JWT: user_id = {user_id}, type = {type(user_id)}")
-    except (JWTError, ValueError, TypeError) as e:
-        print(f"Debug JWT: Error decoding token = {e}")
+    except (JWTError, ValueError, TypeError):
         raise credentials_exception
     
     user_service = UserService(db)
     user = user_service.get_by_id(user_id)
     if user is None:
-        print(f"Debug JWT: User not found for user_id = {user_id}")
         raise credentials_exception
-    
-    print(f"Debug JWT: Found user = {user.id}, {user.email}")
     
     return {
         "id": user.id,

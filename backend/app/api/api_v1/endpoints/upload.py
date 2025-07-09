@@ -51,7 +51,9 @@ async def upload_resume(
             content=resume_data,
             original_filename=file.filename
         )
+        print(f"[UPLOAD] 开始保存简历到数据库...")
         resume = resume_service.create(resume_create, current_user["id"])
+        print(f"[UPLOAD] 简历保存成功，ID: {resume.id}")
         
         # 清理临时文件
         file_service.delete_file(file_path)
@@ -63,7 +65,19 @@ async def upload_resume(
         if 'file_path' in locals():
             file_service.delete_file(file_path)
         
+        # 记录详细错误信息
+        print(f"[ERROR] 简历上传处理失败: {str(e)}")
+        print(f"[ERROR] 错误类型: {type(e).__name__}")
+        
+        # 根据错误类型返回不同的错误信息
+        if "数据库" in str(e) or "database" in str(e).lower():
+            detail = "数据库保存失败，请稍后重试"
+        elif "解析" in str(e) or "parsing" in str(e).lower():
+            detail = "简历解析失败，请检查文件格式"
+        else:
+            detail = f"简历处理失败: {str(e)}"
+        
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to process resume: {str(e)}"
+            detail=detail
         )

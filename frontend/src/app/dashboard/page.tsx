@@ -7,15 +7,14 @@ import { useRouter } from 'next/navigation'
 import { resumeApi } from '@/lib/api'
 import toast from 'react-hot-toast'
 import Link from 'next/link'
+import MainNavigation from '@/components/layout/MainNavigation'
 import { 
-  UserIcon, 
   DocumentIcon, 
   PlusIcon,
-  ChatBubbleLeftIcon,
+  PencilIcon,
   TrashIcon,
   CloudArrowUpIcon,
-  CalendarIcon,
-  AcademicCapIcon
+  CalendarIcon
 } from '@heroicons/react/24/outline'
 
 interface Resume {
@@ -257,31 +256,8 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center">
-                <UserIcon className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-xl font-bold text-gray-900">Chat Resume</span>
-            </div>
-            
-            <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-600">
-                欢迎, {user?.full_name || user?.email}
-              </span>
-              <button
-                onClick={logout}
-                className="btn-secondary"
-              >
-                退出登录
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
+      {/* Navigation */}
+      <MainNavigation />
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -294,10 +270,10 @@ export default function DashboardPage() {
           <div className="flex justify-between items-center mb-8">
             <div>
               <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                我的简历
+                简历中心
               </h1>
               <p className="text-gray-600">
-                管理您的简历，使用AI优化，并进行模拟面试
+                管理您的简历文档，使用AI进行优化
               </p>
             </div>
             <div className="flex space-x-3">
@@ -394,26 +370,17 @@ export default function DashboardPage() {
 
 
                     {/* Action Buttons */}
-                    <div className="space-y-2">
-                      <div className="flex space-x-2">
-                        <Link
-                          href={`/resume/${resume.id}/edit`}
-                          className="btn-primary flex-1 flex items-center justify-center space-x-1 text-sm px-2 py-2"
-                        >
-                          <ChatBubbleLeftIcon className="w-4 h-4" />
-                          <span>Chat Resume</span>
-                        </Link>
-                        <Link
-                          href={`/resume/${resume.id}/interview`}
-                          className="btn-secondary flex-1 flex items-center justify-center space-x-1 text-sm px-2 py-2"
-                        >
-                          <AcademicCapIcon className="w-4 h-4" />
-                          <span>模拟面试</span>
-                        </Link>
-                      </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Link
+                        href={`/resume/${resume.id}/edit`}
+                        className="btn-primary flex items-center justify-center space-x-1 text-sm px-2 py-2"
+                      >
+                        <PencilIcon className="w-4 h-4" />
+                        <span>编辑</span>
+                      </Link>
                       <button
                         onClick={() => handleDeleteResume(resume.id, resume.title)}
-                        className="btn-danger w-full flex items-center justify-center space-x-1 text-sm py-2"
+                        className="btn-danger flex items-center justify-center space-x-1 text-sm px-2 py-2"
                         title="删除简历"
                       >
                         <TrashIcon className="w-4 h-4" />

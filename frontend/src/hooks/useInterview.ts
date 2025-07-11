@@ -21,6 +21,9 @@ interface InterviewHookOptions {
   onError?: (error: string) => void
   apiBaseUrl?: string
   chatHistory?: ChatMessage[]
+  interviewMode?: string
+  jobPosition?: string
+  jdContent?: string
 }
 
 export function useInterview(resumeId: number, options: InterviewHookOptions = {}) {
@@ -34,7 +37,10 @@ export function useInterview(resumeId: number, options: InterviewHookOptions = {
     onMessage,
     onError,
     apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000',
-    chatHistory = []
+    chatHistory = [],
+    interviewMode = 'comprehensive',
+    jobPosition,
+    jdContent
   } = options
 
   // 开始面试会话
@@ -49,9 +55,32 @@ export function useInterview(resumeId: number, options: InterviewHookOptions = {
         throw new Error('未找到认证token，请重新登录')
       }
 
+      // 调用后端API创建面试会话
+      const startResponse = await fetch(`${apiBaseUrl}/api/v1/resumes/${resumeId}/interview/start`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          job_position: jobPosition,
+          interview_mode: interviewMode,
+          jd_content: jdContent || ''
+        })
+      })
+
+      let backendSessionId = null
+      if (startResponse.ok) {
+        const backendSession = await startResponse.json()
+        backendSessionId = backendSession.id
+        console.log('面试会话已创建，ID:', backendSessionId)
+      } else {
+        console.warn('后端面试会话创建失败，使用本地会话')
+      }
+
       // 创建本地面试会话
       const session: InterviewSession = {
-        id: Date.now().toString(),
+        id: backendSessionId ? backendSessionId.toString() : Date.now().toString(),
         resumeId,
         status: 'active',
         startTime: new Date(),
@@ -156,6 +185,21 @@ export function useInterview(resumeId: number, options: InterviewHookOptions = {
         throw new Error('未找到认证token，请重新登录')
       }
 
+      // 检查API连接状态
+      try {
+        const healthCheck = await fetch(`${apiBaseUrl}/health`, {
+          method: 'GET',
+          timeout: 5000,
+          signal: abortControllerRef.current.signal
+        })
+        if (!healthCheck.ok) {
+          throw new Error('后端服务不可用')
+        }
+      } catch (healthError) {
+        console.error('Health check failed:', healthError)
+        throw new Error('无法连接到后端服务，请检查服务是否运行')
+      }
+
       // 发送用户答案消息
       const userMessage: ChatMessage = {
         id: Date.now().toString(),
@@ -170,9 +214,11 @@ export function useInterview(resumeId: number, options: InterviewHookOptions = {
         message: answer,
         resume_id: resumeId,
         chat_history: chatHistory,
-        is_interview: true
+        is_interview: true,
+        interview_mode: interviewMode
       }
       console.log('面试API请求:', requestBody)
+      console.log('API URL:', `${apiBaseUrl}/api/v1/ai/chat/stream`)
       
       const response = await fetch(`${apiBaseUrl}/api/v1/ai/chat/stream`, {
         method: 'POST',
@@ -183,6 +229,9 @@ export function useInterview(resumeId: number, options: InterviewHookOptions = {
         body: JSON.stringify(requestBody),
         signal: abortControllerRef.current.signal
       })
+      
+      console.log('响应状态:', response.status)
+      console.log('响应头:', response.headers)
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
@@ -256,7 +305,18 @@ export function useInterview(resumeId: number, options: InterviewHookOptions = {
         console.log('Request aborted')
       } else {
         console.error('Send answer error:', error)
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+        let errorMessage = 'Unknown error'
+        
+        if (error instanceof Error) {
+          if (error.message.includes('Load failed') || error.message.includes('fetch')) {
+            errorMessage = '网络连接失败，请检查后端服务是否运行'
+          } else if (error.message.includes('Failed to fetch')) {
+            errorMessage = '无法连接到服务器，请检查网络连接'
+          } else {
+            errorMessage = error.message
+          }
+        }
+        
         onError?.(errorMessage)
       }
     } finally {
@@ -271,10 +331,30 @@ export function useInterview(resumeId: number, options: InterviewHookOptions = {
     if (!currentSession) return
 
     try {
-      setIsInterviewActive(false)
+      const token = localStorage.getItem('access_token')
       
-      // 这里可以调用后端API保存面试结果
-      // await saveInterviewResults(currentSession)
+      // 调用后端API结束面试会话
+      if (token && currentSession.id) {
+        try {
+          const response = await fetch(`${apiBaseUrl}/api/v1/resumes/${resumeId}/interview/${currentSession.id}/end`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            }
+          })
+          
+          if (response.ok) {
+            console.log('面试会话已结束并保存')
+          } else {
+            console.warn('后端面试结束失败')
+          }
+        } catch (error) {
+          console.error('调用后端结束面试API失败:', error)
+        }
+      }
+      
+      setIsInterviewActive(false)
       
       const endMessage: ChatMessage = {
         id: Date.now().toString(),

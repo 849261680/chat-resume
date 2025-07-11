@@ -73,6 +73,31 @@ interface UpdateResumeData {
   content?: ResumeContent
 }
 
+// 面试相关类型
+interface InterviewSession {
+  id: number
+  resume_id: number
+  resume_title?: string
+  job_position: string
+  interview_mode: string
+  jd_content: string
+  questions: any[]
+  answers: any[]
+  feedback: any
+  status: string
+  overall_score?: number
+  current_question?: number
+  total_questions?: number
+  created_at: string
+  updated_at: string
+}
+
+interface InterviewConfig {
+  job_position: string
+  interview_mode: string
+  jd_content?: string
+}
+
 // API基础URL
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -291,9 +316,60 @@ class ChatAPI {
   }
 }
 
+// 面试API类
+class InterviewAPI {
+  /**
+   * 获取指定简历的面试记录列表
+   */
+  static async getInterviewSessions(resumeId: number): Promise<InterviewSession[]> {
+    const response = await fetch(`${API_BASE_URL}/api/v1/resumes/${resumeId}/interview/sessions`, {
+      method: 'GET',
+      headers: {
+        ...getAuthHeaders(),
+      },
+    })
+
+    return handleApiResponse<InterviewSession[]>(response)
+  }
+
+  /**
+   * 开始面试会话
+   */
+  static async startInterview(resumeId: number, config: InterviewConfig): Promise<InterviewSession> {
+    const response = await fetch(`${API_BASE_URL}/api/v1/resumes/${resumeId}/interview/start`, {
+      method: 'POST',
+      headers: {
+        ...getAuthHeaders(),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(config),
+    })
+
+    return handleApiResponse<InterviewSession>(response)
+  }
+
+  /**
+   * 结束面试会话
+   */
+  static async endInterview(resumeId: number, sessionId: number): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/api/v1/resumes/${resumeId}/interview/${sessionId}/end`, {
+      method: 'POST',
+      headers: {
+        ...getAuthHeaders(),
+      },
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.detail || `结束面试失败: ${response.status}`)
+    }
+  }
+}
+
 // 导出API实例
 export const resumeApi = ResumeAPI
 export const chatApi = ChatAPI
+export const interviewApi = InterviewAPI
 
 // 导出类型
 export type {
@@ -306,4 +382,6 @@ export type {
   Project,
   CreateResumeData,
   UpdateResumeData,
+  InterviewSession,
+  InterviewConfig,
 }

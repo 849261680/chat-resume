@@ -4,16 +4,16 @@ import { motion } from 'framer-motion'
 import Link from 'next/link'
 import { 
   ArrowRightIcon, 
-  DocumentTextIcon, 
   ChatBubbleLeftRightIcon,
   SparklesIcon,
   CheckIcon
 } from '@heroicons/react/24/outline'
+import { DocumentIcon } from '@heroicons/react/24/solid'
 
 export default function HomePage() {
   const features = [
     {
-      icon: DocumentTextIcon,
+      icon: DocumentIcon,
       title: '智能简历解析',
       description: '上传PDF、Word等格式简历，AI自动提取和结构化内容',
       color: 'text-blue-600',
@@ -57,7 +57,7 @@ export default function HomePage() {
         <nav className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center">
-              <DocumentTextIcon className="w-5 h-5 text-white" />
+              <DocumentIcon className="w-5 h-5 text-white" />
             </div>
             <span className="text-xl font-bold text-gray-900">Chat Resume</span>
           </div>
@@ -240,7 +240,7 @@ export default function HomePage() {
             <div>
               <div className="flex items-center space-x-2 mb-4">
                 <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center">
-                  <DocumentTextIcon className="w-5 h-5 text-white" />
+                  <DocumentIcon className="w-5 h-5 text-white" />
                 </div>
                 <span className="text-xl font-bold">Chat Resume</span>
               </div>

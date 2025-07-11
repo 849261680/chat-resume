@@ -43,6 +43,13 @@ export default function InterviewPage() {
   const [resume, setResume] = useState<Resume | null>(null)
   const [resumeLoading, setResumeLoading] = useState(true)
   
+  // 获取URL参数
+  const [interviewConfig, setInterviewConfig] = useState({
+    mode: 'comprehensive',
+    position: '',
+    jd: ''
+  })
+  
   // 面试相关状态
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inputMessage, setInputMessage] = useState('')
@@ -71,11 +78,26 @@ export default function InterviewPage() {
     onError: (error) => {
       toast.error(`面试错误: ${error}`)
     },
-    chatHistory: messages
+    chatHistory: messages,
+    interviewMode: interviewConfig.mode,
+    jobPosition: interviewConfig.position,
+    jdContent: interviewConfig.jd
   })
 
   useEffect(() => {
     setMounted(true)
+    
+    // 解析URL参数
+    const urlParams = new URLSearchParams(window.location.search)
+    const mode = urlParams.get('mode') || 'comprehensive'
+    const position = urlParams.get('position') || ''
+    const jd = urlParams.get('jd') || ''
+    
+    setInterviewConfig({
+      mode,
+      position,
+      jd
+    })
   }, [])
 
   useEffect(() => {
@@ -95,7 +117,7 @@ export default function InterviewPage() {
     } catch (error) {
       console.error('Failed to fetch resume:', error)
       toast.error('获取简历失败')
-      router.push('/dashboard')
+      router.push('/interviews')
     } finally {
       setResumeLoading(false)
     }
@@ -145,17 +167,27 @@ export default function InterviewPage() {
     if (!resume) return
 
     try {
-      const session = await startInterview()
+      const session = await startInterview(interviewConfig.jd)
       if (session) {
         setInterviewTime(0)
         setCurrentQuestion(1)
         setMessages([]) // 清空之前的消息，hook会添加欢迎消息
-        toast.success('面试已开始，祝您好运！')
+        toast.success(`面试已开始！模式：${getModeDisplayName(interviewConfig.mode)}`)
       }
     } catch (error) {
       console.error('Failed to start interview:', error)
       toast.error('开始面试失败，请重试')
     }
+  }
+
+  // 获取模式显示名称
+  const getModeDisplayName = (mode: string) => {
+    const modes = {
+      'comprehensive': '综合面试',
+      'technical': '技术深挖', 
+      'behavioral': '行为面试'
+    }
+    return modes[mode as keyof typeof modes] || '综合面试'
   }
 
   // 结束面试
@@ -214,8 +246,8 @@ export default function InterviewPage() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <p className="text-gray-600">简历不存在</p>
-          <Link href="/dashboard" className="btn-primary mt-4">
-            返回仪表板
+          <Link href="/interviews" className="btn-primary mt-4">
+            返回面试中心
           </Link>
         </div>
       </div>
@@ -231,18 +263,28 @@ export default function InterviewPage() {
             {/* 左侧：导航和标题 */}
             <div className="flex items-center space-x-4">
               <Link
-                href="/dashboard"
+                href="/interviews"
                 className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 transition-colors"
               >
                 <ArrowLeftIcon className="w-5 h-5" />
-                <span>返回仪表板</span>
+                <span>返回面试中心</span>
               </Link>
               <div className="h-6 border-l border-gray-300"></div>
               <div>
                 <h1 className="text-lg font-semibold text-gray-900">
                   AI模拟面试
                 </h1>
-                <p className="text-sm text-gray-500">{resume.title}</p>
+                <div className="flex items-center space-x-2 text-sm text-gray-500">
+                  <span>{resume.title}</span>
+                  {interviewConfig.position && (
+                    <>
+                      <span>•</span>
+                      <span>{interviewConfig.position}</span>
+                    </>
+                  )}
+                  <span>•</span>
+                  <span>{getModeDisplayName(interviewConfig.mode)}</span>
+                </div>
               </div>
             </div>
             

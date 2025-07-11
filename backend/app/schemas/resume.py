@@ -21,8 +21,7 @@ class ResumeResponse(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime] = None
     
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 class OptimizationRequest(BaseModel):
     jd_content: str
@@ -34,5 +33,4 @@ class OptimizationResponse(BaseModel):
     suggestions: Dict[str, Any]
     created_at: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}

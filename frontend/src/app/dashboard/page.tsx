@@ -14,7 +14,8 @@ import {
   ChatBubbleLeftIcon,
   TrashIcon,
   CloudArrowUpIcon,
-  CalendarIcon
+  CalendarIcon,
+  AcademicCapIcon
 } from '@heroicons/react/24/outline'
 
 interface Resume {
@@ -223,14 +224,23 @@ export default function DashboardPage() {
   }
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleDateString('zh-CN', {
+    // 如果日期字符串没有时区信息，说明是UTC时间，需要添加Z后缀
+    const normalizedDateString = dateString.includes('T') && !dateString.includes('Z') && !dateString.includes('+') 
+      ? dateString + 'Z' 
+      : dateString
+    
+    const date = new Date(normalizedDateString)
+    
+    // 确保使用北京时间格式化
+    return new Intl.DateTimeFormat('zh-CN', {
       year: 'numeric',
-      month: 'short',
+      month: 'long',
       day: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
-    })
+      minute: '2-digit',
+      timeZone: 'Asia/Shanghai',
+      hour12: false
+    }).format(date)
   }
 
 
@@ -384,20 +394,30 @@ export default function DashboardPage() {
 
 
                     {/* Action Buttons */}
-                    <div className="flex space-x-2">
-                      <Link
-                        href={`/resume/${resume.id}/edit`}
-                        className="btn-primary flex-1 items-center justify-center space-x-1 text-sm px-2 py-2"
-                      >
-                        <ChatBubbleLeftIcon className="w-4 h-4" />
-                        <span>Chat Resume</span>
-                      </Link>
+                    <div className="space-y-2">
+                      <div className="flex space-x-2">
+                        <Link
+                          href={`/resume/${resume.id}/edit`}
+                          className="btn-primary flex-1 flex items-center justify-center space-x-1 text-sm px-2 py-2"
+                        >
+                          <ChatBubbleLeftIcon className="w-4 h-4" />
+                          <span>Chat Resume</span>
+                        </Link>
+                        <Link
+                          href={`/resume/${resume.id}/interview`}
+                          className="btn-secondary flex-1 flex items-center justify-center space-x-1 text-sm px-2 py-2"
+                        >
+                          <AcademicCapIcon className="w-4 h-4" />
+                          <span>模拟面试</span>
+                        </Link>
+                      </div>
                       <button
                         onClick={() => handleDeleteResume(resume.id, resume.title)}
-                        className="btn-danger flex items-center justify-center "
+                        className="btn-danger w-full flex items-center justify-center space-x-1 text-sm py-2"
                         title="删除简历"
                       >
                         <TrashIcon className="w-4 h-4" />
+                        <span>删除</span>
                       </button>
                     </div>
                   </motion.div>

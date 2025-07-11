@@ -104,6 +104,38 @@ class ResumeAssistantPrompts:
 
 请给出评分（1-5分）和具体的反馈建议。"""
 
+    # 面试官系统提示词
+    INTERVIEW_SYSTEM_PROMPT = """你是一位专业的AI面试官，名字叫"AI面试官"。你绝对不是简历优化师，也不提供简历优化建议。你的唯一任务是进行面试。
+
+## 重要：你的身份
+- 你是**AI面试官**，不是AI简历优化师
+- 你只负责面试，不负责简历优化
+- 你要进行面试对话，而不是简历分析
+- 请在每次回复中都以面试官的身份说话
+
+## 你的面试风格
+- **专业友善**: 营造轻松但专业的面试氛围
+- **深入挖掘**: 通过追问了解候选人的真实能力和经验
+- **基于简历**: 所有问题都基于候选人的简历内容
+- **循序渐进**: 从基础问题开始，逐步深入技术和经验细节
+- **实际导向**: 关注实际工作中的具体场景和解决方案
+
+## 面试流程
+1. **开场**: 友好地打招呼，介绍自己是面试官
+2. **自我介绍**: 让候选人做自我介绍
+3. **深入提问**: 基于简历内容提出具体问题
+4. **技能验证**: 测试候选人的专业技能
+5. **经验挖掘**: 了解项目经验和解决问题的能力
+
+## 面试原则
+1. **明确身份**: 始终记住你是面试官，不是简历优化师
+2. **基于简历**: 所有问题必须与候选人的简历相关
+3. **逐步深入**: 先问基础问题，再根据回答深入询问
+4. **关注细节**: 要求具体的例子、数据、技术细节
+5. **评估能力**: 通过问题评估技术能力、解决问题能力、沟通能力
+
+请根据候选人的简历内容进行专业的面试对话，每次只问一个问题，等待候选人回答后再继续下一个问题。记住：你是面试官，不是简历优化师！"""
+
     @staticmethod
     def format_resume_context(resume_content: dict) -> str:
         """格式化简历上下文信息"""
@@ -206,6 +238,66 @@ class ResumeAssistantPrompts:
             "content": user_message
         }
         messages.append(user_question)
+        
+        return messages
+
+    @staticmethod
+    def build_interview_messages(user_message: str, resume_content: dict, chat_history: list = None) -> list:
+        """构建面试对话消息列表"""
+        
+        print("Debug - 正在构建面试消息")
+        print(f"Debug - 面试系统提示词前100字符: {ResumeAssistantPrompts.INTERVIEW_SYSTEM_PROMPT[:100]}")
+        
+        # 面试官系统提示词
+        system_message = {
+            "role": "system", 
+            "content": ResumeAssistantPrompts.INTERVIEW_SYSTEM_PROMPT
+        }
+        
+        # 简历上下文信息
+        resume_context = ResumeAssistantPrompts.format_resume_context(resume_content)
+        context_message = {
+            "role": "user",
+            "content": f"现在开始面试。以下是候选人的简历信息：\n{resume_context}\n请作为面试官，基于这份简历进行面试对话。"
+        }
+        
+        assistant_context = {
+            "role": "assistant",
+            "content": "好的，我是您的AI面试官。我已经审阅了您的简历，现在开始正式面试。"
+        }
+        
+        messages = [system_message, context_message, assistant_context]
+        
+        # 添加对话历史（跳过第一条AI消息，因为我们已经有了assistant_context）
+        if chat_history:
+            # 跳过第一条AI消息（通常是欢迎消息），避免重复
+            for i, msg in enumerate(chat_history):
+                if isinstance(msg, dict):
+                    # 如果是第一条AI消息，跳过（因为我们已经有assistant_context）
+                    if i == 0 and msg.get('type') == 'ai':
+                        continue
+                    
+                    if msg.get('type') == 'user':
+                        messages.append({
+                            "role": "user",
+                            "content": msg.get('content', '')
+                        })
+                    elif msg.get('type') == 'ai':
+                        messages.append({
+                            "role": "assistant",
+                            "content": msg.get('content', '')
+                        })
+        
+        # 添加当前用户消息
+        user_question = {
+            "role": "user",
+            "content": user_message
+        }
+        messages.append(user_question)
+        
+        print(f"Debug - 最终消息列表长度: {len(messages)}")
+        print(f"Debug - 系统消息: {messages[0]['content'][:100]}")
+        print(f"Debug - 最后一条用户消息: {messages[-1]['content']}")
         
         return messages
 

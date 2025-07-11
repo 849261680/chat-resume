@@ -16,6 +16,11 @@ class ChatRequest(BaseModel):
     message: str
     resume_id: int
     chat_history: list = []  # 聊天历史，可选
+    is_interview: bool = False  # 是否为面试模式
+    
+    def __init__(self, **data):
+        super().__init__(**data)
+        print(f"ChatRequest 初始化 - is_interview: {self.is_interview}")
 
 class ChatResponse(BaseModel):
     """聊天响应模型"""
@@ -96,6 +101,10 @@ async def chat_with_resume_stream(
 ):
     """与AI助手进行流式聊天，基于用户真实简历内容"""
     
+    print("=== 流式聊天API被调用 ===")
+    print(f"收到请求 - is_interview: {chat_request.is_interview}")
+    print(f"用户消息: {chat_request.message}")
+    
     async def generate_stream():
         try:
             # 获取用户真实简历数据
@@ -130,12 +139,26 @@ async def chat_with_resume_stream(
             
             openrouter_service = OpenRouterService()
             
-            # 使用新的提示词管理系统构建消息，包含聊天历史
-            messages = ResumeAssistantPrompts.build_chat_messages(
-                chat_request.message,
-                resume_content,
-                chat_request.chat_history
-            )
+            # 根据模式构建不同的消息
+            print(f"Debug - is_interview: {chat_request.is_interview}")
+            print(f"Debug - chat_request: {chat_request}")
+            
+            if chat_request.is_interview:
+                # 面试模式：使用面试官提示词
+                print("Debug - 使用面试官提示词")
+                messages = ResumeAssistantPrompts.build_interview_messages(
+                    chat_request.message,
+                    resume_content,
+                    chat_request.chat_history
+                )
+            else:
+                # 普通模式：使用简历优化师提示词
+                print("Debug - 使用简历优化师提示词")
+                messages = ResumeAssistantPrompts.build_chat_messages(
+                    chat_request.message,
+                    resume_content,
+                    chat_request.chat_history
+                )
             
             # 流式响应
             async for content_chunk in openrouter_service.chat_completion_stream(messages):

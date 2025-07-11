@@ -52,6 +52,8 @@ async def start_interview(
         # 创建面试会话
         interview_session = InterviewSession(
             resume_id=resume_id,
+            job_position=session_create.job_position,
+            interview_mode=session_create.interview_mode,
             jd_content=session_create.jd_content,
             questions=questions,
             answers=[],

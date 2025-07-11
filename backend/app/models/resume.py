@@ -38,7 +38,9 @@ class InterviewSession(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     resume_id = Column(Integer, ForeignKey("resumes.id"), nullable=False)
-    jd_content = Column(Text, nullable=True)
+    job_position = Column(String, nullable=True)  # 面试职位
+    interview_mode = Column(String, nullable=True)  # 面试模式: comprehensive, technical, behavioral
+    jd_content = Column(Text, nullable=True)  # 职位描述
     questions = Column(JSON, nullable=False)  # 问题列表
     answers = Column(JSON, nullable=False)    # 答案列表
     feedback = Column(JSON, nullable=True)    # AI反馈

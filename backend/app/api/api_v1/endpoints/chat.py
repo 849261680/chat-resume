@@ -17,10 +17,11 @@ class ChatRequest(BaseModel):
     resume_id: int
     chat_history: list = []  # 聊天历史，可选
     is_interview: bool = False  # 是否为面试模式
+    interview_mode: str = "comprehensive"  # 面试模式：comprehensive, technical, behavioral
     
     def __init__(self, **data):
         super().__init__(**data)
-        print(f"ChatRequest 初始化 - is_interview: {self.is_interview}")
+        print(f"ChatRequest 初始化 - is_interview: {self.is_interview}, interview_mode: {self.interview_mode}")
 
 class ChatResponse(BaseModel):
     """聊天响应模型"""
@@ -145,11 +146,12 @@ async def chat_with_resume_stream(
             
             if chat_request.is_interview:
                 # 面试模式：使用面试官提示词
-                print("Debug - 使用面试官提示词")
+                print(f"Debug - 使用面试官提示词，模式: {chat_request.interview_mode}")
                 messages = ResumeAssistantPrompts.build_interview_messages(
                     chat_request.message,
                     resume_content,
-                    chat_request.chat_history
+                    chat_request.chat_history,
+                    chat_request.interview_mode
                 )
             else:
                 # 普通模式：使用简历优化师提示词

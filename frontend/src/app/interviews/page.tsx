@@ -81,13 +81,64 @@ export default function InterviewsPage() {
       setInterviewsLoading(true)
       const allSessions: InterviewSession[] = []
       
-      // 为每个简历获取面试记录（现在使用模拟数据）
+      // 为每个简历获取面试记录
       for (const resume of resumes) {
         try {
-          // 模拟面试会话数据
+          // 调用真实API获取面试会话
+          const sessions = await interviewApi.getInterviewSessions(resume.id)
+          
+          // 检查是否有已完成但没有分数的面试
+          const needScoreCalculation = sessions.some(session => 
+            session.status === 'completed' && !session.overall_score
+          )
+          
+          // 如果有需要计算分数的面试，先计算分数
+          if (needScoreCalculation) {
+            try {
+              const result = await interviewApi.calculateScoresForCompletedInterviews(resume.id)
+              if (result.updated_count > 0) {
+                console.log(`为简历ID ${resume.id} 计算了 ${result.updated_count} 个面试的分数`)
+                // 重新获取更新后的面试记录
+                const updatedSessions = await interviewApi.getInterviewSessions(resume.id)
+                const sessionsWithTitle = updatedSessions.map(session => ({
+                  ...session,
+                  resume_title: resume.title
+                }))
+                allSessions.push(...sessionsWithTitle)
+              } else {
+                const sessionsWithTitle = sessions.map(session => ({
+                  ...session,
+                  resume_title: resume.title
+                }))
+                allSessions.push(...sessionsWithTitle)
+              }
+            } catch (scoreError) {
+              console.warn(`计算分数失败，简历ID: ${resume.id}`, scoreError)
+              // 分数计算失败也继续显示面试记录
+              const sessionsWithTitle = sessions.map(session => ({
+                ...session,
+                resume_title: resume.title
+              }))
+              allSessions.push(...sessionsWithTitle)
+            }
+          } else {
+            const sessionsWithTitle = sessions.map(session => ({
+              ...session,
+              resume_title: resume.title
+            }))
+            allSessions.push(...sessionsWithTitle)
+          }
+          
+          console.log(`获取到 ${sessions.length} 个真实面试记录，简历ID: ${resume.id}`)
+          
+        } catch (error) {
+          console.error(`Failed to fetch sessions for resume ${resume.id}:`, error)
+          
+          // API调用失败时才添加模拟数据
+          const baseId = resume.id * 1000 // 使用更大的基数避免冲突
           const mockSessions = [
             {
-              id: 1,
+              id: baseId + 1,
               resume_id: resume.id,
               resume_title: resume.title,
               job_position: "AI应用开发工程师",
@@ -104,7 +155,7 @@ export default function InterviewsPage() {
               updated_at: "2025-07-11T15:44:00Z"
             },
             {
-              id: 2,
+              id: baseId + 2,
               resume_id: resume.id,
               resume_title: resume.title,
               job_position: "高级前端工程师",
@@ -120,23 +171,37 @@ export default function InterviewsPage() {
               updated_at: "2025-07-11T16:00:00Z"
             }
           ]
+          console.log(`添加模拟数据，简历ID: ${resume.id}`)
           allSessions.push(...mockSessions)
-          
-          // 实际API调用（暂时注释）
-          // const sessions = await interviewApi.getInterviewSessions(resume.id)
-          // const sessionsWithTitle = sessions.map(session => ({
-          //   ...session,
-          //   resume_title: resume.title
-          // }))
-          // allSessions.push(...sessionsWithTitle)
-        } catch (error) {
-          console.error(`Failed to fetch sessions for resume ${resume.id}:`, error)
         }
       }
       
       // 按创建时间降序排序
       allSessions.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-      setInterviewSessions(allSessions)
+      
+      // 检测并标记可能的重复会话
+      const processedSessions = allSessions.map(session => {
+        // 检查是否有相同简历的其他活跃会话
+        const duplicateActiveSessions = allSessions.filter(s => 
+          s.resume_id === session.resume_id && 
+          s.status === 'active' && 
+          s.id !== session.id
+        )
+        
+        // 如果当前会话是活跃状态，但有其他更新的活跃会话，标记为可能重复
+        if (session.status === 'active' && duplicateActiveSessions.length > 0) {
+          const newerActiveSession = duplicateActiveSessions.find(s => 
+            new Date(s.created_at).getTime() > new Date(session.created_at).getTime()
+          )
+          if (newerActiveSession) {
+            return { ...session, isPossibleDuplicate: true }
+          }
+        }
+        
+        return { ...session, isPossibleDuplicate: false }
+      })
+      
+      setInterviewSessions(processedSessions)
     } catch (error) {
       console.error('Failed to fetch interview sessions:', error)
       toast.error('获取面试记录失败')
@@ -203,19 +268,32 @@ export default function InterviewsPage() {
       return
     }
 
+    // 找到要删除的会话以获取resume_id
+    const session = interviewSessions.find(s => s.id === sessionId)
+    if (!session) {
+      toast.error('未找到面试记录')
+      return
+    }
+
     try {
       toast.loading('正在删除面试记录...', { id: 'delete-interview' })
       
-      // TODO: 调用删除API
-      // await interviewApi.deleteInterviewSession(sessionId)
-      
-      // 从本地状态中移除
-      setInterviewSessions(prev => prev.filter(session => session.id !== sessionId))
-      
-      toast.success('面试记录已删除', { id: 'delete-interview' })
+      // 检查是否为模拟数据（ID > 1000 表示模拟数据）
+      if (sessionId > 1000) {
+        // 模拟数据只需要从本地状态中移除
+        console.log('删除模拟面试数据:', sessionId)
+        setInterviewSessions(prev => prev.filter(s => s.id !== sessionId))
+        toast.success('面试记录已删除', { id: 'delete-interview' })
+      } else {
+        // 真实数据需要调用API
+        await interviewApi.deleteInterviewSession(session.resume_id, sessionId)
+        // 从本地状态中移除
+        setInterviewSessions(prev => prev.filter(s => s.id !== sessionId))
+        toast.success('面试记录已删除', { id: 'delete-interview' })
+      }
     } catch (error: any) {
       console.error('Delete interview error:', error)
-      const errorMessage = error.response?.data?.detail || '删除失败，请重试'
+      const errorMessage = error.message || '删除失败，请重试'
       toast.error(errorMessage, { id: 'delete-interview' })
     }
   }
@@ -356,16 +434,22 @@ export default function InterviewsPage() {
                           <CalendarIcon className="w-4 h-4 mr-1" />
                           <span>{formatDate(session.created_at)}</span>
                         </div>
-                        {session.status === 'active' && session.current_question && session.total_questions && (
+                        {session.status === 'active' && (
                           <div className="flex items-center text-sm text-gray-500">
                             <ClockIcon className="w-4 h-4 mr-1" />
-                            <span>{session.current_question}/{session.total_questions} 题</span>
+                            <span>
+                              {/* 优先使用 current_question/total_questions，否则动态计算 */}
+                              {session.current_question && session.total_questions ? 
+                                `${session.current_question}/${session.total_questions} 题` :
+                                `${(session.answers || []).length}/${(session.questions || []).length} 题`
+                              }
+                            </span>
                           </div>
                         )}
                         {session.status === 'completed' && (
                           <div className="flex items-center text-sm text-gray-500">
                             <ClockIcon className="w-4 h-4 mr-1" />
-                            <span>{session.total_questions || session.questions.length} 题已完成</span>
+                            <span>{session.total_questions || session.questions.length} 题</span>
                           </div>
                         )}
                       </div>
@@ -376,9 +460,9 @@ export default function InterviewsPage() {
                       <div className="flex items-center px-3 py-1 bg-green-100 text-green-800 rounded-full">
                         <span className="text-sm font-medium">{session.overall_score}分</span>
                       </div>
-                    ) : session.status === 'active' && session.current_question && session.total_questions ? (
+                    ) : session.status === 'active' ? (
                       <div className="flex items-center px-3 py-1 bg-blue-100 text-blue-800 rounded-full">
-                        <span className="text-sm font-medium">进行中 ({session.current_question}/{session.total_questions}题)</span>
+                        <span className="text-sm font-medium">进行中</span>
                       </div>
                     ) : (
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
@@ -399,17 +483,18 @@ export default function InterviewsPage() {
                     // 已完成的面试 - 查看报告和删除按钮同一行
                     <div className="grid grid-cols-3 gap-2">
                       <Link
-                        href={`/interviews/${session.id}/report`}
-                        className="col-span-2 btn-primary flex items-center justify-center space-x-2 py-3"
+                        href={`/interviews/${session.id}/report?resume_id=${session.resume_id}`}
+                        className="col-span-2 btn-primary flex items-center justify-center space-x-2 py-2"
                       >
                         <ChartBarIcon className="w-5 h-5" />
                         <span className="font-medium">查看报告</span>
                       </Link>
                       <button
                         onClick={() => handleDeleteInterview(session.id, session.job_position)}
-                        className="btn-danger flex items-center justify-center py-3"
+                        className="btn-danger flex items-center justify-center space-x-1 py-2"
                       >
                         <TrashIcon className="w-4 h-4" />
+                        <span className="text-sm">删除</span>
                       </button>
                     </div>
                   ) : session.status === 'active' ? (
@@ -417,16 +502,17 @@ export default function InterviewsPage() {
                     <div className="grid grid-cols-3 gap-2">
                       <Link
                         href={`/resume/${session.resume_id}/interview?session=${session.id}`}
-                        className="col-span-2 btn-primary flex items-center justify-center space-x-2 py-3"
+                        className="col-span-2 btn-primary flex items-center justify-center space-x-2 py-2"
                       >
                         <PlayIcon className="w-5 h-5" />
                         <span className="font-medium">继续面试</span>
                       </Link>
                       <button
                         onClick={() => handleDeleteInterview(session.id, session.job_position)}
-                        className="btn-danger flex items-center justify-center py-3"
+                        className="btn-danger flex items-center justify-center space-x-1 py-2"
                       >
                         <TrashIcon className="w-4 h-4" />
+                        <span className="text-sm">删除</span>
                       </button>
                     </div>
                   ) : (

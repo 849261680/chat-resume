@@ -2,8 +2,9 @@
 
 import { motion } from 'framer-motion'
 import { useEffect, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/lib/auth'
+import { interviewApi } from '@/lib/api'
 import Link from 'next/link'
 import { 
   ArrowLeftIcon,
@@ -75,6 +76,7 @@ interface InterviewReport {
 export default function InterviewReportPage() {
   const params = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { user, isAuthenticated, isLoading } = useAuth()
   const [mounted, setMounted] = useState(false)
   const [report, setReport] = useState<InterviewReport | null>(null)
@@ -82,6 +84,7 @@ export default function InterviewReportPage() {
   const [expandedFeedback, setExpandedFeedback] = useState<number[]>([])
 
   const reportId = params?.id as string
+  const resumeId = searchParams?.get('resume_id')
 
   useEffect(() => {
     setMounted(true)
@@ -93,84 +96,67 @@ export default function InterviewReportPage() {
     }
   }, [mounted, isLoading, isAuthenticated, router])
 
-  // 模拟数据加载（实际应该从API获取）
+  // 从API获取报告数据
   useEffect(() => {
-    if (mounted && isAuthenticated && reportId) {
+    if (mounted && isAuthenticated && reportId && resumeId) {
       loadReportData()
     }
-  }, [mounted, isAuthenticated, reportId])
+  }, [mounted, isAuthenticated, reportId, resumeId])
 
   const loadReportData = async () => {
-    setReportLoading(true)
-    
-    // 模拟API调用延迟
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    
-    // 模拟报告数据
-    const mockReport: InterviewReport = {
-      id: parseInt(reportId),
-      resume_title: "彭世雄简历2",
-      job_position: "AI应用开发工程师",
-      interview_mode: "综合面试",
-      jd_content: "负责AI应用开发，熟悉RAG、LangChain等技术...",
-      overall_score: 87,
-      performance_level: "表现出色",
-      interview_date: "2025年7月11日",
-      duration_minutes: 25,
-      total_questions: 5,
-      competency_scores: {
-        job_fit: 85,
-        technical_depth: 92,
-        project_exposition: 78,
-        communication: 88,
-        behavioral: 82
-      },
-      ai_highlights: [
-        "您在阐述RAG项目时，清晰地展现了技术选型的深度思考，尤其是在处理PDF表格数据方面的解决方案，给面试官留下了深刻印象。",
-        "对FastAPI和LangChain的理解深入，能够结合实际项目经验进行说明。"
-      ],
-      ai_improvements: [
-        "在回答关于团队协作的行为问题时，可以更具体地引用一个实例，使用STAR法则来支撑您的论点，这会更有说服力。",
-        "可以在技术回答中加入更多量化数据，如性能提升百分比、处理数据量等。"
-      ],
-      conversation: [
-        {
-          question: "请简单介绍一下您自己，包括您的技术背景和主要项目经验。",
-          answer: "我是一名AI应用开发工程师，主要专注于RAG技术和大语言模型应用开发。我开发过一个基于LangChain的智能问答系统...",
-          ai_feedback: {
-            score: 8,
-            strengths: ["清晰的自我定位", "突出了相关技术经验"],
-            suggestions: ["可以加入具体的项目成果数据", "提及团队规模和个人贡献"]
-          }
-        },
-        {
-          question: "请详细描述一下您在RAG项目中遇到的技术挑战以及解决方案。",
-          answer: "在RAG项目中，我遇到的主要挑战是处理PDF表格数据的结构化提取。我使用了pdfplumber结合正则表达式的方法...",
-          ai_feedback: {
-            score: 9,
-            strengths: ["技术细节描述清晰", "解决方案具体可行", "体现了问题解决能力"],
-            suggestions: ["可以提及性能改进的具体数据", "说明方案的可扩展性"]
-          }
-        }
-      ],
-      jd_keywords: [
-        { keyword: "RAG", mentioned: true, frequency: 3 },
-        { keyword: "LangChain", mentioned: true, frequency: 2 },
-        { keyword: "FastAPI", mentioned: false, frequency: 0 },
-        { keyword: "Python", mentioned: true, frequency: 1 },
-        { keyword: "团队协作", mentioned: true, frequency: 1 }
-      ],
-      coverage_rate: 75,
-      frequent_words: [
-        { word: "项目", count: 5 },
-        { word: "技术", count: 4 },
-        { word: "开发", count: 3 },
-        { word: "数据", count: 3 }
-      ]
+    if (!resumeId) {
+      console.error('Resume ID is missing from URL parameters')
+      setReportLoading(false)
+      return
     }
     
-    setReport(mockReport)
-    setReportLoading(false)
+    setReportLoading(true)
+    
+    try {
+      const sessionId = parseInt(reportId)
+      const resumeIdNum = parseInt(resumeId)
+      
+      console.log(`正在获取面试报告: resumeId=${resumeIdNum}, sessionId=${sessionId}`)
+      
+      const reportData = await interviewApi.getInterviewReport(resumeIdNum, sessionId)
+      console.log('获取到的报告数据:', reportData)
+      
+      setReport(reportData)
+      
+    } catch (error) {
+      console.error('Failed to load report data:', error)
+      
+      // 如果API调用失败，显示错误或使用默认数据
+      const errorReport: InterviewReport = {
+        id: parseInt(reportId),
+        resume_title: "面试报告",
+        job_position: "无法加载职位信息",
+        interview_mode: "unknown",
+        jd_content: "",
+        overall_score: 0,
+        performance_level: "无法生成报告",
+        interview_date: "未知时间",
+        duration_minutes: 0,
+        total_questions: 0,
+        competency_scores: {
+          job_fit: 0,
+          technical_depth: 0,
+          project_exposition: 0,
+          communication: 0,
+          behavioral: 0
+        },
+        ai_highlights: ["报告生成失败，请稍后重试"],
+        ai_improvements: ["无法获取改进建议"],
+        conversation: [],
+        jd_keywords: [],
+        coverage_rate: 0,
+        frequent_words: []
+      }
+      
+      setReport(errorReport)
+    } finally {
+      setReportLoading(false)
+    }
   }
 
   const toggleFeedback = (index: number) => {
@@ -209,7 +195,14 @@ export default function InterviewReportPage() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">正在生成面试报告...</p>
+          <p className="text-gray-600">
+            {reportLoading ? '正在生成面试报告...' : '正在加载...'}
+          </p>
+          {reportLoading && (
+            <p className="text-sm text-gray-500 mt-2">
+              AI正在分析您的面试表现，请稍候
+            </p>
+          )}
         </div>
       </div>
     )
@@ -252,9 +245,13 @@ export default function InterviewReportPage() {
                 <DocumentArrowDownIcon className="w-4 h-4" />
                 <span>下载PDF</span>
               </button>
-              <button className="btn-primary flex items-center space-x-2 text-sm">
-                <ArrowPathIcon className="w-4 h-4" />
-                <span>再来一次</span>
+              <button 
+                onClick={() => loadReportData()}
+                disabled={reportLoading}
+                className="btn-primary flex items-center space-x-2 text-sm disabled:opacity-50"
+              >
+                <ArrowPathIcon className={`w-4 h-4 ${reportLoading ? 'animate-spin' : ''}`} />
+                <span>{reportLoading ? '生成中...' : '重新生成'}</span>
               </button>
             </div>
           </div>

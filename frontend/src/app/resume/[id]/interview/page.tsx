@@ -1,7 +1,7 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth'
 import { resumeApi } from '@/lib/api'
@@ -42,12 +42,14 @@ export default function InterviewPage() {
   const [mounted, setMounted] = useState(false)
   const [resume, setResume] = useState<Resume | null>(null)
   const [resumeLoading, setResumeLoading] = useState(true)
+  const [resumeFetched, setResumeFetched] = useState(false)
   
   // 获取URL参数
   const [interviewConfig, setInterviewConfig] = useState({
     mode: 'comprehensive',
     position: '',
-    jd: ''
+    jd: '',
+    sessionId: null as number | null
   })
   
   // 面试相关状态
@@ -56,10 +58,44 @@ export default function InterviewPage() {
   const [interviewTime, setInterviewTime] = useState(0)
   const [currentQuestion, setCurrentQuestion] = useState(1)
   const [selectedInterviewer, setSelectedInterviewer] = useState<InterviewerProfile>(interviewerProfiles[0])
+  const [hasStartedInterview, setHasStartedInterview] = useState(false) // 防重复标志
+  const [interviewError, setInterviewError] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
+  const processedSessionRef = useRef<number | null>(null) // 防止重复处理同一会话ID
+  const hasCheckedExistingSession = useRef(false) // 防止重复检查现有会话
 
   const resumeId = params?.id as string
+
+  // 稳定回调函数
+  const handleMessage = useCallback((message: ChatMessage) => {
+    setMessages(prev => [...prev, message])
+  }, [])
+
+  const handleError = useCallback((error: string) => {
+    console.error('Interview error:', error)
+    setInterviewError(error)
+    toast.error(`面试错误: ${error}`)
+  }, [])
+
+  // 使用 useRef 确保回调稳定性
+  const handleMessageRef = useRef(handleMessage)
+  const handleErrorRef = useRef(handleError)
+  
+  useEffect(() => {
+    handleMessageRef.current = handleMessage
+    handleErrorRef.current = handleError
+  })
+
+  // 使用 useMemo 稳定 useInterview 的 options 对象
+  const interviewOptions = useMemo(() => ({
+    onMessage: (msg: ChatMessage) => handleMessageRef.current(msg),
+    onError: (error: string) => handleErrorRef.current(error),
+    interviewMode: interviewConfig.mode,
+    jobPosition: interviewConfig.position,
+    jdContent: interviewConfig.jd,
+    existingSessionId: interviewConfig.sessionId
+  }), [interviewConfig.mode, interviewConfig.position, interviewConfig.jd, interviewConfig.sessionId])
 
   // 面试Hook
   const {
@@ -71,32 +107,34 @@ export default function InterviewPage() {
     sendAnswer,
     endInterview,
     stopCurrentRequest
-  } = useInterview(resumeId ? parseInt(resumeId) : 0, {
-    onMessage: (message) => {
-      setMessages(prev => [...prev, message])
-    },
-    onError: (error) => {
-      toast.error(`面试错误: ${error}`)
-    },
-    chatHistory: messages,
-    interviewMode: interviewConfig.mode,
-    jobPosition: interviewConfig.position,
-    jdContent: interviewConfig.jd
-  })
+  } = useInterview(resumeId ? parseInt(resumeId) : 0, interviewOptions)
 
   useEffect(() => {
     setMounted(true)
+    
+    // 重置检查标志
+    hasCheckedExistingSession.current = false
+    processedSessionRef.current = null
     
     // 解析URL参数
     const urlParams = new URLSearchParams(window.location.search)
     const mode = urlParams.get('mode') || 'comprehensive'
     const position = urlParams.get('position') || ''
     const jd = urlParams.get('jd') || ''
+    const sessionId = urlParams.get('session') ? parseInt(urlParams.get('session')!) : null
+    
+    console.log('URL参数解析完成:', { mode, position, jd, sessionId })
+    
+    // 如果URL中有sessionId，标记为已处理
+    if (sessionId) {
+      processedSessionRef.current = sessionId
+    }
     
     setInterviewConfig({
       mode,
       position,
-      jd
+      jd,
+      sessionId
     })
   }, [])
 
@@ -106,14 +144,46 @@ export default function InterviewPage() {
     }
   }, [mounted, isLoading, isAuthenticated, router])
 
+  // 确保 resumeLoading 状态正确重置
+  useEffect(() => {
+    if (mounted && isAuthenticated && !resumeFetched && resumeId) {
+      fetchResume()
+    } else if (mounted && (!isAuthenticated || !resumeId)) {
+      setResumeLoading(false)
+    }
+  }, [mounted, isAuthenticated, resumeId, resumeFetched])
+
+  // 监听面试配置变化
+  useEffect(() => {
+    console.log('面试配置已更新:', interviewConfig)
+    if (interviewConfig.sessionId) {
+      console.log('检测到面试会话ID:', interviewConfig.sessionId, '- Hook应该自动加载会话')
+    }
+  }, [interviewConfig])
+
+  // 监听面试状态变化（减少日志输出）
+  useEffect(() => {
+    if (isInterviewActive !== undefined) {
+      console.log('面试状态变化:', { 
+        isInterviewActive, 
+        interviewLoading, 
+        currentSession: currentSession?.id,
+        messagesCount: messages.length 
+      })
+    }
+  }, [isInterviewActive, interviewLoading, currentSession?.id, messages.length])
+
   // 获取简历数据
   const fetchResume = async () => {
-    if (!resumeId || !isAuthenticated) return
+    if (!resumeId || !isAuthenticated || resumeFetched) {
+      return
+    }
 
     try {
       setResumeLoading(true)
       const data = await resumeApi.getResume(parseInt(resumeId))
       setResume(data)
+      setResumeFetched(true)
     } catch (error) {
       console.error('Failed to fetch resume:', error)
       toast.error('获取简历失败')
@@ -123,18 +193,94 @@ export default function InterviewPage() {
     }
   }
 
-  useEffect(() => {
-    if (mounted && isAuthenticated) {
-      fetchResume()
-    }
-  }, [mounted, isAuthenticated, resumeId])
+  // 开始面试
+  const handleStartInterview = useCallback(async () => {
+    if (!resume) return
 
-  // 自动开始面试
-  useEffect(() => {
-    if (resume && !isInterviewActive && !interviewLoading) {
-      handleStartInterview()
+    // 如果是继续现有会话，不需要防重复逻辑
+    if (!interviewConfig.sessionId && hasStartedInterview) return
+
+    console.log('Debug - handleStartInterview 被调用', { 
+      existingSessionId: interviewConfig.sessionId,
+      hasStartedInterview 
+    })
+    
+    if (!interviewConfig.sessionId) {
+      setHasStartedInterview(true) // 只对新面试设置标志
     }
-  }, [resume, isInterviewActive, interviewLoading])
+
+    try {
+      // 先清空消息，然后等待hook添加欢迎消息
+      setMessages([])
+      setInterviewTime(0)
+      setCurrentQuestion(1)
+      
+      const session = await startInterview(interviewConfig.jd)
+      if (session) {
+        const action = interviewConfig.sessionId ? '继续' : '开始'
+        toast.success(`面试已${action}！模式：${getModeDisplayName(interviewConfig.mode)}`)
+      }
+    } catch (error) {
+      console.error('Failed to start interview:', error)
+      toast.error('开始面试失败，请重试')
+      if (!interviewConfig.sessionId) {
+        setHasStartedInterview(false) // 失败时重置标志（仅限新面试）
+      }
+    }
+  }, [resume, hasStartedInterview, startInterview, interviewConfig.jd])
+
+  // 自动开始面试 - 仅在没有指定sessionId时运行
+  useEffect(() => {
+    if (resume && 
+        !isInterviewActive && 
+        !interviewLoading && 
+        !hasStartedInterview && 
+        !interviewConfig.sessionId &&
+        !hasCheckedExistingSession.current) {
+      
+      console.log('自动检查面试会话 - 没有指定sessionId')
+      hasCheckedExistingSession.current = true // 立即设置标志，防止重复检查
+      
+      // 检查是否已有进行中的面试会话，避免重复创建
+      const checkAndStartInterview = async () => {
+        try {
+          const token = localStorage.getItem('access_token')
+          if (!token) return
+          
+          // 检查现有的面试会话
+          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/resumes/${resumeId}/interview/sessions`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          })
+          
+          if (response.ok) {
+            const sessions = await response.json()
+            const activeSession = sessions.find((s: any) => s.status === 'active')
+            
+            if (activeSession && processedSessionRef.current !== activeSession.id) {
+              console.log('发现进行中的面试会话，继续现有会话:', activeSession.id)
+              console.log('会话详情:', activeSession)
+              processedSessionRef.current = activeSession.id // 标记已处理
+              // 设置现有会话ID到配置中
+              setInterviewConfig(prev => ({
+                ...prev,
+                sessionId: activeSession.id
+              }))
+              setHasStartedInterview(true) // 防止重复检查
+              return
+            }
+          }
+        } catch (error) {
+          console.warn('检查现有会话失败:', error)
+        }
+        
+        console.log('Debug - 开始新的面试会话')
+        handleStartInterview()
+      }
+      
+      checkAndStartInterview()
+    }
+  }, [resume, isInterviewActive, interviewLoading, hasStartedInterview, handleStartInterview, resumeId])
+
 
   // 计时器
   useEffect(() => {
@@ -162,24 +308,6 @@ export default function InterviewPage() {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
   }
 
-  // 开始面试
-  const handleStartInterview = async () => {
-    if (!resume) return
-
-    try {
-      const session = await startInterview(interviewConfig.jd)
-      if (session) {
-        setInterviewTime(0)
-        setCurrentQuestion(1)
-        setMessages([]) // 清空之前的消息，hook会添加欢迎消息
-        toast.success(`面试已开始！模式：${getModeDisplayName(interviewConfig.mode)}`)
-      }
-    } catch (error) {
-      console.error('Failed to start interview:', error)
-      toast.error('开始面试失败，请重试')
-    }
-  }
-
   // 获取模式显示名称
   const getModeDisplayName = (mode: string) => {
     const modes = {
@@ -195,6 +323,7 @@ export default function InterviewPage() {
     try {
       await endInterview()
       setInterviewTime(0)
+      setHasStartedInterview(false) // 重置标志，允许重新开始面试
       toast.success('面试已结束')
     } catch (error) {
       console.error('Failed to end interview:', error)
@@ -342,16 +471,48 @@ export default function InterviewPage() {
 
       {/* Main Content - 三区域布局 */}
       <main className="flex-1 flex overflow-hidden">
-        {!isInterviewActive && !interviewLoading ? (
-          // 加载状态
+        {!isInterviewActive ? (
+          // 面试未开始状态或错误状态
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             className="flex-1 flex items-center justify-center"
           >
             <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-              <p className="text-gray-600">正在启动面试系统...</p>
+              {interviewLoading ? (
+                // 面试启动中的加载状态
+                <div>
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                  <p className="text-gray-600">正在启动面试系统...</p>
+                </div>
+              ) : interviewError ? (
+                <>
+                  <div className="text-red-600 mb-4">
+                    <svg className="w-12 h-12 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <p className="text-lg font-medium">面试启动失败</p>
+                    <p className="text-sm mt-2">{interviewError}</p>
+                  </div>
+                  <div className="space-x-4">
+                    <button 
+                      onClick={() => {
+                        setInterviewError(null)
+                        setHasStartedInterview(false)
+                        window.location.reload()
+                      }}
+                      className="btn-primary"
+                    >
+                      重新尝试
+                    </button>
+                    <Link href="/interviews" className="btn-secondary">
+                      返回面试中心
+                    </Link>
+                  </div>
+                </>
+              ) : (
+                <p className="text-gray-600">面试系统准备就绪，等待启动...</p>
+              )}
             </div>
           </motion.div>
         ) : (

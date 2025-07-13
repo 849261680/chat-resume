@@ -364,6 +364,106 @@ class InterviewAPI {
       throw new Error(errorData.detail || `结束面试失败: ${response.status}`)
     }
   }
+
+  /**
+   * 删除面试会话
+   */
+  static async deleteInterviewSession(resumeId: number, sessionId: number): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/api/v1/resumes/${resumeId}/interview/${sessionId}`, {
+      method: 'DELETE',
+      headers: {
+        ...getAuthHeaders(),
+      },
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.detail || `删除面试记录失败: ${response.status}`)
+    }
+  }
+
+  /**
+   * 为已完成面试计算分数
+   */
+  static async calculateScoresForCompletedInterviews(resumeId: number): Promise<{message: string, updated_count: number}> {
+    const response = await fetch(`${API_BASE_URL}/api/v1/resumes/${resumeId}/interview/calculate-scores`, {
+      method: 'POST',
+      headers: {
+        ...getAuthHeaders(),
+      },
+    })
+
+    return handleApiResponse<{message: string, updated_count: number}>(response)
+  }
+
+  /**
+   * 获取面试详细报告
+   */
+  static async getInterviewReport(resumeId: number, sessionId: number): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/api/v1/resumes/${resumeId}/interview/${sessionId}/report`, {
+      method: 'GET',
+      headers: {
+        ...getAuthHeaders(),
+      },
+    })
+
+    return handleApiResponse<any>(response)
+  }
+
+  /**
+   * 获取下一个面试问题
+   */
+  static async getNextInterviewQuestion(resumeId: number, sessionId: number): Promise<{
+    question: string
+    question_type: string
+    question_index: number
+  }> {
+    const response = await fetch(`${API_BASE_URL}/api/v1/resumes/${resumeId}/interview/${sessionId}/question`, {
+      method: 'GET',
+      headers: {
+        ...getAuthHeaders(),
+      },
+    })
+
+    return handleApiResponse<{
+      question: string
+      question_type: string
+      question_index: number
+    }>(response)
+  }
+
+  /**
+   * 提交面试答案并获取评估
+   */
+  static async submitInterviewAnswer(resumeId: number, sessionId: number, answer: string, questionIndex: number): Promise<{
+    question: string
+    answer: string
+    evaluation: any
+    score: number
+    feedback: string
+    suggestions: string[]
+  }> {
+    const response = await fetch(`${API_BASE_URL}/api/v1/resumes/${resumeId}/interview/${sessionId}/answer`, {
+      method: 'POST',
+      headers: {
+        ...getAuthHeaders(),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        answer,
+        question_index: questionIndex
+      }),
+    })
+
+    return handleApiResponse<{
+      question: string
+      answer: string
+      evaluation: any
+      score: number
+      feedback: string
+      suggestions: string[]
+    }>(response)
+  }
 }
 
 // 导出API实例

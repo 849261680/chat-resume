@@ -45,6 +45,7 @@ class InterviewSession(Base):
     answers = Column(JSON, nullable=False)    # 答案列表
     feedback = Column(JSON, nullable=True)    # AI反馈
     status = Column(String, default="active")  # active, completed, paused
+    overall_score = Column(Integer, nullable=True)  # 面试整体分数 (0-100)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     

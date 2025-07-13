@@ -93,16 +93,20 @@ class ResumeAssistantPrompts:
 请用中文回答。"""
 
     # 面试回答评估提示词
-    INTERVIEW_EVALUATION_PROMPT = """请评估以下面试回答：
+    INTERVIEW_EVALUATION_PROMPT = """作为专业面试官，请对候选人的回答做出自然的回应，就像真实面试中一样。
 
-请从以下几个方面进行评估：
-1. 回答的完整性和逻辑性
-2. 技术深度和准确性
-3. 与简历信息的一致性
-4. 沟通表达能力
-5. 改进建议
+## 回应原则：
+1. **自然对话**：像真实面试官一样回应，不要做详细的分析报告
+2. **简洁反馈**：给出简短的反馈或追问
+3. **继续深入**：基于回答提出下一个相关问题
+4. **保持专业**：维持面试官的专业形象
 
-请给出评分（1-5分）和具体的反馈建议。"""
+## 回应格式：
+- 如果回答不够详细：简短提醒并引导更具体的回答
+- 如果回答很好：简单确认并追问相关细节
+- 如果回答偏题：友善地引导回到正题
+
+请用面试官的语气回应，然后提出下一个问题继续面试。不要给出评分或详细分析。"""
 
     # 面试官系统提示词 - 综合面试模式
     INTERVIEW_SYSTEM_PROMPT = """你是一位专业的AI面试官，名字叫"AI面试官"。你绝对不是简历优化师，也不提供简历优化建议。你的唯一任务是进行面试。
@@ -311,22 +315,31 @@ class ResumeAssistantPrompts:
             "content": f"现在开始面试。面试模式：{mode_description}\n\n以下是候选人的简历信息：\n{resume_context}\n请作为面试官，基于这份简历和面试模式进行面试对话。"
         }
         
-        assistant_context = {
-            "role": "assistant",
-            "content": f"好的，我是您的AI面试官。我已经审阅了您的简历，本次采用{mode_description}，现在开始正式面试。"
-        }
+        messages = [system_message, context_message]
         
-        messages = [system_message, context_message, assistant_context]
-        
-        # 添加对话历史（跳过第一条AI消息，因为我们已经有了assistant_context）
+        # 检查是否有聊天历史，如果没有则添加初始面试官回复
+        has_interview_started = False
         if chat_history:
-            # 跳过第一条AI消息（通常是欢迎消息），避免重复
-            for i, msg in enumerate(chat_history):
+            for msg in chat_history:
+                if isinstance(msg, dict) and msg.get('type') == 'ai':
+                    has_interview_started = True
+                    break
+        
+        # 检查用户消息是否为开始面试的请求
+        is_start_request = any(keyword in user_message.lower() for keyword in ['开始面试', '请开始', '打个招呼', 'start'])
+        
+        # 如果面试还没开始且不是开始请求，添加初始回复
+        if not has_interview_started and not is_start_request:
+            assistant_context = {
+                "role": "assistant",
+                "content": f"好的，我是您的AI面试官。我已经审阅了您的简历，本次采用{mode_description}，现在开始正式面试。"
+            }
+            messages.append(assistant_context)
+        
+        # 添加对话历史
+        if chat_history:
+            for msg in chat_history:
                 if isinstance(msg, dict):
-                    # 如果是第一条AI消息，跳过（因为我们已经有assistant_context）
-                    if i == 0 and msg.get('type') == 'ai':
-                        continue
-                    
                     if msg.get('type') == 'user':
                         messages.append({
                             "role": "user",
@@ -418,8 +431,8 @@ class ResumeAssistantPrompts:
         """构建面试回答评估消息"""
         
         system_message = {
-            "role": "system",
-            "content": "你是一个专业的面试官，擅长评估候选人的面试回答。"
+            "role": "system", 
+            "content": "你是一位专业的面试官，正在进行真实的面试对话。请像真实面试中一样自然地回应候选人，给出简短反馈并继续提问。不要做详细的评估分析，保持对话的自然流畅。"
         }
         
         resume_context = ResumeAssistantPrompts.format_resume_context(resume_content)

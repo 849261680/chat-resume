@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.services.openrouter_service import OpenRouterService
+from app.services.interview_report_service import InterviewReportService
 from app.services.resume_service import ResumeService
 from app.models.resume import InterviewSession
 from app.schemas.interview import (
@@ -40,6 +41,17 @@ async def start_interview(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"
         )
+    
+    # 检查是否已有进行中的面试会话，避免重复创建
+    existing_active_session = db.query(InterviewSession).filter(
+        InterviewSession.resume_id == resume_id,
+        InterviewSession.status == "active"
+    ).first()
+    
+    if existing_active_session:
+        # 如果已有进行中的会话，返回现有会话而不是创建新的
+        print(f"发现现有活跃会话 {existing_active_session.id}，返回现有会话")
+        return InterviewSessionResponse.model_validate(existing_active_session)
     
     try:
         # 生成初始面试问题
@@ -185,6 +197,7 @@ async def submit_answer(
     try:
         # 获取当前问题
         question_index = answer_request.question_index
+        
         if question_index >= len(interview_session.questions):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -208,12 +221,18 @@ async def submit_answer(
             "question_index": question_index
         }
         
-        # 更新会话答案
-        if len(interview_session.answers) <= question_index:
-            # 扩展答案列表
-            interview_session.answers.extend([{}] * (question_index - len(interview_session.answers) + 1))
+        # 更新会话答案 - 复制列表以确保SQLAlchemy检测到变化
+        current_answers = list(interview_session.answers or [])
         
-        interview_session.answers[question_index] = answer_data
+        # 扩展答案列表到所需长度
+        while len(current_answers) <= question_index:
+            current_answers.append({})
+        
+        # 设置答案数据
+        current_answers[question_index] = answer_data
+        
+        # 重新分配列表以触发SQLAlchemy的变化检测
+        interview_session.answers = current_answers
         db.commit()
         
         return InterviewEvaluationResponse(
@@ -262,11 +281,38 @@ async def end_interview(
             detail="Not enough permissions"
         )
     
-    # 更新会话状态
-    interview_session.status = "completed"
-    db.commit()
-    
-    return {"message": "Interview session ended successfully"}
+    try:
+        # 计算整体面试分数
+        openrouter_service = OpenRouterService()
+        
+        # 将面试会话转换为字典格式以便传递给分数计算函数
+        session_dict = {
+            "questions": interview_session.questions,
+            "answers": interview_session.answers,
+            "feedback": interview_session.feedback
+        }
+        
+        overall_score = await openrouter_service.calculate_overall_score(session_dict)
+        
+        # 更新会话状态和分数
+        interview_session.status = "completed"
+        interview_session.overall_score = overall_score
+        db.commit()
+        
+        return {
+            "message": "Interview session ended successfully",
+            "overall_score": overall_score
+        }
+        
+    except Exception as e:
+        # 即使分数计算失败，也要结束面试
+        interview_session.status = "completed"
+        db.commit()
+        
+        return {
+            "message": "Interview session ended successfully",
+            "warning": f"Failed to calculate overall score: {str(e)}"
+        }
 
 @router.get("/{resume_id}/interview/sessions", response_model=List[InterviewSessionResponse])
 async def get_interview_sessions(
@@ -298,3 +344,227 @@ async def get_interview_sessions(
     ).order_by(InterviewSession.created_at.desc()).all()
     
     return [InterviewSessionResponse.model_validate(session) for session in sessions]
+
+@router.delete("/{resume_id}/interview/{session_id}")
+async def delete_interview_session(
+    resume_id: int,
+    session_id: int,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """删除面试会话"""
+    
+    # 验证面试会话是否存在
+    interview_session = db.query(InterviewSession).filter(
+        InterviewSession.id == session_id,
+        InterviewSession.resume_id == resume_id
+    ).first()
+    
+    if not interview_session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Interview session not found"
+        )
+    
+    # 验证简历权限
+    resume_service = ResumeService(db)
+    resume = resume_service.get_by_id(resume_id)
+    
+    if not resume:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Resume not found"
+        )
+    
+    if resume.owner_id != current_user["id"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions"
+        )
+    
+    # 删除面试会话
+    db.delete(interview_session)
+    db.commit()
+    
+    return {"message": "Interview session deleted successfully"}
+
+@router.post("/{resume_id}/interview/calculate-scores")
+async def calculate_scores_for_completed_interviews(
+    resume_id: int,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """为已完成但没有分数的面试计算分数"""
+    
+    # 验证简历权限
+    resume_service = ResumeService(db)
+    resume = resume_service.get_by_id(resume_id)
+    
+    if not resume:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Resume not found"
+        )
+    
+    if resume.owner_id != current_user["id"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions"
+        )
+    
+    # 查找已完成但没有分数的面试
+    sessions = db.query(InterviewSession).filter(
+        InterviewSession.resume_id == resume_id,
+        InterviewSession.status == "completed",
+        InterviewSession.overall_score.is_(None)
+    ).all()
+    
+    if not sessions:
+        return {"message": "No interviews need score calculation", "updated_count": 0}
+    
+    updated_count = 0
+    openrouter_service = OpenRouterService()
+    
+    for session in sessions:
+        try:
+            # 将面试会话转换为字典格式
+            session_dict = {
+                "questions": session.questions,
+                "answers": session.answers,
+                "feedback": session.feedback
+            }
+            
+            overall_score = await openrouter_service.calculate_overall_score(session_dict)
+            
+            if overall_score > 0:  # 只有成功计算出分数才更新
+                session.overall_score = overall_score
+                updated_count += 1
+                
+        except Exception as e:
+            print(f"Failed to calculate score for session {session.id}: {e}")
+            continue
+    
+    if updated_count > 0:
+        db.commit()
+    
+    return {
+        "message": f"Successfully calculated scores for {updated_count} interviews",
+        "updated_count": updated_count
+    }
+
+@router.post("/{resume_id}/interview/cleanup-duplicate")
+async def cleanup_duplicate_sessions(
+    resume_id: int,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """清理重复的面试会话"""
+    
+    # 验证简历权限
+    resume_service = ResumeService(db)
+    resume = resume_service.get_by_id(resume_id)
+    
+    if not resume:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Resume not found"
+        )
+    
+    if resume.owner_id != current_user["id"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions"
+        )
+    
+    # 查找重复的面试会话（同一简历的多个活跃会话）
+    active_sessions = db.query(InterviewSession).filter(
+        InterviewSession.resume_id == resume_id,
+        InterviewSession.status == "active"
+    ).order_by(InterviewSession.created_at.desc()).all()
+    
+    cleaned_count = 0
+    
+    if len(active_sessions) > 1:
+        # 保留最新的会话，删除其他的
+        sessions_to_delete = active_sessions[1:]  # 跳过第一个（最新的）
+        
+        for session in sessions_to_delete:
+            # 只删除没有答案的空会话
+            if not session.answers or len(session.answers) == 0:
+                db.delete(session)
+                cleaned_count += 1
+                print(f"删除空的重复面试会话: {session.id}")
+    
+    if cleaned_count > 0:
+        db.commit()
+    
+    return {
+        "message": f"Cleaned up {cleaned_count} duplicate interview sessions",
+        "cleaned_count": cleaned_count
+    }
+
+@router.get("/{resume_id}/interview/{session_id}/report")
+async def get_interview_report(
+    resume_id: int,
+    session_id: int,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """获取面试详细报告"""
+    
+    # 验证面试会话是否存在
+    interview_session = db.query(InterviewSession).filter(
+        InterviewSession.id == session_id,
+        InterviewSession.resume_id == resume_id
+    ).first()
+    
+    if not interview_session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Interview session not found"
+        )
+    
+    # 验证简历权限
+    resume_service = ResumeService(db)
+    resume = resume_service.get_by_id(resume_id)
+    
+    if not resume:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Resume not found"
+        )
+    
+    if resume.owner_id != current_user["id"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions"
+        )
+    
+    # 检查面试是否已完成
+    if interview_session.status != "completed":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Interview must be completed to generate report"
+        )
+    
+    try:
+        # 添加简历标题到面试会话对象
+        interview_session.resume_title = resume.title
+        
+        # 生成报告
+        report_service = InterviewReportService()
+        report = await report_service.generate_comprehensive_report(interview_session)
+        
+        return report
+        
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        print(f"Generate report error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate report: {str(e)}"
+        )

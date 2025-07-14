@@ -73,6 +73,31 @@ interface UpdateResumeData {
   content?: ResumeContent
 }
 
+// 面试相关类型
+interface InterviewSession {
+  id: number
+  resume_id: number
+  resume_title?: string
+  job_position: string
+  interview_mode: string
+  jd_content: string
+  questions: any[]
+  answers: any[]
+  feedback: any
+  status: string
+  overall_score?: number
+  current_question?: number
+  total_questions?: number
+  created_at: string
+  updated_at: string
+}
+
+interface InterviewConfig {
+  job_position: string
+  interview_mode: string
+  jd_content?: string
+}
+
 // API基础URL
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -291,9 +316,160 @@ class ChatAPI {
   }
 }
 
+// 面试API类
+class InterviewAPI {
+  /**
+   * 获取指定简历的面试记录列表
+   */
+  static async getInterviewSessions(resumeId: number): Promise<InterviewSession[]> {
+    const response = await fetch(`${API_BASE_URL}/api/v1/resumes/${resumeId}/interview/sessions`, {
+      method: 'GET',
+      headers: {
+        ...getAuthHeaders(),
+      },
+    })
+
+    return handleApiResponse<InterviewSession[]>(response)
+  }
+
+  /**
+   * 开始面试会话
+   */
+  static async startInterview(resumeId: number, config: InterviewConfig): Promise<InterviewSession> {
+    const response = await fetch(`${API_BASE_URL}/api/v1/resumes/${resumeId}/interview/start`, {
+      method: 'POST',
+      headers: {
+        ...getAuthHeaders(),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(config),
+    })
+
+    return handleApiResponse<InterviewSession>(response)
+  }
+
+  /**
+   * 结束面试会话
+   */
+  static async endInterview(resumeId: number, sessionId: number): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/api/v1/resumes/${resumeId}/interview/${sessionId}/end`, {
+      method: 'POST',
+      headers: {
+        ...getAuthHeaders(),
+      },
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.detail || `结束面试失败: ${response.status}`)
+    }
+  }
+
+  /**
+   * 删除面试会话
+   */
+  static async deleteInterviewSession(resumeId: number, sessionId: number): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/api/v1/resumes/${resumeId}/interview/${sessionId}`, {
+      method: 'DELETE',
+      headers: {
+        ...getAuthHeaders(),
+      },
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.detail || `删除面试记录失败: ${response.status}`)
+    }
+  }
+
+  /**
+   * 为已完成面试计算分数
+   */
+  static async calculateScoresForCompletedInterviews(resumeId: number): Promise<{message: string, updated_count: number}> {
+    const response = await fetch(`${API_BASE_URL}/api/v1/resumes/${resumeId}/interview/calculate-scores`, {
+      method: 'POST',
+      headers: {
+        ...getAuthHeaders(),
+      },
+    })
+
+    return handleApiResponse<{message: string, updated_count: number}>(response)
+  }
+
+  /**
+   * 获取面试详细报告
+   */
+  static async getInterviewReport(resumeId: number, sessionId: number): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/api/v1/resumes/${resumeId}/interview/${sessionId}/report`, {
+      method: 'GET',
+      headers: {
+        ...getAuthHeaders(),
+      },
+    })
+
+    return handleApiResponse<any>(response)
+  }
+
+  /**
+   * 获取下一个面试问题
+   */
+  static async getNextInterviewQuestion(resumeId: number, sessionId: number): Promise<{
+    question: string
+    question_type: string
+    question_index: number
+  }> {
+    const response = await fetch(`${API_BASE_URL}/api/v1/resumes/${resumeId}/interview/${sessionId}/question`, {
+      method: 'GET',
+      headers: {
+        ...getAuthHeaders(),
+      },
+    })
+
+    return handleApiResponse<{
+      question: string
+      question_type: string
+      question_index: number
+    }>(response)
+  }
+
+  /**
+   * 提交面试答案并获取评估
+   */
+  static async submitInterviewAnswer(resumeId: number, sessionId: number, answer: string, questionIndex: number): Promise<{
+    question: string
+    answer: string
+    evaluation: any
+    score: number
+    feedback: string
+    suggestions: string[]
+  }> {
+    const response = await fetch(`${API_BASE_URL}/api/v1/resumes/${resumeId}/interview/${sessionId}/answer`, {
+      method: 'POST',
+      headers: {
+        ...getAuthHeaders(),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        answer,
+        question_index: questionIndex
+      }),
+    })
+
+    return handleApiResponse<{
+      question: string
+      answer: string
+      evaluation: any
+      score: number
+      feedback: string
+      suggestions: string[]
+    }>(response)
+  }
+}
+
 // 导出API实例
 export const resumeApi = ResumeAPI
 export const chatApi = ChatAPI
+export const interviewApi = InterviewAPI
 
 // 导出类型
 export type {
@@ -306,4 +482,6 @@ export type {
   Project,
   CreateResumeData,
   UpdateResumeData,
+  InterviewSession,
+  InterviewConfig,
 }

@@ -3,11 +3,15 @@ from datetime import datetime
 from pydantic import BaseModel
 
 class InterviewSessionCreate(BaseModel):
+    job_position: Optional[str] = None
+    interview_mode: Optional[str] = None  # comprehensive, technical, behavioral
     jd_content: Optional[str] = None
 
 class InterviewSessionResponse(BaseModel):
     id: int
     resume_id: int
+    job_position: Optional[str] = None
+    interview_mode: Optional[str] = None
     jd_content: Optional[str] = None
     questions: List[Dict[str, Any]]
     answers: List[Dict[str, Any]]
@@ -16,8 +20,7 @@ class InterviewSessionResponse(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime] = None
     
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 class InterviewQuestionResponse(BaseModel):
     question: str

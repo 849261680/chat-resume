@@ -8,12 +8,12 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth'
 import toast from 'react-hot-toast'
 import { 
-  UserIcon, 
   EnvelopeIcon, 
   LockClosedIcon,
   EyeIcon,
   EyeSlashIcon
 } from '@heroicons/react/24/outline'
+import { DocumentIcon } from '@heroicons/react/24/solid'
 
 interface LoginForm {
   email: string
@@ -48,7 +48,7 @@ export default function LoginPage() {
       <div className="absolute top-4 left-4">
         <Link href="/" className="flex items-center space-x-2 text-gray-600 hover:text-gray-900">
           <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center">
-            <UserIcon className="w-5 h-5 text-white" />
+            <DocumentIcon className="w-5 h-5 text-white" />
           </div>
           <span className="text-xl font-bold">Chat Resume</span>
         </Link>

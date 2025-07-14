@@ -7,11 +7,11 @@ import { useRouter } from 'next/navigation'
 import { resumeApi } from '@/lib/api'
 import toast from 'react-hot-toast'
 import Link from 'next/link'
+import MainNavigation from '@/components/layout/MainNavigation'
 import { 
-  UserIcon, 
   DocumentIcon, 
   PlusIcon,
-  ChatBubbleLeftIcon,
+  PencilIcon,
   TrashIcon,
   CloudArrowUpIcon,
   CalendarIcon
@@ -223,14 +223,23 @@ export default function DashboardPage() {
   }
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleDateString('zh-CN', {
+    // 如果日期字符串没有时区信息，说明是UTC时间，需要添加Z后缀
+    const normalizedDateString = dateString.includes('T') && !dateString.includes('Z') && !dateString.includes('+') 
+      ? dateString + 'Z' 
+      : dateString
+    
+    const date = new Date(normalizedDateString)
+    
+    // 确保使用北京时间格式化
+    return new Intl.DateTimeFormat('zh-CN', {
       year: 'numeric',
-      month: 'short',
+      month: 'long',
       day: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
-    })
+      minute: '2-digit',
+      timeZone: 'Asia/Shanghai',
+      hour12: false
+    }).format(date)
   }
 
 
@@ -247,31 +256,8 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center">
-                <UserIcon className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-xl font-bold text-gray-900">Chat Resume</span>
-            </div>
-            
-            <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-600">
-                欢迎, {user?.full_name || user?.email}
-              </span>
-              <button
-                onClick={logout}
-                className="btn-secondary"
-              >
-                退出登录
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
+      {/* Navigation */}
+      <MainNavigation />
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -284,10 +270,10 @@ export default function DashboardPage() {
           <div className="flex justify-between items-center mb-8">
             <div>
               <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                我的简历
+                简历中心
               </h1>
               <p className="text-gray-600">
-                管理您的简历，使用AI优化，并进行模拟面试
+                管理您的简历文档，使用AI进行优化
               </p>
             </div>
             <div className="flex space-x-3">
@@ -384,20 +370,21 @@ export default function DashboardPage() {
 
 
                     {/* Action Buttons */}
-                    <div className="flex space-x-2">
+                    <div className="grid grid-cols-2 gap-2">
                       <Link
                         href={`/resume/${resume.id}/edit`}
-                        className="btn-primary flex-1 items-center justify-center space-x-1 text-sm px-2 py-2"
+                        className="btn-primary flex items-center justify-center space-x-1 text-sm px-2 py-2"
                       >
-                        <ChatBubbleLeftIcon className="w-4 h-4" />
-                        <span>Chat Resume</span>
+                        <PencilIcon className="w-4 h-4" />
+                        <span>编辑</span>
                       </Link>
                       <button
                         onClick={() => handleDeleteResume(resume.id, resume.title)}
-                        className="btn-danger flex items-center justify-center "
+                        className="btn-danger flex items-center justify-center space-x-1 text-sm px-2 py-2"
                         title="删除简历"
                       >
                         <TrashIcon className="w-4 h-4" />
+                        <span>删除</span>
                       </button>
                     </div>
                   </motion.div>

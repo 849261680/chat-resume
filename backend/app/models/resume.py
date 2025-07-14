@@ -38,11 +38,14 @@ class InterviewSession(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     resume_id = Column(Integer, ForeignKey("resumes.id"), nullable=False)
-    jd_content = Column(Text, nullable=True)
+    job_position = Column(String, nullable=True)  # 面试职位
+    interview_mode = Column(String, nullable=True)  # 面试模式: comprehensive, technical, behavioral
+    jd_content = Column(Text, nullable=True)  # 职位描述
     questions = Column(JSON, nullable=False)  # 问题列表
     answers = Column(JSON, nullable=False)    # 答案列表
     feedback = Column(JSON, nullable=True)    # AI反馈
     status = Column(String, default="active")  # active, completed, paused
+    overall_score = Column(Integer, nullable=True)  # 面试整体分数 (0-100)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     

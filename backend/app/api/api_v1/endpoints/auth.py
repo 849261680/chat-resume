@@ -8,12 +8,17 @@ from app.core.config import settings
 from app.models.user import User
 from app.schemas.auth import Token, UserCreate, UserResponse, LoginResponse
 from app.services.user_service import UserService
+from app.api.deps import get_current_user
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
 
 @router.post("/register", response_model=UserResponse)
 async def register(user_create: UserCreate, db: Session = Depends(get_db)):
+    logger.info(f"Register endpoint called with email: {user_create.email}")
     user_service = UserService(db)
     
     # 检查用户是否已存在
@@ -64,4 +69,15 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = 
             is_active=user.is_active,
             created_at=user.created_at
         )
+    )
+
+@router.get("/me", response_model=UserResponse)
+async def get_current_user_info(current_user: dict = Depends(get_current_user)):
+    """获取当前用户信息"""
+    return UserResponse(
+        id=current_user["id"],
+        email=current_user["email"],
+        full_name=current_user["full_name"],
+        is_active=current_user["is_active"],
+        created_at=current_user["created_at"]
     )

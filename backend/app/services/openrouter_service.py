@@ -247,14 +247,14 @@ class OpenRouterService:
         return questions
     
     def _parse_evaluation_response(self, response: Dict[str, Any]) -> Dict[str, Any]:
-        """解析评估响应（OpenAI格式）"""
+        """解析评估响应（OpenAI格式）- 适配对话式回应"""
         content = response["choices"][0]["message"]["content"]
         
         return {
             "content": content,
-            "score": self._extract_score(content),
-            "feedback": content,
-            "suggestions": self._extract_suggestions(content)
+            "score": 3,  # 默认给中等分数，因为现在不强调评分
+            "feedback": content,  # 直接使用面试官的回应作为反馈
+            "suggestions": []  # 不再强制提取建议
         }
     
     def _extract_suggestions(self, content: str) -> List[str]:
@@ -301,6 +301,79 @@ class OpenRouterService:
         
         return missing_skills
     
+    async def calculate_overall_score(self, interview_session: Dict[str, Any]) -> int:
+        """计算面试整体分数"""
+        try:
+            # 从面试会话中提取所有答案的评估分数
+            answers = interview_session.get('answers', [])
+            if not answers:
+                return 0
+            
+            # 收集所有单题评估分数
+            scores = []
+            for answer in answers:
+                if isinstance(answer, dict) and 'evaluation' in answer:
+                    evaluation = answer['evaluation']
+                    if isinstance(evaluation, dict) and 'score' in evaluation:
+                        scores.append(evaluation['score'])
+            
+            if not scores:
+                # 如果没有单题分数，使用AI生成整体评价
+                questions = interview_session.get('questions', [])
+                conversation_history = []
+                
+                for i, answer in enumerate(answers):
+                    if i < len(questions) and isinstance(answer, dict):
+                        conversation_history.append({
+                            "question": questions[i].get("question", ""),
+                            "answer": answer.get("answer", "")
+                        })
+                
+                if conversation_history:
+                    # 构建整体评估提示
+                    history_text = "\n".join([
+                        f"问题：{item['question']}\n回答：{item['answer']}\n"
+                        for item in conversation_history
+                    ])
+                    
+                    prompt = f"""
+                    根据以下完整的面试对话，给出一个0-100的整体评分。
+                    
+                    面试对话：
+                    {history_text}
+                    
+                    请综合考虑以下因素：
+                    1. 回答的完整性和逻辑性
+                    2. 专业技能展现
+                    3. 沟通能力和表达清晰度
+                    4. 对问题的理解和应对能力
+                    
+                    请只返回一个数字分数（0-100），不要包含其他文字。
+                    """
+                    
+                    messages = [
+                        {"role": "system", "content": "你是一个专业的面试评估师，能够客观公正地评估面试表现。"},
+                        {"role": "user", "content": prompt}
+                    ]
+                    
+                    response = await self.chat_completion(messages)
+                    content = response["choices"][0]["message"]["content"].strip()
+                    
+                    # 从响应中提取分数
+                    import re
+                    score_match = re.search(r'\d+', content)
+                    if score_match:
+                        return min(100, max(0, int(score_match.group())))
+                
+                return 0
+            
+            # 计算平均分数
+            return round(sum(scores) / len(scores))
+            
+        except Exception as e:
+            print(f"计算整体分数时出错: {e}")
+            return 0
+
     def _clean_ai_response(self, content: str) -> str:
         """清理AI响应格式，优化Markdown显示"""
         import re

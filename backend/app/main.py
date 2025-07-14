@@ -37,7 +37,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"],
 )
@@ -56,15 +56,4 @@ async def health_check():
 async def test_endpoint():
     return {"message": "API is working", "cors": "enabled"}
 
-@app.options("/api/v1/auth/register")
-async def register_options():
-    return {"message": "OPTIONS allowed"}
-
-@app.options("/api/v1/auth/login")
-async def login_options():
-    return {"message": "OPTIONS allowed"}
-
-# 添加通用的OPTIONS处理
-@app.options("/{path:path}")
-async def options_handler(path: str):
-    return {"message": f"OPTIONS allowed for {path}"}
+# 移除手动OPTIONS处理，让CORS中间件自动处理

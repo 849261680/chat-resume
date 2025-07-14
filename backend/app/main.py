@@ -26,19 +26,14 @@ async def log_requests(request: Request, call_next):
 # 创建数据库表
 Base.metadata.create_all(bind=engine)
 
-# 获取CORS配置
-cors_origins = ["*"]  # 临时允许所有域名
-if hasattr(settings, 'BACKEND_CORS_ORIGINS'):
-    cors_origins = settings.BACKEND_CORS_ORIGINS
+# 简化CORS配置 - 临时允许所有来源进行调试
+logger.info("Setting up CORS with allow all origins")
 
-logger.info(f"CORS Origins: {cors_origins}")
-
-# Set all CORS enabled origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=cors_origins,
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"],
 )
@@ -64,3 +59,8 @@ async def register_options():
 @app.options("/api/v1/auth/login")
 async def login_options():
     return {"message": "OPTIONS allowed"}
+
+# 添加通用的OPTIONS处理
+@app.options("/{path:path}")
+async def options_handler(path: str):
+    return {"message": f"OPTIONS allowed for {path}"}

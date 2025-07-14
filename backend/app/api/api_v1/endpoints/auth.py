@@ -9,12 +9,16 @@ from app.models.user import User
 from app.schemas.auth import Token, UserCreate, UserResponse, LoginResponse
 from app.services.user_service import UserService
 from app.api.deps import get_current_user
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
 
 @router.post("/register", response_model=UserResponse)
 async def register(user_create: UserCreate, db: Session = Depends(get_db)):
+    logger.info(f"Register endpoint called with email: {user_create.email}")
     user_service = UserService(db)
     
     # 检查用户是否已存在

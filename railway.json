@@ -5,7 +5,7 @@
     "buildCommand": "pip install -r backend/requirements.txt"
   },
   "deploy": {
-    "startCommand": "cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT",
+    "startCommand": "cd backend && alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 30
   },

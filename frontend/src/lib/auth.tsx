@@ -86,7 +86,7 @@ class AuthAPI {
   }
 
   static async getCurrentUser(): Promise<User> {
-    const response = await fetch(`${API_BASE_URL}/api/v1/users/me`, {
+    const response = await fetch(`${API_BASE_URL}/api/v1/auth/me`, {
       headers: {
         ...this.getAuthHeaders(),
       },

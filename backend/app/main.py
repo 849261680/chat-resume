@@ -26,21 +26,32 @@ async def log_requests(request: Request, call_next):
 # 创建数据库表
 Base.metadata.create_all(bind=engine)
 
-# 获取CORS配置
-cors_origins = ["*"]  # 默认允许所有来源
-if hasattr(settings, 'BACKEND_CORS_ORIGINS') and settings.BACKEND_CORS_ORIGINS:
-    cors_origins = settings.BACKEND_CORS_ORIGINS
+# 从环境变量获取CORS配置
+cors_origins = settings.BACKEND_CORS_ORIGINS
+logger.info(f"CORS Origins from settings: {cors_origins}")
+logger.info(f"CORS Origins type: {type(cors_origins)}")
 
-logger.info(f"CORS Origins: {cors_origins}")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=cors_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["*"],
-)
+# 如果是生产环境且配置了特定域名，使用特定域名；否则允许所有来源
+if cors_origins and len(cors_origins) > 0 and cors_origins != ["http://localhost:3000,https://localhost:3000"]:
+    logger.info("Using specific CORS origins")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+        expose_headers=["*"],
+    )
+else:
+    logger.info("Using wildcard CORS origins")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
+        expose_headers=["*"],
+    )
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
 

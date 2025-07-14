@@ -17,6 +17,24 @@ class InterviewReportService:
     def __init__(self):
         self.openrouter_service = OpenRouterService()
     
+    def _safe_json_parse(self, content: str, default_value: Dict[str, Any] = None) -> Dict[str, Any]:
+        """安全的JSON解析函数"""
+        try:
+            # 清理可能的非JSON内容
+            content = content.strip()
+            if content.startswith('```json'):
+                content = content.replace('```json', '').replace('```', '').strip()
+            elif content.startswith('```'):
+                content = content.replace('```', '').strip()
+            
+            return json.loads(content)
+        except json.JSONDecodeError as e:
+            print(f"JSON解析失败: {e}, 内容前200字符: {content[:200]}...")
+            return default_value or {}
+        except Exception as e:
+            print(f"解析时发生其他错误: {e}")
+            return default_value or {}
+    
     async def generate_comprehensive_report(self, interview_session: InterviewSession) -> Dict[str, Any]:
         """生成完整的面试报告"""
         
@@ -165,7 +183,13 @@ class InterviewReportService:
             content = response["choices"][0]["message"]["content"].strip()
             
             # 尝试解析JSON
-            scores = json.loads(content)
+            scores = self._safe_json_parse(content, {
+                "job_fit": 75,
+                "technical_depth": 75,
+                "project_exposition": 75,
+                "communication": 75,
+                "behavioral": 75
+            })
             
             # 验证和规范化分数
             normalized_scores = {}
@@ -229,7 +253,10 @@ class InterviewReportService:
             response = await self.openrouter_service.chat_completion(messages)
             content = response["choices"][0]["message"]["content"].strip()
             
-            feedback = json.loads(content)
+            feedback = self._safe_json_parse(content, {
+                "highlights": [],
+                "improvements": []
+            })
             return {
                 "highlights": feedback.get("highlights", []),
                 "improvements": feedback.get("improvements", [])
@@ -317,7 +344,10 @@ class InterviewReportService:
         response = await self.openrouter_service.chat_completion(messages)
         content = response["choices"][0]["message"]["content"].strip()
         
-        return json.loads(content)
+        return self._safe_json_parse(content, {
+            "score": 75,
+            "analysis": "分析暂时不可用"
+        })
     
     async def _analyze_keywords_coverage(self, conversation: List[Dict[str, str]], jd_content: str) -> Dict[str, Any]:
         """分析关键词覆盖率"""

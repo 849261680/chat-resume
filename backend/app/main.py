@@ -23,8 +23,30 @@ async def log_requests(request: Request, call_next):
     logger.info(f"Response: {response.status_code}")
     return response
 
-# 创建数据库表
-Base.metadata.create_all(bind=engine)
+# 运行数据库迁移和创建表
+try:
+    import subprocess
+    import os
+    
+    # 尝试运行Alembic迁移
+    logger.info("运行数据库迁移...")
+    result = subprocess.run(
+        ["alembic", "upgrade", "head"], 
+        cwd="/app/backend",
+        capture_output=True, 
+        text=True
+    )
+    if result.returncode == 0:
+        logger.info("数据库迁移成功")
+    else:
+        logger.error(f"数据库迁移失败: {result.stderr}")
+        # 如果迁移失败，使用create_all作为后备
+        logger.info("使用create_all作为后备方案")
+        Base.metadata.create_all(bind=engine)
+except Exception as e:
+    logger.error(f"迁移过程出错: {e}")
+    # 使用create_all作为后备
+    Base.metadata.create_all(bind=engine)
 
 # 从环境变量获取CORS配置
 cors_origins = settings.BACKEND_CORS_ORIGINS

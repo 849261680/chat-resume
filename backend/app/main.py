@@ -26,14 +26,18 @@ async def log_requests(request: Request, call_next):
 # 创建数据库表
 Base.metadata.create_all(bind=engine)
 
-# 简化CORS配置 - 临时允许所有来源进行调试
-logger.info("Setting up CORS with allow all origins")
+# 获取CORS配置
+cors_origins = ["*"]  # 默认允许所有来源
+if hasattr(settings, 'BACKEND_CORS_ORIGINS') and settings.BACKEND_CORS_ORIGINS:
+    cors_origins = settings.BACKEND_CORS_ORIGINS
+
+logger.info(f"CORS Origins: {cors_origins}")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
     expose_headers=["*"],
 )

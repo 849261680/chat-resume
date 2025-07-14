@@ -30,16 +30,33 @@ try:
     
     # 尝试运行Alembic迁移
     logger.info("运行数据库迁移...")
-    result = subprocess.run(
-        ["alembic", "upgrade", "head"], 
-        cwd="/app/backend",
-        capture_output=True, 
-        text=True
-    )
-    if result.returncode == 0:
-        logger.info("数据库迁移成功")
-    else:
-        logger.error(f"数据库迁移失败: {result.stderr}")
+    
+    # 尝试不同的工作目录
+    possible_dirs = ["/app", "/app/backend", ".", "./backend", "../"]
+    migration_success = False
+    
+    for work_dir in possible_dirs:
+        try:
+            if os.path.exists(work_dir):
+                logger.info(f"尝试在目录 {work_dir} 运行迁移")
+                result = subprocess.run(
+                    ["alembic", "upgrade", "head"], 
+                    cwd=work_dir,
+                    capture_output=True, 
+                    text=True
+                )
+                if result.returncode == 0:
+                    logger.info(f"数据库迁移成功 (在 {work_dir})")
+                    migration_success = True
+                    break
+                else:
+                    logger.warning(f"在 {work_dir} 迁移失败: {result.stderr}")
+        except Exception as e:
+            logger.warning(f"在 {work_dir} 迁移出错: {e}")
+            continue
+    
+    if not migration_success:
+        logger.error("所有路径的迁移都失败了")
         # 如果迁移失败，使用create_all作为后备
         logger.info("使用create_all作为后备方案")
         Base.metadata.create_all(bind=engine)

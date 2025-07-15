@@ -399,8 +399,13 @@ class InterviewAPI {
   /**
    * 获取面试详细报告
    */
-  static async getInterviewReport(resumeId: number, sessionId: number): Promise<any> {
-    const response = await fetch(`${API_BASE_URL}/api/v1/resumes/${resumeId}/interview/${sessionId}/report`, {
+  static async getInterviewReport(resumeId: number, sessionId: number, regenerate: boolean = false): Promise<any> {
+    const params = new URLSearchParams()
+    if (regenerate) {
+      params.append('regenerate', 'true')
+    }
+    
+    const response = await fetch(`${API_BASE_URL}/api/v1/resumes/${resumeId}/interview/${sessionId}/report?${params.toString()}`, {
       method: 'GET',
       headers: {
         ...getAuthHeaders(),

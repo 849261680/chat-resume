@@ -498,21 +498,30 @@ export default function InterviewsPage() {
                       </button>
                     </div>
                   ) : session.status === 'active' ? (
-                    // 进行中的面试 - 继续面试和删除按钮同一行
-                    <div className="grid grid-cols-3 gap-2">
-                      <Link
-                        href={`/resume/${session.resume_id}/interview?session=${session.id}`}
-                        className="col-span-2 btn-primary flex items-center justify-center space-x-2 py-2"
-                      >
-                        <PlayIcon className="w-5 h-5" />
-                        <span className="font-medium">继续面试</span>
-                      </Link>
+                    // 进行中的面试 - 继续面试、查看报告和删除按钮
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        <Link
+                          href={`/resume/${session.resume_id}/interview?session=${session.id}`}
+                          className="btn-primary flex items-center justify-center space-x-1 text-sm py-2"
+                        >
+                          <PlayIcon className="w-4 h-4" />
+                          <span>继续面试</span>
+                        </Link>
+                        <Link
+                          href={`/interviews/${session.id}/report?resume_id=${session.resume_id}`}
+                          className="btn-secondary flex items-center justify-center space-x-1 text-sm py-2"
+                        >
+                          <ChartBarIcon className="w-4 h-4" />
+                          <span>查看报告</span>
+                        </Link>
+                      </div>
                       <button
                         onClick={() => handleDeleteInterview(session.id, session.job_position)}
-                        className="btn-danger flex items-center justify-center space-x-1 py-2"
+                        className="btn-danger w-full flex items-center justify-center space-x-2 py-2"
                       >
                         <TrashIcon className="w-4 h-4" />
-                        <span className="text-sm">删除</span>
+                        <span>删除</span>
                       </button>
                     </div>
                   ) : (

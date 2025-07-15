@@ -103,7 +103,7 @@ export default function InterviewReportPage() {
     }
   }, [mounted, isAuthenticated, reportId, resumeId])
 
-  const loadReportData = async () => {
+  const loadReportData = async (regenerate: boolean = false) => {
     if (!resumeId) {
       console.error('Resume ID is missing from URL parameters')
       setReportLoading(false)
@@ -116,9 +116,9 @@ export default function InterviewReportPage() {
       const sessionId = parseInt(reportId)
       const resumeIdNum = parseInt(resumeId)
       
-      console.log(`正在获取面试报告: resumeId=${resumeIdNum}, sessionId=${sessionId}`)
+      console.log(`正在获取面试报告: resumeId=${resumeIdNum}, sessionId=${sessionId}, regenerate=${regenerate}`)
       
-      const reportData = await interviewApi.getInterviewReport(resumeIdNum, sessionId)
+      const reportData = await interviewApi.getInterviewReport(resumeIdNum, sessionId, regenerate)
       console.log('获取到的报告数据:', reportData)
       
       setReport(reportData)
@@ -246,7 +246,7 @@ export default function InterviewReportPage() {
                 <span>下载PDF</span>
               </button>
               <button 
-                onClick={() => loadReportData()}
+                onClick={() => loadReportData(true)}
                 disabled={reportLoading}
                 className="btn-primary flex items-center space-x-2 text-sm disabled:opacity-50"
               >

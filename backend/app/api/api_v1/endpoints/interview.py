@@ -233,6 +233,10 @@ async def submit_answer(
         
         # 重新分配列表以触发SQLAlchemy的变化检测
         interview_session.answers = current_answers
+        
+        # 清除缓存的报告，因为面试内容已更新
+        interview_session.report_data = None
+        
         db.commit()
         
         return InterviewEvaluationResponse(
@@ -297,6 +301,10 @@ async def end_interview(
         # 更新会话状态和分数
         interview_session.status = "completed"
         interview_session.overall_score = overall_score
+        
+        # 清除缓存的报告，因为面试已完成，需要重新生成完整报告
+        interview_session.report_data = None
+        
         db.commit()
         
         return {
@@ -307,6 +315,10 @@ async def end_interview(
     except Exception as e:
         # 即使分数计算失败，也要结束面试
         interview_session.status = "completed"
+        
+        # 清除缓存的报告
+        interview_session.report_data = None
+        
         db.commit()
         
         return {
@@ -507,6 +519,7 @@ async def cleanup_duplicate_sessions(
 async def get_interview_report(
     resume_id: int,
     session_id: int,
+    regenerate: bool = False,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -540,20 +553,30 @@ async def get_interview_report(
             detail="Not enough permissions"
         )
     
-    # 检查面试是否已完成
-    if interview_session.status != "completed":
+    # 检查面试状态 - 允许进行中和已完成的面试查看报告
+    if interview_session.status not in ["active", "completed"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Interview must be completed to generate report"
+            detail="Interview must be active or completed to generate report"
         )
     
     try:
+        # 检查是否已有缓存的报告（如果不是强制重新生成）
+        if interview_session.report_data and not regenerate:
+            print(f"返回缓存的报告，面试会话ID: {session_id}")
+            return interview_session.report_data
+        
         # 添加简历标题到面试会话对象
         interview_session.resume_title = resume.title
         
         # 生成报告
         report_service = InterviewReportService()
         report = await report_service.generate_comprehensive_report(interview_session)
+        
+        # 缓存报告到数据库
+        interview_session.report_data = report
+        db.commit()
+        print(f"生成并缓存了新报告，面试会话ID: {session_id}")
         
         return report
         

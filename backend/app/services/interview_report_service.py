@@ -42,10 +42,14 @@ class InterviewReportService:
         conversation_history = self._build_conversation_history(interview_session)
         
         if not conversation_history:
-            # 提供更详细的错误信息
-            questions_count = len(interview_session.questions or [])
-            answers_count = len(interview_session.answers or [])
-            raise ValueError(f"面试数据不完整，无法生成报告。问题数量：{questions_count}，答案数量：{answers_count}。请确保面试已正常进行并保存了问答数据。")
+            # 对于进行中的面试，如果还没有对话历史，返回基础报告
+            if interview_session.status == "active":
+                return self._generate_basic_report(interview_session)
+            else:
+                # 提供更详细的错误信息
+                questions_count = len(interview_session.questions or [])
+                answers_count = len(interview_session.answers or [])
+                raise ValueError(f"面试数据不完整，无法生成报告。问题数量：{questions_count}，答案数量：{answers_count}。请确保面试已正常进行并保存了问答数据。")
         
         # 并行生成各个部分的分析
         tasks = [
@@ -71,17 +75,21 @@ class InterviewReportService:
             "interview_mode": self._get_interview_mode_name(interview_session.interview_mode),
             "jd_content": interview_session.jd_content or "",
             "overall_score": interview_session.overall_score or 0,
-            "performance_level": self._get_performance_level(interview_session.overall_score or 0),
+            "performance_level": self._get_performance_level(interview_session.overall_score or 0) if interview_session.status == "completed" else "进行中",
             "interview_date": self._format_date(interview_session.created_at),
             "duration_minutes": self._calculate_duration(interview_session),
             "total_questions": len(interview_session.questions),
+            "answered_questions": len(interview_session.answers or []),
+            "progress_percentage": self._calculate_progress(interview_session),
             "competency_scores": competency_scores,
             "ai_highlights": ai_feedback.get("highlights", []),
             "ai_improvements": ai_feedback.get("improvements", []),
             "conversation": conversation_details,
             "jd_keywords": keyword_analysis.get("keywords", []),
             "coverage_rate": keyword_analysis.get("coverage_rate", 0),
-            "frequent_words": word_frequency
+            "frequent_words": word_frequency,
+            "status": interview_session.status,
+            "status_message": "面试已完成" if interview_session.status == "completed" else "面试正在进行中"
         }
         
         return report
@@ -500,3 +508,45 @@ class InterviewReportService:
                 return len(interview_session.questions or []) * 5
         except:
             return 25  # 默认25分钟
+    
+    def _generate_basic_report(self, interview_session: InterviewSession) -> Dict[str, Any]:
+        """为进行中的面试生成基础报告"""
+        return {
+            "id": interview_session.id,
+            "resume_title": getattr(interview_session, 'resume_title', '简历'),
+            "job_position": interview_session.job_position or "未指定职位",
+            "interview_mode": self._get_interview_mode_name(interview_session.interview_mode),
+            "jd_content": interview_session.jd_content or "",
+            "overall_score": 0,
+            "performance_level": "进行中",
+            "interview_date": self._format_date(interview_session.created_at),
+            "duration_minutes": self._calculate_duration(interview_session),
+            "total_questions": len(interview_session.questions or []),
+            "answered_questions": len(interview_session.answers or []),
+            "progress_percentage": self._calculate_progress(interview_session),
+            "competency_scores": {
+                "job_fit": 0,
+                "technical_depth": 0,
+                "project_exposition": 0,
+                "communication": 0,
+                "behavioral": 0
+            },
+            "ai_highlights": [],
+            "ai_improvements": ["继续完成面试以获得详细分析"],
+            "conversation": self._build_conversation_history(interview_session),
+            "jd_keywords": [],
+            "coverage_rate": 0,
+            "frequent_words": {},
+            "status": "active",
+            "status_message": "面试正在进行中，完成后将生成完整报告"
+        }
+    
+    def _calculate_progress(self, interview_session: InterviewSession) -> int:
+        """计算面试进度百分比"""
+        total_questions = len(interview_session.questions or [])
+        answered_questions = len(interview_session.answers or [])
+        
+        if total_questions == 0:
+            return 0
+        
+        return min(100, int((answered_questions / total_questions) * 100))

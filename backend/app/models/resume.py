@@ -44,6 +44,7 @@ class InterviewSession(Base):
     questions = Column(JSON, nullable=False)  # 问题列表
     answers = Column(JSON, nullable=False)    # 答案列表
     feedback = Column(JSON, nullable=True)    # AI反馈
+    report_data = Column(JSON, nullable=True)  # 面试报告数据缓存
     status = Column(String, default="active")  # active, completed, paused
     overall_score = Column(Integer, nullable=True)  # 面试整体分数 (0-100)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

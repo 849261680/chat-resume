@@ -343,7 +343,7 @@ export default function DashboardPage() {
             </motion.div>
           ) : (
             // Resume Grid
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {resumes.map((resume, index) => {
                 return (
                   <motion.div
@@ -351,7 +351,7 @@ export default function DashboardPage() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.8, delay: index * 0.1 }}
-                    className="card px-7 py-5 hover:shadow-lg transition-shadow"
+                    className="card px-6 py-5 hover:shadow-lg transition-shadow"
                   >
                     {/* Resume Header */}
                     <div className="flex items-start justify-between mb-4">
@@ -366,6 +366,15 @@ export default function DashboardPage() {
                           </span>
                         </div>
                       </div>
+                      
+                      {/* 删除按钮 - 右上角 */}
+                      <button
+                        onClick={() => handleDeleteResume(resume.id, resume.title)}
+                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors"
+                        title="删除简历"
+                      >
+                        <TrashIcon className="w-5 h-5" />
+                      </button>
                     </div>
 
 
@@ -373,19 +382,12 @@ export default function DashboardPage() {
                     <div className="grid grid-cols-2 gap-2">
                       <Link
                         href={`/resume/${resume.id}/edit`}
-                        className="btn-primary flex items-center justify-center space-x-1 text-sm px-2 py-2"
+                        className="btn-primary flex items-center justify-center space-x-1 text-sm py-2"
                       >
                         <PencilIcon className="w-4 h-4" />
                         <span>编辑</span>
                       </Link>
-                      <button
-                        onClick={() => handleDeleteResume(resume.id, resume.title)}
-                        className="btn-danger flex items-center justify-center space-x-1 text-sm px-2 py-2"
-                        title="删除简历"
-                      >
-                        <TrashIcon className="w-4 h-4" />
-                        <span>删除</span>
-                      </button>
+                      <div></div>
                     </div>
                   </motion.div>
                 )

@@ -6,6 +6,7 @@ class InterviewSessionCreate(BaseModel):
     job_position: Optional[str] = None
     interview_mode: Optional[str] = None  # comprehensive, technical, behavioral
     jd_content: Optional[str] = None
+    question_count: Optional[int] = 10
 
 class InterviewSessionResponse(BaseModel):
     id: int

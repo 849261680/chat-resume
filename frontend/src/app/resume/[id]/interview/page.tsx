@@ -215,7 +215,7 @@ export default function InterviewPage() {
       setInterviewTime(0)
       setCurrentQuestion(1)
       
-      const session = await startInterview(interviewConfig.jd)
+      const session = await startInterview(interviewConfig.jd, parseInt(new URLSearchParams(window.location.search).get('questionCount') || '10'))
       if (session) {
         const action = interviewConfig.sessionId ? '继续' : '开始'
         toast.success(`面试已${action}！模式：${getModeDisplayName(interviewConfig.mode)}`)
@@ -257,16 +257,55 @@ export default function InterviewPage() {
             const activeSession = sessions.find((s: any) => s.status === 'active')
             
             if (activeSession && processedSessionRef.current !== activeSession.id) {
-              console.log('发现进行中的面试会话，继续现有会话:', activeSession.id)
+              console.log('发现进行中的面试会话:', activeSession.id)
               console.log('会话详情:', activeSession)
-              processedSessionRef.current = activeSession.id // 标记已处理
-              // 设置现有会话ID到配置中
-              setInterviewConfig(prev => ({
-                ...prev,
-                sessionId: activeSession.id
-              }))
-              setHasStartedInterview(true) // 防止重复检查
-              return
+              
+              const answeredCount = (activeSession.answers || []).length
+              const totalQuestions = (activeSession.questions || []).length
+              
+              // 检查会话是否实际已完成（所有问题都已回答）
+              if (answeredCount >= totalQuestions && totalQuestions > 0) {
+                console.log('检测到会话实际已完成，但状态未更新，自动更新状态')
+                try {
+                  await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/resumes/${resumeId}/interview/${activeSession.id}/end`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                  })
+                  console.log('已完成会话状态已更新，继续创建新会话')
+                  // 继续创建新会话
+                } catch (error) {
+                  console.error('更新会话状态失败:', error)
+                }
+              } else {
+                // 会话确实未完成，询问用户是否继续
+                const shouldContinue = confirm(`发现您有一个未完成的面试会话（已回答 ${answeredCount}/${totalQuestions} 题）。\n\n点击"确定"继续上次面试\n点击"取消"开始新面试`)
+                
+                if (shouldContinue) {
+                  console.log('用户选择继续现有会话')
+                  processedSessionRef.current = activeSession.id
+                  setInterviewConfig(prev => ({
+                    ...prev,
+                    sessionId: activeSession.id
+                  }))
+                  setHasStartedInterview(true)
+                  return
+                } else {
+                  console.log('用户选择开始新面试，将结束现有会话')
+                  try {
+                    // 结束现有会话
+                    await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/resumes/${resumeId}/interview/${activeSession.id}/end`, {
+                      method: 'POST',
+                      headers: { 'Authorization': `Bearer ${token}` }
+                    })
+                    console.log('现有会话已结束，将创建新会话')
+                    toast.success('已结束上次面试，开始新面试')
+                  } catch (error) {
+                    console.error('结束现有会话失败:', error)
+                    toast.error('结束上次面试失败，请稍后重试')
+                    return
+                  }
+                }
+              }
             }
           }
         } catch (error) {

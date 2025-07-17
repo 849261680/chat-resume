@@ -44,7 +44,7 @@ class InterviewReportService:
         if not conversation_history:
             # 对于进行中的面试，如果还没有对话历史，返回基础报告
             if interview_session.status == "active":
-                return self._generate_basic_report(interview_session)
+                return await self._generate_basic_report(interview_session)
             else:
                 # 提供更详细的错误信息
                 questions_count = len(interview_session.questions or [])
@@ -57,7 +57,8 @@ class InterviewReportService:
             self._generate_ai_feedback(conversation_history, interview_session),
             self._analyze_conversation_details(conversation_history, interview_session),
             self._analyze_keywords_coverage(conversation_history, interview_session.jd_content or ""),
-            self._analyze_frequent_words(conversation_history)
+            self._analyze_frequent_words(conversation_history),
+            self._generate_reference_answers(interview_session)
         ]
         
         # 执行所有分析任务
@@ -66,6 +67,7 @@ class InterviewReportService:
         conversation_details = await tasks[2]
         keyword_analysis = await tasks[3]
         word_frequency = await tasks[4]
+        reference_answers = await tasks[5]
         
         # 组装最终报告
         report = {
@@ -85,6 +87,8 @@ class InterviewReportService:
             "ai_highlights": ai_feedback.get("highlights", []),
             "ai_improvements": ai_feedback.get("improvements", []),
             "conversation": conversation_details,
+            "all_questions": self._format_all_questions(interview_session),
+            "reference_answers": reference_answers,
             "jd_keywords": keyword_analysis.get("keywords", []),
             "coverage_rate": keyword_analysis.get("coverage_rate", 0),
             "frequent_words": word_frequency,
@@ -509,8 +513,12 @@ class InterviewReportService:
         except:
             return 25  # 默认25分钟
     
-    def _generate_basic_report(self, interview_session: InterviewSession) -> Dict[str, Any]:
+    async def _generate_basic_report(self, interview_session: InterviewSession) -> Dict[str, Any]:
         """为进行中的面试生成基础报告"""
+        
+        # 为基础报告也生成参考答案
+        reference_answers = await self._generate_reference_answers(interview_session)
+        
         return {
             "id": interview_session.id,
             "resume_title": getattr(interview_session, 'resume_title', '简历'),
@@ -534,6 +542,8 @@ class InterviewReportService:
             "ai_highlights": [],
             "ai_improvements": ["继续完成面试以获得详细分析"],
             "conversation": self._build_conversation_history(interview_session),
+            "all_questions": self._format_all_questions(interview_session),
+            "reference_answers": reference_answers,
             "jd_keywords": [],
             "coverage_rate": 0,
             "frequent_words": {},
@@ -550,3 +560,153 @@ class InterviewReportService:
             return 0
         
         return min(100, int((answered_questions / total_questions) * 100))
+    
+    def _format_all_questions(self, interview_session: InterviewSession) -> List[Dict[str, Any]]:
+        """格式化所有生成的问题，包括已回答和未回答的"""
+        all_questions = []
+        questions = interview_session.questions or []
+        
+        for i, question_data in enumerate(questions):
+            # 提取问题内容
+            if isinstance(question_data, dict):
+                question_text = question_data.get("question", "")
+                question_type = question_data.get("type", "general")
+            else:
+                question_text = str(question_data)
+                question_type = "general"
+            
+            if question_text:
+                all_questions.append({
+                    "question": question_text,
+                    "type": question_type,
+                    "index": i
+                })
+        
+        return all_questions
+    
+    async def _generate_reference_answers(self, interview_session: InterviewSession) -> List[Dict[str, Any]]:
+        """为所有问题生成AI参考答案"""
+        questions = interview_session.questions or []
+        reference_answers = []
+        
+        # 获取简历内容
+        resume_content = None
+        if hasattr(interview_session, 'resume') and interview_session.resume:
+            resume_content = interview_session.resume.content
+        
+        for i, question_data in enumerate(questions):
+            # 提取问题内容
+            if isinstance(question_data, dict):
+                question_text = question_data.get("question", "")
+            else:
+                question_text = str(question_data)
+            
+            if question_text:
+                try:
+                    # 生成参考答案
+                    reference_answer = await self._generate_single_reference_answer(
+                        question_text, 
+                        interview_session,
+                        resume_content
+                    )
+                    
+                    reference_answers.append({
+                        "question": question_text,
+                        "reference_answer": reference_answer,
+                        "index": i
+                    })
+                except Exception as e:
+                    print(f"生成问题 {i+1} 的参考答案失败: {e}")
+                    reference_answers.append({
+                        "question": question_text,
+                        "reference_answer": "参考答案生成失败，请稍后重试。",
+                        "index": i
+                    })
+        
+        return reference_answers
+    
+    async def _generate_single_reference_answer(self, question: str, interview_session: InterviewSession, resume_content: dict = None) -> str:
+        """为单个问题生成参考答案"""
+        
+        # 格式化简历内容
+        resume_text = ""
+        if resume_content:
+            resume_text = self._format_resume_content(resume_content)
+        
+        # 构建提示词
+        prompt = f"""
+        作为专业的面试顾问，请基于候选人的简历信息为以下面试问题提供一个优秀的参考答案。
+
+        面试问题：{question}
+        
+        职位背景：{interview_session.job_position or "通用职位"}
+        
+        候选人简历信息：
+        {resume_text if resume_text else "简历信息不可用"}
+        
+        参考答案要求：
+        1. 必须基于候选人的实际简历背景和经验
+        2. 答案应该专业、具体、有说服力
+        3. 体现候选人的真实能力和项目经验
+        4. 使用STAR法则（情境、任务、行动、结果）
+        5. 长度适中，大约100-200字
+        6. 语言自然流畅，符合面试场景
+        7. 如果简历中有相关经验，请具体引用
+        
+        请直接返回参考答案内容，不要包含"参考答案："等前缀。
+        """
+        
+        messages = [
+            {"role": "system", "content": "你是一位经验丰富的面试顾问，擅长基于候选人的实际简历背景为面试问题提供专业的参考答案。"},
+            {"role": "user", "content": prompt}
+        ]
+        
+        response = await self.openrouter_service.chat_completion(messages)
+        return response["choices"][0]["message"]["content"].strip()
+    
+    def _format_resume_content(self, resume_content: dict) -> str:
+        """格式化简历内容用于AI分析"""
+        formatted = []
+        
+        # 个人信息
+        if resume_content.get("personal_info"):
+            formatted.append("个人信息：")
+            for key, value in resume_content["personal_info"].items():
+                if value:
+                    formatted.append(f"  {key}: {value}")
+        
+        # 教育背景
+        if resume_content.get("education"):
+            formatted.append("\n教育背景：")
+            for edu in resume_content["education"]:
+                formatted.append(f"  {edu.get('school', '')} - {edu.get('degree', '')} - {edu.get('major', '')}")
+        
+        # 工作经验
+        if resume_content.get("work_experience"):
+            formatted.append("\n工作经验：")
+            for work in resume_content["work_experience"]:
+                formatted.append(f"  {work.get('company', '')} - {work.get('position', '')}")
+                if work.get("description"):
+                    formatted.append(f"    {work['description']}")
+        
+        # 技能
+        if resume_content.get("skills"):
+            formatted.append("\n技能：")
+            for skill in resume_content["skills"]:
+                if isinstance(skill, dict):
+                    formatted.append(f"  {skill.get('name', '')} ({skill.get('level', '')}, {skill.get('category', '')})")
+                else:
+                    formatted.append(f"  {skill}")
+        
+        # 项目经验
+        if resume_content.get("projects"):
+            formatted.append("\n项目经验：")
+            for proj in resume_content["projects"]:
+                formatted.append(f"  {proj.get('name', '')} - {proj.get('description', '')}")
+                if proj.get("technologies"):
+                    formatted.append(f"    技术栈：{', '.join(proj['technologies'])}")
+                if proj.get("achievements"):
+                    for achievement in proj["achievements"]:
+                        formatted.append(f"    * {achievement}")
+        
+        return "\n".join(formatted)

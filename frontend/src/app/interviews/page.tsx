@@ -44,7 +44,8 @@ export default function InterviewsPage() {
     jobPosition: '',
     selectedResumeId: '',
     interviewMode: 'comprehensive',
-    jdContent: ''
+    jdContent: '',
+    questionCount: 10
   })
   const [isCreating, setIsCreating] = useState(false)
 
@@ -250,7 +251,8 @@ export default function InterviewsPage() {
       jobPosition: '',
       selectedResumeId: '',
       interviewMode: 'comprehensive',
-      jdContent: ''
+      jdContent: '',
+      questionCount: 10
     })
   }
 
@@ -260,7 +262,8 @@ export default function InterviewsPage() {
       jobPosition: '',
       selectedResumeId: '',
       interviewMode: 'comprehensive',
-      jdContent: ''
+      jdContent: '',
+      questionCount: 10
     })
   }
 
@@ -325,6 +328,7 @@ export default function InterviewsPage() {
       const params = new URLSearchParams({
         mode: formData.interviewMode,
         position: formData.jobPosition,
+        questionCount: formData.questionCount.toString(),
         ...(formData.jdContent && { jd: formData.jdContent })
       })
       
@@ -670,6 +674,22 @@ export default function InterviewsPage() {
                     </div>
                   </div>
                 </div>
+              </div>
+
+              {/* Question Count */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  问题数量
+                </label>
+                <input
+                  type="number"
+                  min="5"
+                  max="20"
+                  value={formData.questionCount}
+                  onChange={(e) => handleInputChange('questionCount', parseInt(e.target.value) || 10)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <p className="text-xs text-gray-500 mt-1">建议5-20个问题，默认10个</p>
               </div>
 
               {/* JD Content */}

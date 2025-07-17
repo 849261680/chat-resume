@@ -136,20 +136,18 @@ class ResumeAssistantPrompts:
 请用中文回答，并提供具体、可操作的建议。"""
 
     # 面试问题生成提示词
-    INTERVIEW_QUESTIONS_PROMPT = """根据简历信息生成5-8个面试问题。
+    INTERVIEW_QUESTIONS_PROMPT = """根据简历信息生成{question_count}个面试问题。
 
 请生成以下类型的问题：
 1. 基础背景问题（1-2个）
-2. 技能验证问题（2-3个）
-3. 项目经验问题（2-3个）
-4. 行为面试问题（1-2个）
+2. 技能验证问题（{tech_count}个）
+3. 项目经验问题（{project_count}个）
+4. 行为面试问题（{behavior_count}个）
 
-每个问题请包含：
-- 问题内容
-- 问题类型
-- 考察要点
+请直接返回问题内容，不要添加任何额外的格式说明、问题类型标注或考察要点。
+每个问题应该是一个完整的、可以直接向候选人提问的句子。
 
-请用中文回答。"""
+请用中文回答，严格按照指定数量生成问题。"""
 
     # 面试回答评估提示词
     INTERVIEW_EVALUATION_PROMPT = """作为专业面试官，请对候选人的回答做出自然的回应，就像真实面试中一样。
@@ -460,7 +458,7 @@ class ResumeAssistantPrompts:
         return [system_message, user_message]
 
     @staticmethod
-    def build_interview_questions_messages(resume_content: dict, jd_content: str = None) -> list:
+    def build_interview_questions_messages(resume_content: dict, jd_content: str = None, question_count: int = 10) -> list:
         """构建面试问题生成消息"""
         
         system_message = {
@@ -470,10 +468,19 @@ class ResumeAssistantPrompts:
         
         resume_context = ResumeAssistantPrompts.format_resume_context(resume_content)
         
-        prompt = f"""{ResumeAssistantPrompts.INTERVIEW_QUESTIONS_PROMPT}
-
-简历信息：
-{resume_context}"""
+        # 根据问题总数动态分配各类型问题数量
+        tech_count = max(2, int(question_count * 0.3))
+        project_count = max(2, int(question_count * 0.4))
+        behavior_count = max(1, question_count - tech_count - project_count - 2)
+        
+        prompt = ResumeAssistantPrompts.INTERVIEW_QUESTIONS_PROMPT.format(
+            question_count=question_count,
+            tech_count=tech_count,
+            project_count=project_count,
+            behavior_count=behavior_count
+        )
+        
+        prompt += f"\n\n简历信息：\n{resume_context}"
         
         if jd_content:
             prompt += f"\n\n岗位描述：\n{jd_content}"

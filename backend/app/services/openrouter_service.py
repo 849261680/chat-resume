@@ -99,11 +99,11 @@ class OpenRouterService:
         response = await self.chat_completion(messages)
         return self._parse_optimization_response(response)
     
-    async def generate_interview_questions(self, resume_content: Dict[str, Any], jd_content: str = "") -> List[Dict[str, str]]:
+    async def generate_interview_questions(self, resume_content: Dict[str, Any], jd_content: str = "", question_count: int = 10) -> List[Dict[str, str]]:
         """根据简历和JD生成面试问题"""
         
         # 使用新的提示词管理系统
-        messages = ResumeAssistantPrompts.build_interview_questions_messages(resume_content, jd_content if jd_content else None)
+        messages = ResumeAssistantPrompts.build_interview_questions_messages(resume_content, jd_content if jd_content else None, question_count)
         
         response = await self.chat_completion(messages)
         return self._parse_interview_questions(response)
@@ -221,28 +221,43 @@ class OpenRouterService:
         """解析面试问题响应（OpenAI格式）"""
         content = response["choices"][0]["message"]["content"]
         
+        # 清理内容，去掉多余的格式化信息
+        content = content.strip()
+        
         # 简单的文本解析，提取问题
         questions = []
         lines = content.split('\n')
-        current_question = ""
         
         for line in lines:
             line = line.strip()
+            
+            # 跳过空行
+            if not line:
+                continue
+                
+            # 跳过数字编号（如"1. "、"2. "等）
+            if line.startswith(('1.', '2.', '3.', '4.', '5.', '6.', '7.', '8.', '9.', '10.', '11.', '12.', '13.', '14.', '15.', '16.', '17.', '18.', '19.', '20.')):
+                line = line.split('.', 1)[1].strip()
+            
+            # 跳过格式化标签（如"问题内容："、"问题类型："等）
+            if any(keyword in line for keyword in ['问题内容：', '问题类型：', '考察要点：', '**问题', '**']):
+                # 如果包含"问题内容："，提取冒号后的内容
+                if '问题内容：' in line:
+                    line = line.split('问题内容：')[1].strip()
+                elif '：' in line and any(keyword in line for keyword in ['问题', '内容']):
+                    line = line.split('：')[1].strip()
+                else:
+                    continue
+            
+            # 清理markdown格式符号
+            line = line.replace('**', '').replace('*', '').strip()
+            
+            # 如果是问题（包含问号），添加到列表中
             if line and ('?' in line or '？' in line):
-                if current_question:
-                    questions.append({
-                        "question": current_question,
-                        "type": "general"
-                    })
-                current_question = line
-            elif current_question and line:
-                current_question += " " + line
-        
-        if current_question:
-            questions.append({
-                "question": current_question,
-                "type": "general"
-            })
+                questions.append({
+                    "question": line,
+                    "type": "general"
+                })
         
         return questions
     

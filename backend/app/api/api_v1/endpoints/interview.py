@@ -58,7 +58,8 @@ async def start_interview(
         openrouter_service = OpenRouterService()
         questions = await openrouter_service.generate_interview_questions(
             resume.content, 
-            session_create.jd_content if session_create.jd_content else ""
+            session_create.jd_content if session_create.jd_content else "",
+            session_create.question_count if session_create.question_count else 10
         )
         
         # 创建面试会话
@@ -566,8 +567,9 @@ async def get_interview_report(
             print(f"返回缓存的报告，面试会话ID: {session_id}")
             return interview_session.report_data
         
-        # 添加简历标题到面试会话对象
+        # 添加简历信息到面试会话对象
         interview_session.resume_title = resume.title
+        interview_session.resume = resume  # 添加完整的简历对象
         
         # 生成报告
         report_service = InterviewReportService()

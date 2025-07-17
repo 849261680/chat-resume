@@ -176,7 +176,7 @@ export function useInterview(resumeId: number, options: InterviewHookOptions = {
   }, [existingSessionId, hasAutoLoaded, isInterviewActive, isLoading, resumeId])
 
   // 开始面试会话
-  const startInterview = async (jdContent?: string) => {
+  const startInterview = async (jdContent?: string, questionCount?: number) => {
     console.log('startInterview called with:', { 
       existingSessionId, 
       isInterviewActive, 
@@ -213,7 +213,8 @@ export function useInterview(resumeId: number, options: InterviewHookOptions = {
       const backendSession = await interviewApi.startInterview(resumeId, {
         job_position: jobPosition || '未指定职位',
         interview_mode: interviewMode,
-        jd_content: jdContent || ''
+        jd_content: jdContent || '',
+        question_count: questionCount || 10
       })
 
       console.log('面试会话已创建:', backendSession)

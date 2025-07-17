@@ -14,13 +14,26 @@ import {
   PencilIcon,
   TrashIcon,
   CloudArrowUpIcon,
-  CalendarIcon
+  CalendarIcon,
+  BriefcaseIcon
 } from '@heroicons/react/24/outline'
 
 interface Resume {
   id: number
   title: string
-  content: any
+  content: {
+    job_application?: {
+      company?: string
+      position?: string
+      jd?: string
+    }
+    personal_info?: any
+    education?: any
+    work_experience?: any
+    skills?: any
+    projects?: any
+    [key: string]: any
+  }
   original_filename?: string
   created_at: string
   updated_at?: string
@@ -179,6 +192,11 @@ export default function DashboardPage() {
       
       // 创建空白简历模板
       const emptyResumeContent = {
+        job_application: {
+          company: '',
+          position: '',
+          jd: ''
+        },
         personal_info: {
           name: '',
           email: '',
@@ -359,6 +377,29 @@ export default function DashboardPage() {
                         <h3 className="text-lg font-semibold text-gray-900 mb-1">
                           {resume.title}
                         </h3>
+                        
+                        {/* 投递信息 */}
+                        <div className="flex items-center text-sm text-gray-500 mb-1">
+                          <BriefcaseIcon className="w-4 h-4 mr-1" />
+                          <span>
+                            投递岗位: {resume.content.job_application && (
+                              resume.content.job_application.company || resume.content.job_application.position
+                            ) && (
+                              <>
+                                {resume.content.job_application.company && (
+                                  <span>{resume.content.job_application.company}</span>
+                                )}
+                                {resume.content.job_application.company && resume.content.job_application.position && (
+                                  <span className="mx-1">•</span>
+                                )}
+                                {resume.content.job_application.position && (
+                                  <span>{resume.content.job_application.position}</span>
+                                )}
+                              </>
+                            )}
+                          </span>
+                        </div>
+                        
                         <div className="flex items-center text-sm text-gray-500">
                           <CalendarIcon className="w-4 h-4 mr-1" />
                           <span>

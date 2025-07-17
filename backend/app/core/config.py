@@ -43,6 +43,11 @@ class Settings(BaseSettings):
     OPENROUTER_API_BASE: str = os.getenv("OPENROUTER_API_BASE", "https://openrouter.ai/api/v1")
     OPENROUTER_MODEL: str = os.getenv("OPENROUTER_MODEL", "google/gemini-2.5-flash")
     
+    # MiniMax TTS API
+    MINIMAX_API_KEY: str = os.getenv("MINIMAX_API_KEY", "")
+    MINIMAX_API_BASE: str = os.getenv("MINIMAX_API_BASE", "https://api.minimaxi.com")
+    MINIMAX_GROUP_ID: str = os.getenv("MINIMAX_GROUP_ID", "")
+    
     # File upload
     UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "uploads")
     MAX_FILE_SIZE: int = 10 * 1024 * 1024  # 10MB

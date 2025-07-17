@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TTS功能测试</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+        }
+        .test-section h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        textarea {
+            width: 100%;
+            height: 100px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-family: inherit;
+            resize: vertical;
+        }
+        select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎙️ MiniMax TTS 功能测试</h1>
+        <p>测试面试系统中的语音功能</p>
+        
+        <div class="test-section">
+            <h3>1. 文本转语音测试</h3>
+            <textarea id="testText" placeholder="输入要转换为语音的文本...">您好，欢迎参加今天的面试！请简单介绍一下您的工作经历。</textarea>
+            <br><br>
+            <label>选择音色：</label>
+            <select id="voiceSelect">
+                <option value="female-tianmei-jingpin">专业女性面试官</option>
+                <option value="male-qinse-jingpin">友好男性面试官</option>
+                <option value="female-zhuanye-jingpin">严格女性面试官</option>
+            </select>
+            <label>情感：</label>
+            <select id="emotionSelect">
+                <option value="neutral">中性</option>
+                <option value="happy">友好</option>
+                <option value="sad">严肃</option>
+            </select>
+            <br><br>
+            <button onclick="testTextToSpeech()">🎵 生成语音</button>
+            <button onclick="stopAudio()">⏹️ 停止播放</button>
+            <div id="ttsResult"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>2. 面试官音色配置测试</h3>
+            <button onclick="testInterviewerVoices()">🎭 获取面试官音色</button>
+            <div id="voicesResult"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>3. 音色列表测试</h3>
+            <button onclick="testVoiceList()">📋 获取音色列表</button>
+            <div id="voiceListResult"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>4. 模拟面试场景</h3>
+            <button onclick="simulateInterview()">🎯 模拟面试问题</button>
+            <div id="interviewResult"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        let currentAudio = null;
+        
+        function getAuthHeaders() {
+            const token = localStorage.getItem('access_token');
+            return token ? { 'Authorization': `Bearer ${token}` } : {};
+        }
+        
+        function showResult(elementId, message, type = 'info') {
+            const resultDiv = document.getElementById(elementId);
+            resultDiv.innerHTML = `<div class="result ${type}">${message}</div>`;
+        }
+        
+        function stopAudio() {
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio.currentTime = 0;
+                currentAudio = null;
+                showResult('ttsResult', '语音播放已停止', 'info');
+            }
+        }
+        
+        async function testTextToSpeech() {
+            const text = document.getElementById('testText').value;
+            const voiceId = document.getElementById('voiceSelect').value;
+            const emotion = document.getElementById('emotionSelect').value;
+            
+            if (!text.trim()) {
+                showResult('ttsResult', '请输入要转换的文本', 'error');
+                return;
+            }
+            
+            showResult('ttsResult', '正在生成语音，请稍候...', 'info');
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/v1/tts/text-to-speech`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...getAuthHeaders()
+                    },
+                    body: JSON.stringify({
+                        text: text,
+                        voice_id: voiceId,
+                        emotion: emotion,
+                        model: 'speech-02-turbo',
+                        format: 'mp3',
+                        sample_rate: 32000
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`API请求失败: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showResult('ttsResult', '语音生成成功！正在播放...', 'success');
+                    
+                    // 播放音频
+                    if (result.data.audio_url) {
+                        currentAudio = new Audio(result.data.audio_url);
+                    } else if (result.data.audio_base64) {
+                        const audioUrl = `data:audio/mp3;base64,${result.data.audio_base64}`;
+                        currentAudio = new Audio(audioUrl);
+                    }
+                    
+                    if (currentAudio) {
+                        currentAudio.play();
+                        currentAudio.addEventListener('ended', () => {
+                            showResult('ttsResult', '语音播放完成', 'success');
+                        });
+                        currentAudio.addEventListener('error', (e) => {
+                            showResult('ttsResult', `音频播放失败: ${e.message}`, 'error');
+                        });
+                    }
+                } else {
+                    showResult('ttsResult', `语音生成失败: ${result.message}`, 'error');
+                }
+                
+            } catch (error) {
+                showResult('ttsResult', `请求失败: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testInterviewerVoices() {
+            showResult('voicesResult', '正在获取面试官音色配置...', 'info');
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/v1/tts/interviewer-voices`, {
+                    method: 'GET',
+                    headers: getAuthHeaders()
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`API请求失败: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    let html = '<h4>面试官音色配置:</h4>';
+                    for (const [type, config] of Object.entries(result.data)) {
+                        html += `<p><strong>${type}:</strong> ${config.description} (音色: ${config.voice_id}, 情感: ${config.emotion})</p>`;
+                    }
+                    showResult('voicesResult', html, 'success');
+                } else {
+                    showResult('voicesResult', `获取失败: ${result.message}`, 'error');
+                }
+                
+            } catch (error) {
+                showResult('voicesResult', `请求失败: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testVoiceList() {
+            showResult('voiceListResult', '正在获取音色列表...', 'info');
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/v1/tts/voices`, {
+                    method: 'GET',
+                    headers: getAuthHeaders()
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`API请求失败: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    let html = '<h4>可用音色列表:</h4>';
+                    if (result.data.voices && result.data.voices.length > 0) {
+                        result.data.voices.forEach(voice => {
+                            html += `<p><strong>${voice.name}:</strong> ${voice.description || voice.id}</p>`;
+                        });
+                    } else {
+                        html += '<p>暂无可用音色</p>';
+                    }
+                    showResult('voiceListResult', html, 'success');
+                } else {
+                    showResult('voiceListResult', `获取失败: ${result.message}`, 'error');
+                }
+                
+            } catch (error) {
+                showResult('voiceListResult', `请求失败: ${error.message}`, 'error');
+            }
+        }
+        
+        async function simulateInterview() {
+            const questions = [
+                "请简单介绍一下您自己。",
+                "为什么您想加入我们公司？",
+                "您最大的优势是什么？",
+                "描述一下您在团队中的角色。",
+                "您如何处理工作中的压力？"
+            ];
+            
+            const randomQuestion = questions[Math.floor(Math.random() * questions.length)];
+            
+            showResult('interviewResult', `模拟面试问题: "${randomQuestion}"<br>正在生成语音...`, 'info');
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/v1/tts/interview-question-speech`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...getAuthHeaders()
+                    },
+                    body: JSON.stringify({
+                        text: randomQuestion,
+                        voice_id: 'female-tianmei-jingpin',
+                        emotion: 'neutral'
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`API请求失败: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showResult('interviewResult', `面试问题: "${randomQuestion}"<br>语音生成成功！正在播放...`, 'success');
+                    
+                    // 播放音频
+                    if (result.data.audio_url) {
+                        currentAudio = new Audio(result.data.audio_url);
+                    } else if (result.data.audio_base64) {
+                        const audioUrl = `data:audio/mp3;base64,${result.data.audio_base64}`;
+                        currentAudio = new Audio(audioUrl);
+                    }
+                    
+                    if (currentAudio) {
+                        currentAudio.play();
+                        currentAudio.addEventListener('ended', () => {
+                            showResult('interviewResult', `面试问题: "${randomQuestion}"<br>语音播放完成`, 'success');
+                        });
+                        currentAudio.addEventListener('error', (e) => {
+                            showResult('interviewResult', `音频播放失败: ${e.message}`, 'error');
+                        });
+                    }
+                } else {
+                    showResult('interviewResult', `语音生成失败: ${result.message}`, 'error');
+                }
+                
+            } catch (error) {
+                showResult('interviewResult', `请求失败: ${error.message}`, 'error');
+            }
+        }
+        
+        // 页面加载时的提示
+        window.addEventListener('load', () => {
+            showResult('ttsResult', '准备就绪，可以开始测试TTS功能', 'info');
+        });
+    </script>
+</body>
+</html>

@@ -55,10 +55,17 @@ async def text_to_speech(
         }
         
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"语音生成失败: {str(e)}"
-        )
+        # 如果是余额不足，返回503 Service Unavailable
+        if "insufficient balance" in str(e):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"TTS服务不可用: {str(e)}"
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"语音生成失败: {str(e)}"
+            )
 
 @router.post("/clone-voice")
 async def clone_voice(
@@ -207,7 +214,57 @@ async def generate_interview_question_speech(
         }
         
     except Exception as e:
+        # 如果是余额不足，返回503 Service Unavailable
+        if "insufficient balance" in str(e):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"TTS服务不可用: {str(e)}"
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"面试问题语音生成失败: {str(e)}"
+            )
+
+@router.get("/health")
+async def health_check():
+    """
+    TTS服务健康检查
+    """
+    try:
+        tts_service = MiniMaxTTSService()
+        health_status = await tts_service.health_check()
+        
+        # 根据健康状态返回不同的HTTP状态码
+        if health_status["status"] == "healthy":
+            return {
+                "success": True,
+                "data": health_status,
+                "message": "TTS服务健康检查完成"
+            }
+        elif health_status["status"] == "error":
+            # 如果是余额不足，返回503 Service Unavailable
+            if health_status.get("error_type") == "insufficient_balance":
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail=f"TTS服务不可用: {health_status['message']}"
+                )
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"TTS服务错误: {health_status['message']}"
+                )
+        else:
+            return {
+                "success": False,
+                "data": health_status,
+                "message": "TTS服务状态未知"
+            }
+            
+    except HTTPException:
+        raise
+    except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"面试问题语音生成失败: {str(e)}"
+            detail=f"健康检查失败: {str(e)}"
         )

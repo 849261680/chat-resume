@@ -69,11 +69,23 @@ class MiniMaxTTSService:
                 response.raise_for_status()
                 
                 result = response.json()
-                extra_info = result.get("extra_info", {})
+                
+                # 检查API响应状态
+                base_resp = result.get("base_resp", {})
+                if base_resp.get("status_code") != 0:
+                    status_msg = base_resp.get("status_msg", "未知错误")
+                    if base_resp.get("status_code") == 1008:
+                        raise Exception(f"MiniMax账户余额不足: {status_msg}")
+                    else:
+                        raise Exception(f"MiniMax API错误 ({base_resp.get('status_code')}): {status_msg}")
+                
+                # 安全地获取extra_info
+                extra_info = result.get("extra_info") or {}
+                
                 return {
                     "audio_url": result.get("audio_file"),
                     "audio_base64": result.get("audio_data"),
-                    "duration": extra_info.get("audio_length", 0) / 1000,  # 转换为秒
+                    "duration": extra_info.get("audio_length", 0) / 1000 if extra_info.get("audio_length") else 0,  # 转换为秒
                     "format": format,
                     "sample_rate": extra_info.get("audio_sample_rate", sample_rate)
                 }
@@ -135,6 +147,16 @@ class MiniMaxTTSService:
                 clone_response.raise_for_status()
                 
                 clone_result = clone_response.json()
+                
+                # 检查API响应状态
+                base_resp = clone_result.get("base_resp", {})
+                if base_resp.get("status_code") != 0:
+                    status_msg = base_resp.get("status_msg", "未知错误")
+                    if base_resp.get("status_code") == 1008:
+                        raise Exception(f"MiniMax账户余额不足: {status_msg}")
+                    else:
+                        raise Exception(f"MiniMax API错误 ({base_resp.get('status_code')}): {status_msg}")
+                
                 return {
                     "voice_id": clone_result.get("voice_id"),
                     "voice_name": voice_name,
@@ -168,7 +190,18 @@ class MiniMaxTTSService:
                 response = await client.get(url, headers=self.headers)
                 response.raise_for_status()
                 
-                return response.json()
+                result = response.json()
+                
+                # 检查API响应状态
+                base_resp = result.get("base_resp", {})
+                if base_resp.get("status_code") != 0:
+                    status_msg = base_resp.get("status_msg", "未知错误")
+                    if base_resp.get("status_code") == 1008:
+                        raise Exception(f"MiniMax账户余额不足: {status_msg}")
+                    else:
+                        raise Exception(f"MiniMax API错误 ({base_resp.get('status_code')}): {status_msg}")
+                
+                return result
                 
         except httpx.HTTPStatusError as e:
             error_detail = e.response.text
@@ -206,3 +239,65 @@ class MiniMaxTTSService:
         }
         
         return voice_configs.get(interviewer_type, voice_configs["professional"])
+    
+    async def health_check(self) -> Dict[str, Any]:
+        """
+        TTS服务健康检查
+        
+        Returns:
+            服务状态信息
+        """
+        health_status = {
+            "service": "MiniMax TTS",
+            "status": "unknown",
+            "message": "",
+            "config": {
+                "api_key_configured": bool(self.api_key),
+                "group_id_configured": bool(self.group_id),
+                "api_base": self.api_base
+            }
+        }
+        
+        # 检查基本配置
+        if not self.api_key:
+            health_status["status"] = "error"
+            health_status["message"] = "API密钥未配置"
+            return health_status
+        
+        if not self.group_id:
+            health_status["status"] = "error"
+            health_status["message"] = "Group ID未配置"
+            return health_status
+        
+        # 尝试调用API检查可用性
+        try:
+            # 使用最小的测试文本
+            test_result = await self.text_to_speech(
+                text="测试",
+                voice_id="female-tianmei-jingpin",
+                model="speech-02-turbo"
+            )
+            
+            health_status["status"] = "healthy"
+            health_status["message"] = "服务运行正常"
+            health_status["test_result"] = {
+                "audio_url_available": bool(test_result.get("audio_url")),
+                "audio_base64_available": bool(test_result.get("audio_base64")),
+                "duration": test_result.get("duration", 0)
+            }
+            
+        except Exception as e:
+            health_status["status"] = "error"
+            health_status["message"] = str(e)
+            
+            # 解析具体错误类型
+            if "insufficient balance" in str(e):
+                health_status["error_type"] = "insufficient_balance"
+            elif "API错误" in str(e):
+                health_status["error_type"] = "api_error"
+            elif "网络" in str(e) or "timeout" in str(e):
+                health_status["error_type"] = "network_error"
+            else:
+                health_status["error_type"] = "unknown_error"
+        
+        return health_status

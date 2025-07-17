@@ -20,6 +20,7 @@ import InterviewerAvatar, { InterviewerProfile, interviewerProfiles } from '@/co
 import QuestionTypeLabel, { detectQuestionType } from '@/components/interview/QuestionTypeLabel'
 import FeedbackPanel from '@/components/interview/FeedbackPanel'
 import VoiceControls from '@/components/interview/VoiceControls'
+import VoiceRecorder from '@/components/interview/VoiceRecorder'
 
 interface ChatMessage {
   id: string
@@ -62,6 +63,8 @@ export default function InterviewPage() {
   const [hasStartedInterview, setHasStartedInterview] = useState(false) // 防重复标志
   const [interviewError, setInterviewError] = useState<string | null>(null)
   const [autoPlayVoice, setAutoPlayVoice] = useState(true) // 自动播放语音
+  const [isVoiceRecording, setIsVoiceRecording] = useState(false) // 语音录制状态
+  const [inputMode, setInputMode] = useState<'text' | 'voice'>('text') // 输入模式
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
   const processedSessionRef = useRef<number | null>(null) // 防止重复处理同一会话ID
@@ -382,6 +385,13 @@ export default function InterviewPage() {
     try {
       await sendAnswer(currentMessage)
       setCurrentQuestion(prev => prev + 1)
+      
+      // 如果是语音输入模式，发送后切换回文字输入
+      if (inputMode === 'voice') {
+        setTimeout(() => {
+          setInputMode('text')
+        }, 1000)
+      }
     } catch (error) {
       console.error('Failed to send message:', error)
       toast.error('发送消息失败，请重试')
@@ -670,28 +680,83 @@ export default function InterviewPage() {
 
               {/* 输入区域 */}
               <div className="p-4 border-t border-gray-200 bg-gray-50 flex-shrink-0">
-                <div className="relative">
-                  <textarea
-                    value={inputMessage}
-                    onChange={(e) => setInputMessage(e.target.value)}
-                    onKeyPress={handleKeyPress}
-                    placeholder="请输入您的回答..."
-                    className="w-full p-3 pr-12 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-                    rows={3}
-                    disabled={interviewLoading}
-                  />
-                  <button
-                    onClick={handleSendMessage}
-                    disabled={!inputMessage.trim() || interviewLoading}
-                    className={`absolute right-3 bottom-3 w-8 h-8 rounded-full transition-colors flex items-center justify-center ${
-                      inputMessage.trim() 
-                        ? 'bg-blue-600 text-white hover:bg-blue-700' 
-                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    } disabled:cursor-not-allowed`}
-                  >
-                    <ArrowUpIcon className="w-4 h-4" />
-                  </button>
+                {/* 输入模式切换 */}
+                <div className="flex items-center space-x-2 mb-3">
+                  <span className="text-sm font-medium text-gray-700">回答方式:</span>
+                  <div className="flex bg-white rounded-lg border border-gray-300 overflow-hidden">
+                    <button
+                      onClick={() => setInputMode('text')}
+                      className={`px-3 py-1 text-sm font-medium transition-colors ${
+                        inputMode === 'text' 
+                          ? 'bg-blue-500 text-white' 
+                          : 'text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      文字输入
+                    </button>
+                    <button
+                      onClick={() => setInputMode('voice')}
+                      className={`px-3 py-1 text-sm font-medium transition-colors ${
+                        inputMode === 'voice' 
+                          ? 'bg-blue-500 text-white' 
+                          : 'text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      语音输入
+                    </button>
+                  </div>
                 </div>
+
+                {/* 文字输入模式 */}
+                {inputMode === 'text' && (
+                  <div className="relative">
+                    <textarea
+                      value={inputMessage}
+                      onChange={(e) => setInputMessage(e.target.value)}
+                      onKeyPress={handleKeyPress}
+                      placeholder="请输入您的回答..."
+                      className="w-full p-3 pr-12 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                      rows={3}
+                      disabled={interviewLoading}
+                    />
+                    <button
+                      onClick={handleSendMessage}
+                      disabled={!inputMessage.trim() || interviewLoading}
+                      className={`absolute right-3 bottom-3 w-8 h-8 rounded-full transition-colors flex items-center justify-center ${
+                        inputMessage.trim() 
+                          ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      } disabled:cursor-not-allowed`}
+                    >
+                      <ArrowUpIcon className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+
+                {/* 语音输入模式 */}
+                {inputMode === 'voice' && (
+                  <div className="bg-white border border-gray-300 rounded-lg p-4">
+                    <VoiceRecorder
+                      onTranscriptionComplete={(text) => {
+                        setInputMessage(text)
+                        // 自动发送识别结果
+                        setTimeout(() => {
+                          if (text.trim()) {
+                            handleSendMessage()
+                          }
+                        }, 500)
+                      }}
+                      onRecordingStateChange={(recording) => {
+                        setIsVoiceRecording(recording)
+                      }}
+                      onError={(error) => {
+                        console.error('语音录制错误:', error)
+                        toast.error(`语音录制失败: ${error}`)
+                      }}
+                      disabled={interviewLoading}
+                    />
+                  </div>
+                )}
               </div>
             </div>
 

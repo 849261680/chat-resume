@@ -48,6 +48,11 @@ class Settings(BaseSettings):
     MINIMAX_API_BASE: str = os.getenv("MINIMAX_API_BASE", "https://api.minimaxi.com")
     MINIMAX_GROUP_ID: str = os.getenv("MINIMAX_GROUP_ID", "")
     
+    # 火山引擎大模型流式语音识别API
+    VOLCENGINE_APP_KEY: str = os.getenv("VOLCENGINE_APP_KEY", "")
+    VOLCENGINE_ACCESS_TOKEN: str = os.getenv("VOLCENGINE_ACCESS_TOKEN", "")
+    VOLCENGINE_ASR_RESOURCE_ID: str = os.getenv("VOLCENGINE_ASR_RESOURCE_ID", "volc.bigasr.sauc.duration")
+    
     # File upload
     UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "uploads")
     MAX_FILE_SIZE: int = 10 * 1024 * 1024  # 10MB

@@ -5,7 +5,11 @@ import { AuthProvider } from '@/lib/auth'
 import './globals.css'
 import '../styles/markdown.css'
 
-const inter = Inter({ subsets: ['latin'] })
+const inter = Inter({ 
+  subsets: ['latin'],
+  fallback: ['system-ui', 'arial'],
+  display: 'swap',
+})
 
 export const metadata: Metadata = {
   title: 'Chat Resume - AI驱动的智能简历优化平台',

@@ -39,19 +39,37 @@ try:
         try:
             if os.path.exists(work_dir):
                 logger.info(f"尝试在目录 {work_dir} 运行迁移")
-                # 首先尝试标记数据库为当前状态，然后运行增量迁移
+                # 首先检查当前迁移状态
                 logger.info(f"在 {work_dir} 检查迁移状态")
                 
-                # 先尝试标记基础迁移为已完成
-                stamp_result = subprocess.run(
-                    ["alembic", "stamp", "7445f3b0d307"], 
+                # 检查当前迁移状态
+                current_result = subprocess.run(
+                    ["alembic", "current"], 
                     cwd=work_dir,
                     capture_output=True, 
                     text=True
                 )
                 
-                if stamp_result.returncode == 0:
-                    logger.info("成功标记基础迁移为已完成")
+                current_revision = None
+                if current_result.returncode == 0:
+                    # 从输出中提取当前版本号
+                    for line in current_result.stdout.strip().split('\n'):
+                        if line and not line.startswith('INFO'):
+                            current_revision = line.strip()
+                            break
+                    logger.info(f"当前迁移状态: {current_revision}")
+                
+                # 如果没有迁移状态，标记基础迁移为已完成
+                if not current_revision:
+                    stamp_result = subprocess.run(
+                        ["alembic", "stamp", "7445f3b0d307"], 
+                        cwd=work_dir,
+                        capture_output=True, 
+                        text=True
+                    )
+                    
+                    if stamp_result.returncode == 0:
+                        logger.info("成功标记基础迁移为已完成")
                 
                 # 然后运行增量迁移
                 result = subprocess.run(

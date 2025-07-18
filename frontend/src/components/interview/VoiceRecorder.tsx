@@ -3,7 +3,7 @@
  * 集成火山引擎ASR实现语音转文字功能
  */
 
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react'
 import { 
   MicrophoneIcon, 
   StopIcon, 
@@ -22,6 +22,12 @@ interface VoiceRecorderProps {
   className?: string
 }
 
+export interface VoiceRecorderRef {
+  startRecording: () => Promise<void>
+  stopRecording: () => Promise<void>
+  isRecording: boolean
+}
+
 interface RecordingState {
   isRecording: boolean
   isProcessing: boolean
@@ -31,13 +37,13 @@ interface RecordingState {
   recordingTime: number
 }
 
-export default function VoiceRecorder({
+const VoiceRecorder = forwardRef<VoiceRecorderRef, VoiceRecorderProps>(({
   onTranscriptionComplete,
   onRecordingStateChange,
   onError,
   disabled = false,
   className = ''
-}: VoiceRecorderProps) {
+}, ref) => {
   const [state, setState] = useState<RecordingState>({
     isRecording: false,
     isProcessing: false,
@@ -87,6 +93,13 @@ export default function VoiceRecorder({
       }
     }
   }, [])
+
+  // 暴露方法给父组件
+  useImperativeHandle(ref, () => ({
+    startRecording,
+    stopRecording,
+    isRecording: state.isRecording
+  }), [state.isRecording])
 
   // 开始录音
   const startRecording = async () => {
@@ -284,7 +297,7 @@ export default function VoiceRecorder({
           
           {!state.isRecording && !state.isProcessing && (
             <span className="text-sm text-gray-500">
-              点击麦克风开始录音回答
+              准备就绪
             </span>
           )}
         </div>
@@ -317,15 +330,10 @@ export default function VoiceRecorder({
         </div>
       )}
 
-      {/* 使用提示 */}
-      {!state.isRecording && !state.isProcessing && !transcriptionText && (
-        <div className="text-xs text-gray-500 space-y-1">
-          <div>• 点击麦克风开始录音</div>
-          <div>• 说话完成后点击停止按钮</div>
-          <div>• 支持中文和英文识别</div>
-          <div>• 建议在安静环境下使用</div>
-        </div>
-      )}
     </div>
   )
-}
+})
+
+VoiceRecorder.displayName = 'VoiceRecorder'
+
+export default VoiceRecorder

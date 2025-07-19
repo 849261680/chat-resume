@@ -123,6 +123,23 @@ export default function InterviewPage() {
     hasCheckedExistingSession.current = false
     processedSessionRef.current = null
     
+    // 抑制Chrome扩展的runtime.lastError错误
+    const originalError = console.error
+    console.error = (...args) => {
+      const message = args[0]?.toString() || ''
+      if (message.includes('runtime.lastError') || 
+          message.includes('message channel closed')) {
+        // 静默忽略Chrome扩展错误
+        return
+      }
+      originalError.apply(console, args)
+    }
+    
+    // 清理函数
+    return () => {
+      console.error = originalError
+    }
+    
     // 解析URL参数
     const urlParams = new URLSearchParams(window.location.search)
     const mode = urlParams.get('mode') || 'comprehensive'

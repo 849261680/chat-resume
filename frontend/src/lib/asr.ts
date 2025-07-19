@@ -110,31 +110,61 @@ class ASRService {
    * 检查浏览器支持
    */
   private checkBrowserSupport(): boolean {
-    return !!(navigator.mediaDevices && 
-              navigator.mediaDevices.getUserMedia && 
-              window.MediaRecorder &&
-              window.WebSocket)
+    const checks = {
+      mediaDevices: !!(navigator.mediaDevices),
+      getUserMedia: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia),
+      mediaRecorder: !!(window.MediaRecorder),
+      webSocket: !!(window.WebSocket),
+      audioContext: !!(window.AudioContext || (window as any).webkitAudioContext),
+      isSecureContext: window.isSecureContext || location.protocol === 'https:' || location.hostname === 'localhost'
+    }
+    
+    console.log('ASR浏览器支持检查:', checks)
+    
+    // 基本功能检查
+    const basicSupport = checks.mediaDevices && checks.getUserMedia && checks.mediaRecorder
+    
+    if (!checks.isSecureContext) {
+      console.warn('ASR警告: 需要HTTPS环境才能使用麦克风功能')
+    }
+    
+    return basicSupport
   }
 
   /**
    * 请求麦克风权限
    */
   async requestMicrophonePermission(): Promise<boolean> {
+    if (!this.checkBrowserSupport()) {
+      console.error('浏览器不支持录音功能')
+      return false
+    }
+    
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
+      // 尝试使用更低的配置以提高兼容性
+      const constraints = {
         audio: {
-          sampleRate: 16000,
-          channelCount: 1,
           echoCancellation: true,
-          noiseSuppression: true
+          noiseSuppression: true,
+          autoGainControl: true
         }
-      })
+      }
+      
+      const stream = await navigator.mediaDevices.getUserMedia(constraints)
       
       // 测试后立即关闭
       stream.getTracks().forEach(track => track.stop())
+      console.log('麦克风权限获取成功')
       return true
     } catch (error) {
       console.error('麦克风权限请求失败:', error)
+      
+      // 详细错误信息
+      if (error instanceof Error) {
+        console.error('错误类型:', error.name)
+        console.error('错误消息:', error.message)
+      }
+      
       return false
     }
   }
@@ -189,20 +219,47 @@ class ASRService {
     }
 
     try {
-      // 获取麦克风权限
-      this.audioStream = await navigator.mediaDevices.getUserMedia({
+      // 获取麦克风权限，使用更兼容的配置
+      const constraints = {
         audio: {
-          sampleRate: 16000,
-          channelCount: 1,
           echoCancellation: true,
-          noiseSuppression: true
+          noiseSuppression: true,
+          autoGainControl: true
         }
-      })
+      }
+      
+      this.audioStream = await navigator.mediaDevices.getUserMedia(constraints)
+
+      // 检查支持的MIME类型
+      let mimeType = 'audio/webm;codecs=opus'
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        console.warn('不支持 opus 编码，尝试其他格式')
+        const alternativeTypes = [
+          'audio/webm',
+          'audio/mp4',
+          'audio/ogg;codecs=opus',
+          'audio/wav'
+        ]
+        
+        for (const type of alternativeTypes) {
+          if (MediaRecorder.isTypeSupported(type)) {
+            mimeType = type
+            console.log('使用音频格式:', type)
+            break
+          }
+        }
+        
+        if (!MediaRecorder.isTypeSupported(mimeType)) {
+          console.warn('未找到支持的音频格式，使用默认格式')
+          mimeType = undefined // 使用浏览器默认格式
+        }
+      }
 
       // 创建MediaRecorder
-      this.mediaRecorder = new MediaRecorder(this.audioStream, {
-        mimeType: 'audio/webm;codecs=opus'
-      })
+      this.mediaRecorder = new MediaRecorder(
+        this.audioStream, 
+        mimeType ? { mimeType } : undefined
+      )
 
       // 清空音频块
       this.audioChunks = []
@@ -218,9 +275,10 @@ class ASRService {
       this.mediaRecorder.start(100) // 每100ms收集一次数据
       this.isRecording = true
 
-      console.log('开始录音')
+      console.log('开始录音，使用格式:', mimeType || '默认')
     } catch (error) {
       console.error('开始录音失败:', error)
+      this.cleanupRecording()
       throw error
     }
   }

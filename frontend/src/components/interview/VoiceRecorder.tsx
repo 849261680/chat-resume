@@ -61,21 +61,44 @@ const VoiceRecorder = forwardRef<VoiceRecorderRef, VoiceRecorderProps>(({
   // 检查浏览器支持和权限
   useEffect(() => {
     const checkSupport = async () => {
-      const isSupported = !!(navigator.mediaDevices && 
-                             navigator.mediaDevices.getUserMedia && 
-                             window.MediaRecorder)
+      // 更详细的浏览器支持检查
+      const checks = {
+        mediaDevices: !!(navigator.mediaDevices),
+        getUserMedia: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia),
+        mediaRecorder: !!(window.MediaRecorder),
+        isSecureContext: window.isSecureContext || location.protocol === 'https:' || location.hostname === 'localhost'
+      }
+      
+      console.log('浏览器功能检查:', checks)
+      
+      const isSupported = checks.mediaDevices && checks.getUserMedia && checks.mediaRecorder
+      
+      if (!checks.isSecureContext) {
+        console.warn('警告: 需要HTTPS环境才能使用麦克风功能')
+      }
       
       setState(prev => ({ ...prev, isSupported }))
       
       if (isSupported) {
         // 预先请求麦克风权限
         try {
+          console.log('VoiceRecorder: 开始请求麦克风权限...')
           const hasPermission = await asrService.requestMicrophonePermission()
+          console.log('VoiceRecorder: 麦克风权限结果:', hasPermission)
           setState(prev => ({ ...prev, hasPermission }))
         } catch (error) {
-          console.error('权限检查失败:', error)
+          console.error('VoiceRecorder: 权限检查失败:', error)
           setState(prev => ({ ...prev, hasPermission: false }))
         }
+      } else {
+        // 详细的不支持原因
+        const reasons = []
+        if (!checks.mediaDevices) reasons.push('navigator.mediaDevices')
+        if (!checks.getUserMedia) reasons.push('getUserMedia')
+        if (!checks.mediaRecorder) reasons.push('MediaRecorder')
+        if (!checks.isSecureContext) reasons.push('HTTPS/安全上下文')
+        
+        console.error('浏览器不支持录音功能，缺少:', reasons.join(', '))
       }
     }
 
@@ -103,19 +126,20 @@ const VoiceRecorder = forwardRef<VoiceRecorderRef, VoiceRecorderProps>(({
 
   // 开始录音
   const startRecording = async () => {
-    if (!state.isSupported) {
-      const errorMsg = '浏览器不支持录音功能'
-      setError(errorMsg)
-      onError?.(errorMsg)
-      return
-    }
-
+    console.log('VoiceRecorder: 开始录音被调用', { 
+      isSupported: state.isSupported, 
+      hasPermission: state.hasPermission 
+    })
+    
     try {
       setState(prev => ({ ...prev, isRecording: true, recordingTime: 0 }))
       setError(null)
       setTranscriptionText('')
       
+      console.log('VoiceRecorder: 调用ASR服务开始录音...')
+      // 直接调用ASR服务，让它进行详细的兼容性检查
       await asrService.startRecording()
+      console.log('VoiceRecorder: ASR服务开始录音成功')
       
       // 开始计时
       recordingTimer.current = setInterval(() => {
@@ -133,7 +157,22 @@ const VoiceRecorder = forwardRef<VoiceRecorderRef, VoiceRecorderProps>(({
       
     } catch (error) {
       console.error('开始录音失败:', error)
-      const errorMsg = error instanceof Error ? error.message : '开始录音失败'
+      let errorMsg = '开始录音失败'
+      
+      if (error instanceof Error) {
+        if (error.name === 'NotAllowedError') {
+          errorMsg = '麦克风权限被拒绝，请在浏览器设置中允许访问麦克风'
+        } else if (error.name === 'NotFoundError') {
+          errorMsg = '未找到可用的麦克风设备'
+        } else if (error.name === 'NotSupportedError') {
+          errorMsg = '浏览器不支持当前的录音格式'
+        } else if (error.name === 'NotReadableError') {
+          errorMsg = '麦克风设备正在被其他应用程序使用'
+        } else {
+          errorMsg = error.message
+        }
+      }
+      
       setError(errorMsg)
       onError?.(errorMsg)
       setState(prev => ({ ...prev, isRecording: false }))
@@ -207,33 +246,51 @@ const VoiceRecorder = forwardRef<VoiceRecorderRef, VoiceRecorderProps>(({
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
   }
 
-  // 权限提示
-  if (!state.isSupported) {
+  // 权限提示 - 只在明确不支持时显示警告，但不阻止功能
+  const showCompatibilityWarning = !state.isSupported && (
+    !window.isSecureContext && location.protocol !== 'https:' && location.hostname !== 'localhost'
+  )
+  
+  if (showCompatibilityWarning) {
+    // 只在非HTTPS环境下显示警告，但仍然允许尝试使用
     return (
-      <div className={`flex items-center space-x-2 p-3 bg-red-50 rounded-lg ${className}`}>
-        <ExclamationTriangleIcon className="w-5 h-5 text-red-500" />
-        <span className="text-sm text-red-700">浏览器不支持录音功能</span>
+      <div className={`space-y-4 ${className}`}>
+        <div className="flex flex-col space-y-2 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+          <div className="flex items-center space-x-2">
+            <ExclamationTriangleIcon className="w-5 h-5 text-yellow-500" />
+            <span className="text-sm text-yellow-700">检测到浏览器兼容性问题</span>
+          </div>
+          <div className="text-xs text-yellow-600 pl-7">
+            当前非HTTPS环境，麦克风功能可能受限。建议使用HTTPS访问或更新浏览器。
+          </div>
+        </div>
+        {/* 仍然显示录音界面，让用户可以尝试 */}
+        {renderRecordingInterface()}
       </div>
     )
   }
 
-  if (!state.hasPermission) {
-    return (
-      <div className={`flex items-center space-x-2 p-3 bg-yellow-50 rounded-lg ${className}`}>
-        <ExclamationTriangleIcon className="w-5 h-5 text-yellow-500" />
-        <span className="text-sm text-yellow-700">需要麦克风权限</span>
-        <button
-          onClick={() => window.location.reload()}
-          className="text-sm text-yellow-800 underline hover:no-underline"
-        >
-          重新授权
-        </button>
-      </div>
-    )
-  }
+  // 权限棐示，但不阻止使用
+  const showPermissionWarning = state.isSupported && !state.hasPermission
+  
+  // 渲染录音界面的函数
+  const renderRecordingInterface = () => (
 
-  return (
     <div className={`space-y-4 ${className}`}>
+      {/* 权限警告 */}
+      {showPermissionWarning && (
+        <div className="flex flex-col space-y-2 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+          <div className="flex items-center space-x-2">
+            <ExclamationTriangleIcon className="w-5 h-5 text-yellow-500" />
+            <span className="text-sm text-yellow-700">需要麦克风权限</span>
+          </div>
+          <div className="text-xs text-yellow-600 pl-7">
+            点击录音按钮时会请求麦克风权限，请在浏览器弹窗中选择"允许"
+          </div>
+        </div>
+      )}
+    
+      {/* 录音控制区域 */}
       {/* 录音控制区域 */}
       <div className="flex items-center space-x-4">
         {/* 录音按钮 */}
@@ -332,6 +389,9 @@ const VoiceRecorder = forwardRef<VoiceRecorderRef, VoiceRecorderProps>(({
 
     </div>
   )
+  
+  // 返回主界面
+  return renderRecordingInterface()
 })
 
 VoiceRecorder.displayName = 'VoiceRecorder'

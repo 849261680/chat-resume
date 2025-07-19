@@ -40,6 +40,7 @@ export default function VoiceControls({
   const [voiceConfigs, setVoiceConfigs] = useState<Record<string, VoiceConfig>>({})
   const [selectedVoice, setSelectedVoice] = useState<string>('professional')
   const [showSettings, setShowSettings] = useState(false)
+  const [retryCount, setRetryCount] = useState<Record<string, number>>({})
 
   // 获取面试官音色配置
   useEffect(() => {
@@ -57,6 +58,25 @@ export default function VoiceControls({
 
   // 自动播放逻辑
   const [lastAutoPlayedText, setLastAutoPlayedText] = useState<string>('')
+  const MAX_RETRY_COUNT = 3
+  
+  // 清理旧的重试记录，避免内存泄漏
+  useEffect(() => {
+    if (questionText !== lastAutoPlayedText) {
+      // 保留当前问题的重试记录，清理其他记录
+      setRetryCount(prev => {
+        const newRetryCount: Record<string, number> = {}
+        // 保留当前问题的自动播放和手动播放重试记录
+        if (prev[questionText]) {
+          newRetryCount[questionText] = prev[questionText]
+        }
+        if (prev[`manual_${questionText}`]) {
+          newRetryCount[`manual_${questionText}`] = prev[`manual_${questionText}`]
+        }
+        return newRetryCount
+      })
+    }
+  }, [questionText, lastAutoPlayedText])
   
   useEffect(() => {
     if (autoPlay && 
@@ -65,6 +85,15 @@ export default function VoiceControls({
         questionText !== lastAutoPlayedText && 
         !isPlaying && 
         !isLoading) {
+      
+      // 检查重试次数
+      const currentRetryCount = retryCount[questionText] || 0
+      if (currentRetryCount >= MAX_RETRY_COUNT) {
+        console.warn(`语音播放已达到最大重试次数(${MAX_RETRY_COUNT})，跳过播放: ${questionText.substring(0, 50)}...`)
+        setLastAutoPlayedText(questionText)
+        return
+      }
+      
       // 延迟500ms开始播放，避免与其他操作冲突
       const timer = setTimeout(async () => {
         // 直接调用播放逻辑，避免依赖循环
@@ -92,8 +121,26 @@ export default function VoiceControls({
 
           onVoiceEnd?.()
           setLastAutoPlayedText(questionText)
+          // 播放成功，重置重试计数
+          setRetryCount(prev => ({
+            ...prev,
+            [questionText]: 0
+          }))
         } catch (error) {
           console.error('自动播放语音错误:', error)
+          
+          // 增加重试计数
+          const newRetryCount = currentRetryCount + 1
+          setRetryCount(prev => ({
+            ...prev,
+            [questionText]: newRetryCount
+          }))
+          
+          if (newRetryCount >= MAX_RETRY_COUNT) {
+            console.warn(`语音播放失败已达到最大重试次数(${MAX_RETRY_COUNT})，停止重试`)
+            setLastAutoPlayedText(questionText) // 标记为已处理，避免后续重试
+          }
+          
           onVoiceError?.(error as Error)
         } finally {
           setIsLoading(false)
@@ -103,7 +150,7 @@ export default function VoiceControls({
       
       return () => clearTimeout(timer)
     }
-  }, [autoPlay, questionText, isPlaying, isLoading, lastAutoPlayedText, voiceConfigs, selectedVoice, onVoiceStart, onVoiceEnd, onVoiceError])
+  }, [autoPlay, questionText, isPlaying, isLoading, lastAutoPlayedText, voiceConfigs, selectedVoice, retryCount, onVoiceStart, onVoiceEnd, onVoiceError])
 
   // 播放语音
   const handlePlayVoice = useCallback(async () => {
@@ -116,6 +163,15 @@ export default function VoiceControls({
     }
 
     if (!questionText.trim()) {
+      return
+    }
+
+    // 检查手动播放的重试次数
+    const manualPlayKey = `manual_${questionText}`
+    const currentRetryCount = retryCount[manualPlayKey] || 0
+    if (currentRetryCount >= MAX_RETRY_COUNT) {
+      console.warn(`手动播放已达到最大重试次数(${MAX_RETRY_COUNT})，停止播放`)
+      onVoiceError?.(new Error(`播放失败次数过多，请稍后重试`))
       return
     }
 
@@ -143,14 +199,27 @@ export default function VoiceControls({
       }
 
       onVoiceEnd?.()
+      // 播放成功，重置重试计数
+      setRetryCount(prev => ({
+        ...prev,
+        [manualPlayKey]: 0
+      }))
     } catch (error) {
       console.error('语音播放错误:', error)
+      
+      // 增加重试计数
+      const newRetryCount = currentRetryCount + 1
+      setRetryCount(prev => ({
+        ...prev,
+        [manualPlayKey]: newRetryCount
+      }))
+      
       onVoiceError?.(error as Error)
     } finally {
       setIsLoading(false)
       setIsPlaying(false)
     }
-  }, [questionText, voiceConfigs, selectedVoice, onVoiceStart, onVoiceEnd, onVoiceError])
+  }, [questionText, voiceConfigs, selectedVoice, retryCount, onVoiceStart, onVoiceEnd, onVoiceError])
 
   // 音色选择
   const handleVoiceChange = (voiceType: string) => {

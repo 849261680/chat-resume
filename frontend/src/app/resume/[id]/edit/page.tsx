@@ -12,6 +12,7 @@ import {
   ArrowDownTrayIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  StopCircleIcon,
   TrashIcon
 } from '@heroicons/react/24/outline'
 import JobApplicationEditor from '@/components/editor/JobApplicationEditor'
@@ -110,6 +111,7 @@ export default function ResumeEditPage() {
     handleMessagesScroll,
     handleClearMessages,
     handleKeyPress,
+    endConversation,
     sendMessage,
     sendPresetMessage,
   } = useResumeChatPanel({
@@ -655,7 +657,7 @@ export default function ResumeEditPage() {
                         })}
                         {!streamEvents.some((event) => event.type === 'text' && event.content.trim()) && (
                           <div className="mt-2 px-4 py-3 text-sm" style={{ color: '#5b616e' }}>
-                            <span className="inline-block animate-pulse">Planning next moves</span>
+                            <span className="inline-block animate-pulse">思考中</span>
                           </div>
                         )}
                       </div>
@@ -673,7 +675,7 @@ export default function ResumeEditPage() {
                           color: '#5b616e',
                         }}
                       >
-                        <span className="inline-block animate-pulse">Planning next moves</span>
+                        <span className="inline-block animate-pulse">思考中</span>
                       </div>
                     </div>
                   )}
@@ -728,15 +730,22 @@ export default function ResumeEditPage() {
                       disabled={isSending || isStreaming}
                     />
                     <button
-                      onClick={sendMessage}
-                      disabled={!inputMessage.trim() || isSending || isStreaming}
+                      onClick={(isSending || isStreaming) ? endConversation : sendMessage}
+                      disabled={!inputMessage.trim() && !isSending && !isStreaming}
+                      aria-label={(isSending || isStreaming) ? '结束对话' : '发送消息'}
                       className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full transition-colors flex items-center justify-center disabled:cursor-not-allowed"
                       style={{
-                        backgroundColor: inputMessage.trim() ? '#0052ff' : '#eef0f3',
-                        color: inputMessage.trim() ? '#ffffff' : '#9ca3af',
+                        backgroundColor: (isSending || isStreaming)
+                          ? '#dc2626'
+                          : (inputMessage.trim() ? '#0052ff' : '#eef0f3'),
+                        color: (isSending || isStreaming) || inputMessage.trim() ? '#ffffff' : '#9ca3af',
                       }}
                     >
-                      <ArrowUpIcon className="w-4 h-4" />
+                      {(isSending || isStreaming) ? (
+                        <StopCircleIcon className="w-4 h-4" />
+                      ) : (
+                        <ArrowUpIcon className="w-4 h-4" />
+                      )}
                     </button>
                   </div>
                 </div>

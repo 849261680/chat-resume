@@ -16,8 +16,11 @@ from .prompt_context import build_resume_prompt_context, strip_redundant_fields
 
 logger = logging.getLogger(__name__)
 
-_TOOLS_WITH_OPTIONAL_ARGS_ONLY = {"read_resume", "read_user_memory"}
-_AUTO_EXECUTE_TOOL_NAMES = {"read_user_memory", "write_user_memory"}
+_TOOLS_WITH_OPTIONAL_ARGS_ONLY = {"read_user_memory"}
+_AUTO_EXECUTE_TOOL_NAMES = {
+    "read_user_memory",
+    "write_user_memory",
+}
 
 
 def _parse_tool_arguments(raw: Any) -> Dict[str, Any]:

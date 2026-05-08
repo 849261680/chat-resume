@@ -59,6 +59,7 @@ export function useResumeChatPanel({
     currentStreamingMessage,
     streamEvents,
     sendStreamingMessage,
+    stopStreaming,
     confirmTool,
   } = useStreamingChat(parseInt(resumeId || '0', 10), {
     visibleModules,
@@ -229,6 +230,16 @@ export function useResumeChatPanel({
   }, [dispatchMessage])
 
   /**
+   * 主动结束当前 Agent 流式对话。
+   */
+  const endConversation = useCallback(() => {
+    if (!isSending && !isStreaming) return
+    stopStreaming()
+    setIsSending(false)
+    setApiError(null)
+  }, [isSending, isStreaming, stopStreaming])
+
+  /**
    * 清空当前聊天历史，并同步删除服务端已保存的消息。
    */
   const handleClearMessages = useCallback(async () => {
@@ -275,6 +286,7 @@ export function useResumeChatPanel({
     handleMessagesScroll,
     handleClearMessages,
     handleKeyPress,
+    endConversation,
     sendMessage,
     sendPresetMessage,
   }

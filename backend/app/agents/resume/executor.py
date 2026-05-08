@@ -31,7 +31,6 @@ TOOL_DISPLAY_NAMES = {
     "update_highlight": "优化成果",
     "add_highlight": "新增成果",
     "remove_highlight": "删除成果",
-    "read_resume": "读取简历",
 }
 
 

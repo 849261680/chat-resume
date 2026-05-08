@@ -1,7 +1,6 @@
 """用于集中暴露简历编辑相关的顶层工具。"""
 
 from .add_highlight_tool import add_highlight
-from .read_resume_tool import read_resume_content
 from .read_user_memory_tool import read_user_memory
 from .registry import RESUME_TOOLS_SCHEMA, execute_resume_tool
 from .remove_highlight_tool import remove_highlight
@@ -13,7 +12,6 @@ __all__ = [
     "RESUME_TOOLS_SCHEMA",
     "add_highlight",
     "execute_resume_tool",
-    "read_resume_content",
     "read_user_memory",
     "remove_highlight",
     "update_highlight",

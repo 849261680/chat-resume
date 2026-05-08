@@ -152,7 +152,7 @@ class ChatService:
                 f"AI服务请求失败: {e.response.status_code} - {e.response.text}"
             )
         except Exception as e:
-            raise Exception(f"AI服务请求异常: {str(e)}")
+            raise Exception(f"AI服务请求异常: {self._format_error(e)}") from e
 
     async def chat_completion_stream_deltas(
         self,
@@ -175,40 +175,60 @@ class ChatService:
         url = self._get_endpoint_url()
         emitted_any_delta = False
 
-        try:
-            async with self.client.stream(
-                "POST", url, json=payload, headers=self.headers, timeout=self.timeout
-            ) as response:
-                response.raise_for_status()
-                async for line in response.aiter_lines():
-                    data = self._extract_sse_data(line)
-                    if data is None:
-                        continue
-                    if data == "[DONE]":
-                        break
-                    try:
-                        chunk = _json.loads(data)
-                        delta = self._extract_stream_delta(chunk)
-                        if delta:
-                            emitted_any_delta = True
-                            yield delta
-                    except (KeyError, IndexError, _json.JSONDecodeError):
-                        continue
-                if not emitted_any_delta:
-                    logger.warning(
-                        (
-                            "OpenRouter stream completed without usable deltas "
-                            "model=%s payload_size=%s"
-                        ),
-                        self.model,
-                        len(_json.dumps(payload, ensure_ascii=False)),
-                    )
-        except httpx.HTTPStatusError as e:
-            raise Exception(
-                f"AI服务请求失败: {e.response.status_code} - {e.response.text}"
-            )
-        except Exception as e:
-            raise Exception(f"AI服务请求异常: {str(e)}")
+        for attempt in range(self.max_retries + 1):
+            try:
+                async with self.client.stream(
+                    "POST",
+                    url,
+                    json=payload,
+                    headers=self.headers,
+                    timeout=self.timeout,
+                ) as response:
+                    response.raise_for_status()
+                    async for line in response.aiter_lines():
+                        data = self._extract_sse_data(line)
+                        if data is None:
+                            continue
+                        if data == "[DONE]":
+                            break
+                        try:
+                            chunk = _json.loads(data)
+                            delta = self._extract_stream_delta(chunk)
+                            if delta:
+                                emitted_any_delta = True
+                                yield delta
+                        except (KeyError, IndexError, _json.JSONDecodeError):
+                            continue
+                    if not emitted_any_delta:
+                        logger.warning(
+                            (
+                                "OpenRouter stream completed without usable deltas "
+                                "model=%s payload_size=%s"
+                            ),
+                            self.model,
+                            len(_json.dumps(payload, ensure_ascii=False)),
+                        )
+                return
+            except httpx.HTTPStatusError as e:
+                raise Exception(
+                    f"AI服务请求失败: {e.response.status_code} - {e.response.text}"
+                ) from e
+            except (
+                httpx.TimeoutException,
+                httpx.ConnectError,
+                httpx.NetworkError,
+            ) as e:
+                if emitted_any_delta or attempt >= self.max_retries:
+                    raise Exception(f"AI服务请求异常: {self._format_error(e)}") from e
+                logger.warning(
+                    "OpenRouter stream network error attempt=%s type=%s message=%s",
+                    attempt + 1,
+                    type(e).__name__,
+                    self._format_error(e),
+                )
+                await asyncio.sleep(self.retry_backoff_seconds * (attempt + 1))
+            except Exception as e:
+                raise Exception(f"AI服务请求异常: {self._format_error(e)}") from e
 
     @classmethod
     def _extract_stream_delta(cls, chunk: Dict[str, Any]) -> Dict[str, Any]:
@@ -385,9 +405,22 @@ class ChatService:
                 f"{last_error.response.status_code} - "
                 f"{last_error.response.text[:500]}"
             ) from last_error
-        raise Exception(
-            f"AI服务请求异常: {str(last_error) if last_error else 'unknown error'}"
-        )
+        detail = self._format_error(last_error) if last_error else "unknown error"
+        raise Exception(f"AI服务请求异常: {detail}")
+
+    @staticmethod
+    def _format_error(error: BaseException) -> str:
+        """Return useful text even for httpx exceptions whose str() is empty."""
+        message = str(error).strip()
+        cause = getattr(error, "__cause__", None)
+        if message:
+            return f"{type(error).__name__}: {message}"
+        if cause:
+            cause_message = str(cause).strip()
+            if cause_message:
+                return f"{type(error).__name__}: {type(cause).__name__}: {cause_message}"
+            return f"{type(error).__name__}: {type(cause).__name__}"
+        return type(error).__name__
 
     async def chat_with_context(
         self,

@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Any
 
 from .add_highlight_tool import add_highlight
-from .read_resume_tool import read_resume_content
 from .remove_highlight_tool import remove_highlight
 from .update_highlight_tool import update_highlight
 from .update_overview_tool import update_overview
@@ -180,7 +179,6 @@ RESUME_TOOLS_SCHEMA: list[dict[str, Any]] = [
 ]
 
 _RESUME_TOOL_HANDLERS = {
-    "read_resume": read_resume_content,
     "update_overview": update_overview,
     "update_highlight": update_highlight,
     "add_highlight": add_highlight,

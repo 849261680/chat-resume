@@ -56,6 +56,40 @@ function summarizeRenderedToolEvents(events: StreamEvent[]): string[] {
     .map((event, index) => `${index}:${event.type}:${'callId' in event ? event.callId : 'none'}:${'toolName' in event ? event.toolName : ''}`)
 }
 
+// 用于识别记忆工具，避免把记忆写入当成简历 diff 确认卡展示。
+function isMemoryToolEvent(event: StreamEvent): boolean {
+  if (!('toolName' in event)) return false
+  return event.toolName === 'update_memory' || event.toolName === '更新记忆'
+}
+
+// 用于判断同一工具调用是否已有上方状态行可展示。
+function hasToolActivityForCall(events: StreamEvent[], callId: string): boolean {
+  return events.some((event) =>
+    (event.type === 'tool_call' || event.type === 'tool_result' || event.type === 'tool_failed') &&
+    event.callId === callId
+  )
+}
+
+// 用于把历史里的记忆确认事件降级成工具状态行，避免出现二级确认卡。
+function renderMemoryToolDecisionActivity(
+  event: Extract<StreamEvent, { type: 'tool_pending' | 'tool_confirmed' | 'tool_rejected' }>,
+  events: StreamEvent[],
+  key: number,
+) {
+  if (!isMemoryToolEvent(event)) return undefined
+  if (hasToolActivityForCall(events, event.callId)) return null
+  return (
+    <AgentToolActivity
+      key={key}
+      event={{
+        type: event.type === 'tool_rejected' ? 'tool_failed' : 'tool_result',
+        callId: event.callId,
+        toolName: event.toolName,
+      }}
+    />
+  )
+}
+
 // 用于渲染 Agent 完成后的 JD 匹配证据链摘要。
 function JobMatchSummaryCard({ summary }: { summary: JobMatchSummary }) {
   const matchedCount = summary.matched_keywords.length
@@ -1080,6 +1114,8 @@ export default function ResumeEditPage() {
                             {message.streamEvents && message.streamEvents.length > 0 ? (
                               message.streamEvents!.map((event: StreamEvent, idx: number) => {
                                 if (event.type === 'tool_confirmed' || event.type === 'tool_rejected') {
+                                  const memoryActivity = renderMemoryToolDecisionActivity(event, message.streamEvents!, idx)
+                                  if (memoryActivity !== undefined) return memoryActivity
                                   const isConfirmed = event.type === 'tool_confirmed'
                                   return (
                                     <div key={idx} className="mb-2 rounded-2xl border border-gray-200 bg-white overflow-hidden text-xs shadow-sm">
@@ -1128,6 +1164,8 @@ export default function ResumeEditPage() {
                       <div className="max-w-[93%] px-4 py-3" style={{ color: '#0a0b0d' }}>
                         {streamEvents.map((event: StreamEvent, idx: number) => {
                           if (event.type === 'tool_pending') {
+                            const memoryActivity = renderMemoryToolDecisionActivity(event, streamEvents, idx)
+                            if (memoryActivity !== undefined) return memoryActivity
                             const isActivePending = event.callId === latestPendingCallId
                             return (
                               <div key={idx} className="mb-2 rounded-2xl border border-gray-200 bg-white overflow-hidden text-xs shadow-sm">
@@ -1178,6 +1216,8 @@ export default function ResumeEditPage() {
                             )
                           }
                           if (event.type === 'tool_confirmed' || event.type === 'tool_rejected') {
+                            const memoryActivity = renderMemoryToolDecisionActivity(event, streamEvents, idx)
+                            if (memoryActivity !== undefined) return memoryActivity
                             const isConfirmed = event.type === 'tool_confirmed'
                             return (
                               <div key={idx} className="mb-2 rounded-2xl border border-gray-200 bg-white overflow-hidden text-xs shadow-sm">

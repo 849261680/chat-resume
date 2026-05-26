@@ -732,6 +732,60 @@ async def test_resume_tool_execution_stage_runs_confirmed_tool_independently():
 
 
 @pytest.mark.asyncio
+async def test_update_memory_auto_executes_without_confirmation(tmp_path):
+    """用于验证更新记忆不需要人类确认即可直接执行。"""
+    agent = ResumeAgent()
+    stage = ResumeToolExecutionStage()
+    confirmation_queue: asyncio.Queue[bool] = asyncio.Queue()
+    confirmation_queue.put_nowait(False)
+    event_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+    stream_state = {
+        "visible_tool_call_ids": set(),
+        "confirmed_diff_items": [],
+        "confirmation_wait_ms": 0.0,
+        "chunk_index": 0,
+        "response_parts": [],
+    }
+    executed_tools: list[dict[str, Any]] = []
+
+    result = await stage.execute_tool_result(
+        agent=agent.definition,
+        run_id="run_memory_auto",
+        call_id="call_memory_auto",
+        tool_name="update_memory",
+        tool_input={
+            "operation": "append",
+            "scope": "user",
+            "kind": "preference",
+            "content": "优化简历时保持简洁，不写冗长 bullet。",
+            "reason": "用户明确表达长期偏好",
+        },
+        context={
+            "resume_content": {},
+            "user_id": 42,
+            "memory_dir": str(tmp_path),
+        },
+        confirmation_queue=confirmation_queue,
+        event_queue=event_queue,
+        event_callback=None,
+        executed_tools=executed_tools,
+        stream_state=stream_state,
+    )
+
+    events: list[dict[str, Any]] = []
+    while not event_queue.empty():
+        events.append(event_queue.get_nowait())
+
+    memory_file = tmp_path / "42" / "resume_memory.md"
+    assert "不写冗长 bullet" in memory_file.read_text(encoding="utf-8")
+    assert "记忆已更新" in str(result.details)
+    assert not any(event.get("tool_pending") for event in events)
+    assert not any(event.get("tool_confirmed") for event in events)
+    assert executed_tools[0]["success"] is True
+    assert stream_state["confirmation_wait_ms"] == 0.0
+
+
+@pytest.mark.asyncio
 async def test_resume_tool_preview_rejects_hidden_section_before_pending():
     """用于验证隐藏模块工具调用在预览阶段失败且不进入确认卡片。"""
     agent = ResumeAgent()

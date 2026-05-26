@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 _TOOLS_WITH_OPTIONAL_ARGS_ONLY = {"read_resume"}
 _AUTO_EXECUTE_TOOL_NAMES: set[str] = {
     "generate_job_match_summary",
+    "update_memory",
 }
 _TOOL_PROFILES: dict[str, set[str]] = {
     "resume_edit": {

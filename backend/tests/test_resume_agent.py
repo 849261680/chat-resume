@@ -16,6 +16,7 @@ from app.agents.resume.stream_events import (  # noqa: E402
     normalize_resume_stream_payload,
     tool_pending_event,
 )
+from app.agents.resume.message_conversion import resume_chat_history_to_messages  # noqa: E402
 from app.agents.resume.executor import ResumeToolExecutor  # noqa: E402
 from app.tools.resume.registry import RESUME_TOOLS_SCHEMA  # noqa: E402
 from app.tools.resume.update_highlight_tool import update_highlight  # noqa: E402
@@ -249,6 +250,62 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
             read_result["result"]["memories"][0]["content"],
             "优化简历时不要编造数字；没有数据就强化结果表达。",
         )
+
+    def test_memory_preview_does_not_write_markdown_store(self):
+        """用于验证记忆工具预览不产生持久化副作用。"""
+        executor = ResumeToolExecutor()
+        with TemporaryDirectory() as memory_dir:
+            result = executor.execute(
+                tool_name="update_memory",
+                tool_input={
+                    "operation": "append",
+                    "scope": "user",
+                    "kind": "preference",
+                    "content": "用户偏好精简简历。",
+                    "reason": "用户明确表达偏好",
+                },
+                context={
+                    "resume_content": {},
+                    "user_id": 7,
+                    "memory_dir": memory_dir,
+                    "dry_run": True,
+                },
+            )
+
+            self.assertTrue(result["result"]["success"])
+            self.assertTrue(result["result"]["dry_run"])
+            self.assertFalse((Path(memory_dir) / "7" / "resume_memory.md").exists())
+
+    def test_chat_history_replays_tool_events_as_pi_messages(self):
+        """用于验证历史消息保留 Pi 风格工具流水账。"""
+        messages = resume_chat_history_to_messages([
+            {"role": "user", "content": "我喜欢精简的简历"},
+            {
+                "role": "assistant",
+                "content": "已记住。",
+                "stream_events": [
+                    {
+                        "type": "tool_call",
+                        "callId": "call_1",
+                        "toolName": "更新记忆",
+                        "toolId": "update_memory",
+                        "toolInput": {"operation": "append", "scope": "user"},
+                    },
+                    {
+                        "type": "tool_result",
+                        "callId": "call_1",
+                        "toolName": "更新记忆",
+                        "toolId": "update_memory",
+                        "displayMessage": "记忆已更新",
+                    },
+                ],
+            },
+        ])
+
+        tool_result = messages[2]
+        self.assertEqual([message.role for message in messages], ["user", "assistant", "toolResult"])
+        self.assertEqual(messages[1].content[0].type, "toolCall")
+        self.assertEqual(getattr(tool_result, "tool_name", ""), "update_memory")
 
     def test_memory_tools_replace_disable_and_isolate_resume_scope(self):
         """用于验证更新记忆支持替换停用并隔离不同简历。"""

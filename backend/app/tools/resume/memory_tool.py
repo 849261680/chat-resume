@@ -161,12 +161,22 @@ def update_memory(
     user_id: int | None = None,
     resume_id: int | None = None,
     memory_dir: str | None = None,
+    dry_run: bool = False,
 ) -> dict[str, Any]:
     """用于更新当前用户或简历的长期记忆。"""
     if operation in {"append", "replace"} and not content.strip():
         return {"success": False, "message": "记忆内容不能为空"}
     if operation in {"replace", "disable"} and not memory_id.strip():
         return {"success": False, "message": "memory_id 不能为空"}
+    if dry_run:
+        return _memory_dry_run_result(
+            operation=operation,
+            scope=scope,
+            kind=kind,
+            content=content,
+            memory_id=memory_id,
+            reason=reason,
+        )
     store = MemoryMarkdownStore(memory_dir=memory_dir, user_id=user_id)
     entry = _apply_memory_operation(
         store,
@@ -182,6 +192,7 @@ def update_memory(
         return {"success": False, "message": "未找到要更新的记忆"}
     return {
         "success": True,
+        "terminate": True,
         "operation": operation,
         "scope": scope,
         "memory_id": entry.memory_id,
@@ -189,6 +200,29 @@ def update_memory(
         "content": entry.content,
         "reason": entry.reason,
         "message": "记忆已更新",
+    }
+
+
+def _memory_dry_run_result(
+    *,
+    operation: str,
+    scope: str,
+    kind: str,
+    content: str,
+    memory_id: str,
+    reason: str,
+) -> dict[str, Any]:
+    """用于预览记忆更新，不产生持久化副作用。"""
+    return {
+        "success": True,
+        "dry_run": True,
+        "operation": operation,
+        "scope": scope,
+        "memory_id": memory_id,
+        "kind": kind,
+        "content": content.strip(),
+        "reason": reason.strip(),
+        "message": "记忆将被更新",
     }
 
 

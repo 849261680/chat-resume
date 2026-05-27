@@ -182,6 +182,8 @@ class ResumeToolExecutor(ToolExecutor):
                     "resume_id": context.get("resume_id"),
                     "memory_dir": context.get("memory_dir"),
                 }
+            if tool_name == "update_memory" and context.get("dry_run") is True:
+                tool_input = {**tool_input, "dry_run": True}
             result = execute_resume_tool(
                 tool_name=tool_name,
                 resume_content=resume_content,

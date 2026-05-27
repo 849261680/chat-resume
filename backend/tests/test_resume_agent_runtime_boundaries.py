@@ -732,6 +732,63 @@ async def test_resume_tool_execution_stage_runs_confirmed_tool_independently():
 
 
 @pytest.mark.asyncio
+async def test_read_memory_auto_executes_without_confirmation(tmp_path):
+    """用于验证读取记忆不需要人类确认即可直接执行。"""
+    agent = ResumeAgent()
+    agent.tool_executor.execute(
+        tool_name="update_memory",
+        tool_input={
+            "operation": "append",
+            "scope": "user",
+            "kind": "preference",
+            "content": "优化简历时保持简洁，不写冗长 bullet。",
+            "reason": "用户明确表达长期偏好",
+        },
+        context={"resume_content": {}, "user_id": 42, "memory_dir": str(tmp_path)},
+    )
+    stage = ResumeToolExecutionStage()
+    confirmation_queue: asyncio.Queue[bool] = asyncio.Queue()
+    confirmation_queue.put_nowait(False)
+    event_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+    stream_state = {
+        "visible_tool_call_ids": set(),
+        "confirmed_diff_items": [],
+        "confirmation_wait_ms": 0.0,
+        "chunk_index": 0,
+        "response_parts": [],
+    }
+    executed_tools: list[dict[str, Any]] = []
+
+    result = await stage.execute_tool_result(
+        agent=agent.definition,
+        run_id="run_memory_read_auto",
+        call_id="call_memory_read_auto",
+        tool_name="read_memory",
+        tool_input={"scope": "user"},
+        context={
+            "resume_content": {},
+            "user_id": 42,
+            "memory_dir": str(tmp_path),
+        },
+        confirmation_queue=confirmation_queue,
+        event_queue=event_queue,
+        event_callback=None,
+        executed_tools=executed_tools,
+        stream_state=stream_state,
+    )
+
+    events: list[dict[str, Any]] = []
+    while not event_queue.empty():
+        events.append(event_queue.get_nowait())
+
+    assert "不写冗长 bullet" in str(result.details)
+    assert not any(event.get("tool_pending") for event in events)
+    assert not any(event.get("tool_confirmed") for event in events)
+    assert executed_tools[0]["success"] is True
+    assert stream_state["confirmation_wait_ms"] == 0.0
+
+
+@pytest.mark.asyncio
 async def test_update_memory_auto_executes_without_confirmation(tmp_path):
     """用于验证更新记忆不需要人类确认即可直接执行。"""
     agent = ResumeAgent()
@@ -783,6 +840,70 @@ async def test_update_memory_auto_executes_without_confirmation(tmp_path):
     assert not any(event.get("tool_confirmed") for event in events)
     assert executed_tools[0]["success"] is True
     assert stream_state["confirmation_wait_ms"] == 0.0
+
+
+@pytest.mark.asyncio
+async def test_update_memory_terminates_after_tool_result_without_second_llm(tmp_path):
+    """用于验证记忆更新成功后采用 Pi-style tool result 直接结束。"""
+    agent = ResumeAgent()
+    stream = FakeLoopStream(
+        [
+            fake_loop_tool_call(
+                name="update_memory",
+                args={
+                    "operation": "append",
+                    "scope": "user",
+                    "kind": "preference",
+                    "content": "我喜欢可读性高的简历。",
+                    "reason": "用户明确表达长期偏好",
+                },
+                call_id="call_memory_update",
+            ),
+            fake_loop_text("这轮不应该被请求。"),
+        ]
+    )
+    stage = ResumeToolExecutionStage()
+    loop = ResumeAgentLoop(stream_fn=stream, tool_stage=stage)
+    state = _new_test_stream_state()
+    context = {
+        "resume_content": {},
+        "user_id": 42,
+        "memory_dir": str(tmp_path),
+    }
+    pi_context, prompts, config = _build_test_turn_inputs(
+        agent,
+        user_message="我喜欢可读性高的简历",
+        context=context,
+        state=state,
+    )
+    event_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+    executed_tools: list[dict[str, Any]] = []
+
+    await loop.run(
+        agent=agent.definition,
+        run_id="run_memory_terminate",
+        pi_context=pi_context,
+        prompts=prompts,
+        config=config,
+        context=context,
+        confirmation_queue=None,
+        event_queue=event_queue,
+        event_callback=None,
+        state=state,
+        executed_tools=executed_tools,
+        model_name="test-model",
+    )
+
+    events: list[dict[str, Any]] = []
+    while not event_queue.empty():
+        events.append(event_queue.get_nowait())
+
+    memory_file = tmp_path / "42" / "resume_memory.md"
+    assert stream.calls == 1
+    assert "可读性高" in memory_file.read_text(encoding="utf-8")
+    assert "".join(state["response_parts"]) == "记忆已更新"
+    assert any(event.get("display_message") == "记忆已更新" for event in events)
+    assert executed_tools[0]["success"] is True
 
 
 @pytest.mark.asyncio
@@ -1045,3 +1166,51 @@ async def test_stream_assistant_turn_only_publishes_first_tool_call_event():
     tool_calls_in_message = [b for b in assistant_message.content if isinstance(b, ToolCall)]
     assert len(tool_calls_in_message) == 1
     assert tool_calls_in_message[0].id == "call_first"
+
+
+@pytest.mark.asyncio
+async def test_stream_error_closes_visible_early_tool_call_event():
+    """用于验证模型断流时已提前展示的工具卡片会收到失败收尾事件。"""
+    agent = ResumeAgent()
+    error_message = AssistantMessage(
+        content=[
+            ToolCall(id="call_interrupted", name="update_bullet", arguments={}),
+        ],
+        stop_reason="error",
+        error_message="peer closed connection",
+    )
+    stream_fn = FakeLoopStream([error_message])
+    stage = ResumeToolExecutionStage()
+    loop = ResumeAgentLoop(stream_fn=stream_fn, tool_stage=stage)
+    state = _new_test_stream_state()
+    context: dict[str, Any] = {"resume_content": {}}
+    pi_context, _prompts, config = _build_test_turn_inputs(
+        agent,
+        user_message="优化",
+        context=context,
+        state=state,
+    )
+    event_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+
+    assistant_message, _deltas = await loop.stream_assistant_turn(
+        run_id="test",
+        llm_context=pi_context,
+        config=config,
+        event_queue=event_queue,
+        event_callback=None,
+        state=state,
+    )
+
+    events: list[dict[str, Any]] = []
+    while not event_queue.empty():
+        events.append(event_queue.get_nowait())
+
+    assert assistant_message.stop_reason == "error"
+    assert [event.get("event_type") for event in events] == [
+        "tool_call",
+        "tool_call_failed",
+    ]
+    failed_event = events[1]
+    assert failed_event["call_id"] == "call_interrupted"
+    assert failed_event["tool_id"] == "update_bullet"
+    assert failed_event["display_message"] == "peer closed connection"

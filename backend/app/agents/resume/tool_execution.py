@@ -68,7 +68,21 @@ class ResumeToolExecutionStage:
             executed_tools=executed_tools,
             stream_state=stream_state,
         )
-        return AgentToolResult(content=[TextContent(text=output)], details=output)
+        return AgentToolResult(
+            content=[TextContent(text=output)],
+            details=self.tool_result_details(output),
+        )
+
+    @staticmethod
+    def tool_result_details(output: str) -> Any:
+        """用于把 JSON 工具输出转换成可读的 details。"""
+        try:
+            parsed = json.loads(output)
+        except json.JSONDecodeError:
+            return output
+        if isinstance(parsed, dict):
+            return parsed
+        return output
 
     async def execute_tool(
         self,
@@ -236,6 +250,7 @@ class ResumeToolExecutionStage:
         assert confirmation_queue is not None
         preview_context = dict(context)
         preview_context["resume_content"] = deepcopy(context.get("resume_content"))
+        preview_context["dry_run"] = True
         preview_result = await self.call_tool_executor(
             agent=agent,
             tool_call=tool_call,

@@ -22,7 +22,11 @@ from pi_agent_core import (
 )
 from pi_agent_core.types import Message, StreamFn
 
-from app.agents.resume.stream_events import llm_request_event, text_delta_event
+from app.agents.resume.stream_events import (
+    llm_request_event,
+    text_delta_event,
+    tool_call_failed_event,
+)
 from app.agents.resume.tool_execution import ResumeToolExecutionStage
 from app.agents.resume.event_publisher import publish_resume_runtime_event
 from app.infra.config import settings
@@ -193,6 +197,17 @@ class ResumeAgentLoop:
                 executed_tools=executed_tools,
             )
             messages.append(tool_result)
+            if self.should_terminate_after_tool_result(tool_result):
+                self.trace_tool_result_terminated(agent, run_id, tool_result)
+                await self.publish_text_deltas(
+                    agent=agent,
+                    run_id=run_id,
+                    event_queue=event_queue,
+                    event_callback=event_callback,
+                    state=state,
+                    text_deltas=[self.tool_result_terminal_text(tool_result)],
+                )
+                return
 
     async def llm_context_for_turn(
         self,
@@ -243,6 +258,7 @@ class ResumeAgentLoop:
         )
         text_deltas: list[str] = []
         early_tool_call_published = False
+        visible_early_tool_call: ToolCall | None = None
         try:
             if inspect.isawaitable(response):
                 response = await response
@@ -257,6 +273,7 @@ class ResumeAgentLoop:
                     and self.tool_stage.remember_visible_tool_call(state, early_tool_call.id)
                 ):
                     early_tool_call_published = True
+                    visible_early_tool_call = early_tool_call
                     await self.tool_stage.publish_visible_tool_call(
                         call_id=early_tool_call.id,
                         tool_name=early_tool_call.name,
@@ -281,9 +298,51 @@ class ResumeAgentLoop:
             assistant_message = self.single_tool_message(result)
             state["last_assistant_text"] = self.assistant_text(assistant_message)
             state["usage"] = self.usage_to_dict(getattr(assistant_message, "usage", None))
+            await self.publish_failed_visible_tool_call_on_stream_error(
+                assistant_message=assistant_message,
+                tool_call=visible_early_tool_call,
+                event_queue=event_queue,
+                event_callback=event_callback,
+            )
             return assistant_message, text_deltas
         finally:
             cancel_event.set()
+
+    @classmethod
+    async def publish_failed_visible_tool_call_on_stream_error(
+        cls,
+        *,
+        assistant_message: AssistantMessage,
+        tool_call: ToolCall | None,
+        event_queue: asyncio.Queue[Any] | None,
+        event_callback: RuntimeEventCallback | None,
+    ) -> None:
+        """用于在模型断流时关闭已提前展示的工具卡片。"""
+        if tool_call is None:
+            return
+        if assistant_message.stop_reason not in ("error", "aborted"):
+            return
+        message = assistant_message.error_message or "模型工具调用中断，请重试。"
+        await cls.publish_event(
+            event_queue=event_queue,
+            event_callback=event_callback,
+            event=tool_call_failed_event(
+                call_id=tool_call.id,
+                tool_id=tool_call.name,
+                tool_display_name=tool_call.name,
+                tool_calls=[],
+                result={
+                    "success": False,
+                    "error": {
+                        "type": "model_stream_interrupted",
+                        "message": message,
+                        "recoverable": True,
+                    },
+                    "message": message,
+                },
+                display_message=message,
+            ),
+        )
 
     @staticmethod
     def assistant_tool_calls(message: AssistantMessage) -> list[ToolCall]:
@@ -451,6 +510,37 @@ class ResumeAgentLoop:
             content=result.content,
             details=result.details,
             is_error=False,
+        )
+
+    @staticmethod
+    def should_terminate_after_tool_result(message: ToolResultMessage) -> bool:
+        """用于识别 Pi-style 终止型工具结果。"""
+        details = message.details
+        return isinstance(details, dict) and details.get("terminate") is True
+
+    @staticmethod
+    def tool_result_terminal_text(message: ToolResultMessage) -> str:
+        """用于从终止型工具结果里提取确定性回复文本。"""
+        details = message.details
+        if not isinstance(details, dict):
+            return ""
+        message_text = details.get("message")
+        return message_text if isinstance(message_text, str) else ""
+
+    @classmethod
+    def trace_tool_result_terminated(
+        cls,
+        agent: AgentDefinition,
+        run_id: str,
+        message: ToolResultMessage,
+    ) -> None:
+        """用于记录工具结果直接结束 ReAct loop。"""
+        cls.trace(
+            "agent.trace.reasoning.tool_result_terminated",
+            run_id=run_id,
+            agent_name=agent.prompt_spec.name,
+            tool_name=message.tool_name,
+            reason="pi_style_tool_result_terminate",
         )
 
     @staticmethod

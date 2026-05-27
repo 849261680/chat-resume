@@ -34,24 +34,30 @@ export type StreamEvent =
       type: 'tool_call'
       callId: string
       toolName: string
+      toolId?: string
+      toolInput?: Record<string, unknown>
       displayMessage?: string
     }
   | {
       type: 'tool_result'
       callId?: string
       toolName: string
+      toolId?: string
       displayMessage?: string
     }
   | {
       type: 'tool_failed'
       callId: string
       toolName: string
+      toolId?: string
       displayMessage?: string
     }
   | {
       type: 'tool_pending'
       callId: string
       toolName: string
+      toolId?: string
+      toolInput?: Record<string, unknown>
       diffSummary: string
       diffItems?: DiffItem[]
     }
@@ -59,6 +65,7 @@ export type StreamEvent =
       type: 'tool_confirmed'
       callId: string
       toolName: string
+      toolId?: string
       diffSummary: string
       diffItems?: DiffItem[]
     }
@@ -66,6 +73,7 @@ export type StreamEvent =
       type: 'tool_rejected'
       callId: string
       toolName: string
+      toolId?: string
       diffSummary: string
       diffItems?: DiffItem[]
     }
@@ -268,6 +276,38 @@ function summarizeToolEvents(events: StreamEvent[]): string[] {
     .map((event, index) => `${index}:${event.type}:${'callId' in event ? event.callId : 'none'}:${'toolName' in event ? event.toolName : ''}`)
 }
 
+// 用于解析工具 id。
+function resolveToolId(data: Record<string, unknown>): string {
+  if (data.tool_id) return normalizeToolName(String(data.tool_id))
+  if (data.tool_name) return normalizeToolName(String(data.tool_name))
+  const toolCall = data.tool_call
+  if (toolCall && typeof toolCall === 'object') {
+    const fn = (toolCall as { function?: unknown }).function
+    if (fn && typeof fn === 'object' && 'name' in fn) {
+      return normalizeToolName(String((fn as { name?: unknown }).name || ''))
+    }
+  }
+  return ''
+}
+
+// 用于解析工具输入。
+function resolveToolInput(data: Record<string, unknown>): Record<string, unknown> | undefined {
+  if (data.tool_input && typeof data.tool_input === 'object') return data.tool_input as Record<string, unknown>
+  const toolCall = data.tool_call
+  if (!toolCall || typeof toolCall !== 'object') return undefined
+  const fn = (toolCall as { function?: unknown }).function
+  if (!fn || typeof fn !== 'object') return undefined
+  const raw = (fn as { arguments?: unknown }).arguments
+  if (raw && typeof raw === 'object') return raw as Record<string, unknown>
+  if (typeof raw !== 'string') return undefined
+  try {
+    const parsed = JSON.parse(raw)
+    return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : undefined
+  } catch {
+    return undefined
+  }
+}
+
 // 用于解析工具名称。
 function resolveToolName(data: Record<string, unknown>, fallbackName: string): string {
   if (data.tool_display_name) return normalizeToolName(String(data.tool_display_name))
@@ -417,6 +457,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                 type: finalType,
                 callId,
                 toolName: event.toolName || toolName,
+                toolId: event.toolId,
                 displayMessage,
               }
             }
@@ -554,6 +595,8 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                     type: 'tool_call',
                     callId,
                     toolName: resolveToolName(data, t('toolCall')),
+                    toolId: resolveToolId(data),
+                    toolInput: resolveToolInput(data),
                     displayMessage: data.display_message ? String(data.display_message) : undefined,
                   }]
                   debugStreamLog('[useStreamingChat] tool_call appended', {
@@ -579,6 +622,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                     eventsBuffer = [...eventsBuffer, {
                       type: 'tool_result',
                       toolName: resolveToolName(data, t('toolCall')),
+                      toolId: resolveToolId(data),
                       displayMessage: data.display_message ? String(data.display_message) : undefined,
                     }]
                   }
@@ -636,6 +680,8 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                       type: 'tool_pending',
                       callId,
                       toolName: data.tool_display_name || data.tool_name || '',
+                      toolId: resolveToolId(data),
+                      toolInput: resolveToolInput(data),
                       diffSummary: data.diff_summary || '',
                       diffItems: normalizeDiffItems(data.diff_items),
                     },
@@ -673,6 +719,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                             type: 'tool_rejected' as const,
                             callId: e.callId,
                             toolName: e.toolName,
+                            toolId: e.toolId,
                             diffSummary: e.diffSummary,
                             diffItems: e.diffItems,
                           }
@@ -706,6 +753,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                         type: 'tool_result' as const,
                         callId,
                         toolName: e.toolName,
+                        toolId: e.toolId,
                         displayMessage: data.display_message ? String(data.display_message) : undefined,
                       }]
                     }
@@ -714,6 +762,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                         type: newType,
                         callId: e.callId,
                         toolName: e.toolName,
+                        toolId: e.toolId,
                         diffSummary: e.diffSummary,
                         diffItems: e.diffItems,
                       }]

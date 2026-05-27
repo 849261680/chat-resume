@@ -12,7 +12,6 @@ from pi_agent_core import (
     AgentTool,
     AgentToolResult,
     AgentToolSchema,
-    AssistantMessage,
     TextContent,
     UserMessage,
 )
@@ -20,7 +19,10 @@ from pi_agent_core.types import Message
 
 from app.agents.resume.tool_execution import ResumeToolExecutionStage
 from app.runtime.contracts import AgentDefinition, RuntimeEventCallback
-from app.agents.resume.message_conversion import convert_resume_messages_to_llm
+from app.agents.resume.message_conversion import (
+    convert_resume_messages_to_llm,
+    resume_chat_history_to_messages,
+)
 from app.runtime.openrouter_adapter import build_openrouter_loop_config
 
 _IMPLICIT_TOOL_SECTIONS = {
@@ -205,19 +207,11 @@ class ResumeTurnContextBuilder:
 
     @staticmethod
     def history_messages(
-        conversation_history: list[dict[str, str]] | None,
+        conversation_history: list[dict[str, Any]] | None,
         max_history_messages: int,
     ) -> list[Message]:
-        """用于把历史 user/assistant 文本转为 pi-agent-core 消息。"""
-        messages: list[Message] = []
-        for item in (conversation_history or [])[-max_history_messages:]:
-            role = item.get("role")
-            content = item.get("content", "")
-            if role == "user":
-                messages.append(UserMessage(content=[TextContent(text=content)]))
-            elif role == "assistant":
-                messages.append(AssistantMessage(content=[TextContent(text=content)]))
-        return messages
+        """用于把历史消息转为 pi-agent-core 消息，保留工具流水账。"""
+        return resume_chat_history_to_messages((conversation_history or [])[-max_history_messages:])
 
     @staticmethod
     def tool_profile(agent: AgentDefinition, context: dict[str, Any]) -> str:

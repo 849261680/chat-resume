@@ -25,6 +25,8 @@ TOOL_REQUIRED_ARGS: dict[str, set[str]] = {
     "add_highlight": {"section", "item_id", "text"},
     "remove_highlight": {"section", "item_id", "highlight_id"},
     "generate_job_match_summary": set(),
+    "list_job_posts": set(),
+    "read_job_post": {"job_post_id"},
     "read_memory": {"scope"},
     "update_memory": {"operation", "scope"},
 }
@@ -72,6 +74,8 @@ TOOL_DISPLAY_NAMES = {
     "add_highlight": "新增要点",
     "remove_highlight": "删除要点",
     "generate_job_match_summary": "岗位匹配摘要",
+    "list_job_posts": "读取JD列表",
+    "read_job_post": "读取JD",
     "read_resume": "读取简历",
     "read_memory": "读取记忆",
     "update_memory": "更新记忆",
@@ -92,6 +96,8 @@ _SYNC_TOOL_NAME = Literal[
     "add_highlight",
     "remove_highlight",
     "read_resume",
+    "list_job_posts",
+    "read_job_post",
     "read_memory",
     "update_memory",
 ]
@@ -174,6 +180,18 @@ class ResumeToolExecutor(ToolExecutor):
                 tool_input = {
                     "confirmed_diff_items": context.get("confirmed_diff_items", []),
                     "semantic_analyzer": context.get("semantic_analyzer"),
+                }
+            if tool_name == "list_job_posts":
+                tool_input = {
+                    **tool_input,
+                    "user_id": context.get("user_id"),
+                    "list_job_posts_reader": context.get("list_job_posts_reader"),
+                }
+            if tool_name == "read_job_post":
+                tool_input = {
+                    **tool_input,
+                    "user_id": context.get("user_id"),
+                    "read_job_post_reader": context.get("read_job_post_reader"),
                 }
             if tool_name in {"read_memory", "update_memory"}:
                 tool_input = {

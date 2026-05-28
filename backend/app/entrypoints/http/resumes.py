@@ -16,6 +16,8 @@ from sqlalchemy.orm import Session
 from app.entrypoints.http.deps import get_current_user, get_current_user_claims
 from app.infra.database import get_db
 from app.schemas.resume import (
+    JobPostCreate,
+    JobPostResponse,
     LayoutConfigUpdate,
     ResumeCreate,
     ResumeListItem,
@@ -66,6 +68,55 @@ def _build_resume_list_item(resume) -> ResumeListItem:
             "preview_content": dump_resume_preview_content_for_list(content),
         }
     )
+
+
+@router.get("/job-posts", response_model=list[JobPostResponse])
+async def get_job_posts(
+    query: str = "",
+    limit: int = 20,
+    current_user: dict = Depends(get_current_user_claims),
+    db: Session = Depends(get_db),
+):
+    """用于返回当前用户保存过的 JD 列表。"""
+    resume_service = ResumeService(db)
+    return resume_service.list_job_posts_for_user(
+        current_user["id"],
+        query=query,
+        limit=limit,
+    )
+
+
+@router.post("/job-posts", response_model=JobPostResponse)
+async def create_job_post(
+    payload: JobPostCreate,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """用于手动保存一条可复用 JD。"""
+    if not payload.jd_text.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="JD text is required",
+        )
+    resume_service = ResumeService(db)
+    return resume_service.create_job_post(payload, current_user["id"])
+
+
+@router.get("/job-posts/{job_post_id}", response_model=JobPostResponse)
+async def get_job_post(
+    job_post_id: int,
+    current_user: dict = Depends(get_current_user_claims),
+    db: Session = Depends(get_db),
+):
+    """用于按用户权限返回单条 JD。"""
+    resume_service = ResumeService(db)
+    job_post = resume_service.get_job_post_for_user(current_user["id"], job_post_id)
+    if job_post is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job post not found",
+        )
+    return job_post
 
 
 @router.get("/", response_model=List[ResumeListItem])

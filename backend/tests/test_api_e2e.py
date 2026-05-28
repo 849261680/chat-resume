@@ -2333,6 +2333,95 @@ class TestResumeCRUD:
         assert "id" in body
         assert body["content"]["personal_info"]["name"] == "张三"
 
+    def test_create_resume_with_jd_syncs_job_post(self):
+        """用于验证简历内嵌 JD 会同步成可复用 job_posts 记录。"""
+        content = _empty_resume_content()
+        content["job_application"]["target_company"] = "美团"
+        content["job_application"]["target_title"] = "Agent 开发工程师"
+        content["job_application"]["jd_text"] = "负责 Agent 工具调用和评测体系。"
+
+        resp = self.client.post(
+            "/api/resumes/",
+            json={"title": "带 JD 简历", "content": content},
+            headers=self.headers,
+        )
+
+        assert resp.status_code == 200, resp.text
+        job_post_id = resp.json()["content"]["job_application"]["job_post_id"]
+        detail_resp = self.client.get(
+            f"/api/resumes/job-posts/{job_post_id}",
+            headers=self.headers,
+        )
+        assert detail_resp.status_code == 200
+        detail = detail_resp.json()
+        assert detail["company_name"] == "美团"
+        assert detail["job_title"] == "Agent 开发工程师"
+        assert "评测体系" in detail["jd_text"]
+
+    def test_update_resume_jd_reuses_existing_job_post(self):
+        """用于验证更新同一份简历 JD 时复用原 job_post_id。"""
+        content = _empty_resume_content()
+        content["job_application"]["jd_text"] = "旧 JD"
+        created_resp = self.client.post(
+            "/api/resumes/",
+            json={"title": "JD 更新简历", "content": content},
+            headers=self.headers,
+        )
+        assert created_resp.status_code == 200, created_resp.text
+        resume_id = created_resp.json()["id"]
+        job_post_id = created_resp.json()["content"]["job_application"]["job_post_id"]
+
+        updated_content = created_resp.json()["content"]
+        updated_content["job_application"]["target_company"] = "字节跳动"
+        updated_content["job_application"]["jd_text"] = "新 JD：负责多 Agent 协作。"
+        update_resp = self.client.put(
+            f"/api/resumes/{resume_id}",
+            json={"content": updated_content},
+            headers=self.headers,
+        )
+
+        assert update_resp.status_code == 200, update_resp.text
+        assert (
+            update_resp.json()["content"]["job_application"]["job_post_id"]
+            == job_post_id
+        )
+        detail_resp = self.client.get(
+            f"/api/resumes/job-posts/{job_post_id}",
+            headers=self.headers,
+        )
+        assert detail_resp.status_code == 200
+        assert detail_resp.json()["company_name"] == "字节跳动"
+        assert "多 Agent" in detail_resp.json()["jd_text"]
+
+    def test_job_posts_are_scoped_to_current_user(self):
+        """用于验证 JD 库接口按当前用户隔离。"""
+        create_resp = self.client.post(
+            "/api/resumes/job-posts",
+            json={
+                "company_name": "京东",
+                "job_title": "Agent 工程师",
+                "jd_text": "负责智能体平台建设。",
+            },
+            headers=self.headers,
+        )
+        assert create_resp.status_code == 200, create_resp.text
+        job_post_id = create_resp.json()["id"]
+
+        other_client = TestClient(app)
+        _register(other_client, "job_post_other@example.com")
+        other_token = _login(other_client, "job_post_other@example.com")
+        other_headers = _auth_headers(other_token)
+
+        list_resp = other_client.get("/api/resumes/job-posts", headers=other_headers)
+        detail_resp = other_client.get(
+            f"/api/resumes/job-posts/{job_post_id}",
+            headers=other_headers,
+        )
+
+        assert list_resp.status_code == 200
+        assert list_resp.json() == []
+        assert detail_resp.status_code == 404
+
     def test_list_resumes_returns_created_items(self):
         """用于验证listresumesreturnscreateditems。"""
         self._create_resume("简历A")

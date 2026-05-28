@@ -68,6 +68,7 @@ class ResumeMeta(ResumeBaseModel):
 
 
 class JobApplication(ResumeBaseModel):
+    job_post_id: Optional[int] = None
     target_title: str = ""
     target_company: str = ""
     jd_text: str = ""
@@ -557,6 +558,32 @@ class ResumeListItem(BaseModel):
     target_title: str = ""
     layout_config: Optional[dict[str, Any]] = None
     preview_content: dict[str, Any] = Field(default_factory=dict)
+
+
+class JobPostCreate(BaseModel):
+    """用于创建可复用 JD 记录。"""
+
+    company_name: str = ""
+    job_title: str = ""
+    jd_text: str
+    source_url: Optional[str] = None
+    source_type: str = "manual"
+
+
+class JobPostResponse(BaseModel):
+    """用于向前端或 Agent 返回单条 JD 记录。"""
+
+    id: int
+    user_id: int
+    company_name: str = ""
+    job_title: str = ""
+    jd_text: str
+    source_url: Optional[str] = None
+    source_type: str = ""
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
 
     model_config = ConfigDict(from_attributes=True)
 

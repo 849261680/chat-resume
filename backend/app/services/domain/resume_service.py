@@ -12,8 +12,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
 from app.models.interview import InterviewSession, InterviewTurn
-from app.models.resume import OptimizationRecord, Resume, ResumeChatMessage
+from app.models.resume import JobPost, OptimizationRecord, Resume, ResumeChatMessage
 from app.schemas.resume import (
+    JobPostCreate,
     ResumeContent,
     ResumeCreate,
     dump_resume_content_for_frontend,
@@ -52,6 +53,8 @@ class ResumeService:
 
         try:
             self.db.add(resume)
+            self.db.flush()
+            self._sync_resume_job_post(resume)
             self.db.commit()
             self.db.refresh(resume)
             return resume
@@ -72,6 +75,8 @@ class ResumeService:
                 setattr(resume, key, value)
                 if key == "content":
                     flag_modified(resume, "content")
+            if "content" in resume_update:
+                self._sync_resume_job_post(resume)
             self.db.commit()
             self.db.refresh(resume)
         return resume
@@ -79,6 +84,145 @@ class ResumeService:
     def _serialize_content(self, content: ResumeContent | dict) -> dict:
         """统一将简历内容转换为稳定的 JSON 文档结构。"""
         return dump_resume_content_for_frontend(content)
+
+    def create_job_post(self, payload: JobPostCreate, user_id: int) -> JobPost:
+        """用于创建一条用户可复用的 JD 记录。"""
+        job_post = JobPost(
+            user_id=user_id,
+            company_name=payload.company_name.strip(),
+            job_title=payload.job_title.strip(),
+            jd_text=payload.jd_text.strip(),
+            source_url=payload.source_url,
+            source_type=payload.source_type.strip() or "manual",
+        )
+        self.db.add(job_post)
+        self.db.commit()
+        self.db.refresh(job_post)
+        return job_post
+
+    def get_job_post_for_user(self, user_id: int, job_post_id: int) -> JobPost | None:
+        """用于按用户权限读取单条 JD 记录。"""
+        return (
+            self.db.query(JobPost)
+            .filter(JobPost.id == job_post_id, JobPost.user_id == user_id)
+            .first()
+        )
+
+    def list_job_posts_for_user(
+        self,
+        user_id: int,
+        *,
+        query: str = "",
+        limit: int = 20,
+    ) -> list[JobPost]:
+        """用于列出当前用户的 JD 记录，支持按公司/岗位/JD 文本粗筛。"""
+        safe_limit = max(1, min(limit, 50))
+        records = self.db.query(JobPost).filter(JobPost.user_id == user_id)
+        normalized_query = query.strip()
+        if normalized_query:
+            pattern = f"%{normalized_query}%"
+            records = records.filter(
+                JobPost.company_name.ilike(pattern)
+                | JobPost.job_title.ilike(pattern)
+                | JobPost.jd_text.ilike(pattern)
+            )
+        return (
+            records.order_by(JobPost.updated_at.desc(), JobPost.created_at.desc())
+            .limit(safe_limit)
+            .all()
+        )
+
+    def get_job_post_payload(self, user_id: int, job_post_id: int) -> dict[str, Any] | None:
+        """用于返回适合 Agent 工具消费的单条 JD 字典。"""
+        job_post = self.get_job_post_for_user(user_id, job_post_id)
+        if job_post is None:
+            return None
+        return self._job_post_payload(job_post, include_text=True)
+
+    def list_job_post_payloads(
+        self,
+        user_id: int,
+        *,
+        query: str = "",
+        limit: int = 20,
+    ) -> list[dict[str, Any]]:
+        """用于返回适合 Agent 工具消费的 JD 摘要列表。"""
+        return [
+            self._job_post_payload(job_post, include_text=False)
+            for job_post in self.list_job_posts_for_user(
+                user_id,
+                query=query,
+                limit=limit,
+            )
+        ]
+
+    def _sync_resume_job_post(self, resume: Resume) -> None:
+        """用于把简历内嵌 JD 同步成可复用 job_posts 记录。"""
+        content = resume.content if isinstance(resume.content, dict) else {}
+        job_application = content.get("job_application")
+        if not isinstance(job_application, dict):
+            return
+
+        jd_text = str(job_application.get("jd_text") or "").strip()
+        if not jd_text:
+            return
+
+        job_post = self._find_resume_job_post(
+            user_id=resume.owner_id,
+            job_post_id=self._coerce_int(job_application.get("job_post_id")),
+        )
+        if job_post is None:
+            job_post = JobPost(user_id=resume.owner_id, jd_text=jd_text)
+            self.db.add(job_post)
+
+        job_post.company_name = str(job_application.get("target_company") or "").strip()
+        job_post.job_title = str(job_application.get("target_title") or "").strip()
+        job_post.jd_text = jd_text
+        job_post.source_type = str(job_post.source_type or "resume")
+        self.db.flush()
+
+        job_application["job_post_id"] = job_post.id
+        content["job_application"] = job_application
+        resume.content = content
+        flag_modified(resume, "content")
+
+    def _find_resume_job_post(
+        self,
+        *,
+        user_id: int,
+        job_post_id: int | None,
+    ) -> JobPost | None:
+        """用于按 id 和用户归属寻找可复用 JD 记录。"""
+        if job_post_id is None:
+            return None
+        return self.get_job_post_for_user(user_id, job_post_id)
+
+    @staticmethod
+    def _coerce_int(value: Any) -> int | None:
+        """用于把 JSON 中的 id 值收窄成整数。"""
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _job_post_payload(job_post: JobPost, *, include_text: bool) -> dict[str, Any]:
+        """用于序列化 JD 记录，列表场景只返回短摘要。"""
+        payload: dict[str, Any] = {
+            "id": job_post.id,
+            "company_name": job_post.company_name,
+            "job_title": job_post.job_title,
+            "source_url": job_post.source_url,
+            "source_type": job_post.source_type,
+            "created_at": job_post.created_at.isoformat() if job_post.created_at else None,
+            "updated_at": job_post.updated_at.isoformat() if job_post.updated_at else None,
+        }
+        if include_text:
+            payload["jd_text"] = job_post.jd_text
+        else:
+            payload["jd_preview"] = job_post.jd_text[:300]
+            payload["jd_chars"] = len(job_post.jd_text)
+        return payload
 
     def delete(self, resume_id: int) -> bool:
         """用于删除简历及其关联记录和上传文件。"""

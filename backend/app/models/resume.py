@@ -19,6 +19,30 @@ if TYPE_CHECKING:
     from app.models.user import User
 
 
+class JobPost(Base):
+    """用于保存用户可复用的岗位 JD 原文和目标岗位元信息。"""
+
+    __tablename__ = "job_posts"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    company_name: Mapped[str] = mapped_column(String, default="", nullable=False)
+    job_title: Mapped[str] = mapped_column(String, default="", nullable=False)
+    jd_text: Mapped[str] = mapped_column(Text, nullable=False)
+    source_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    source_type: Mapped[str] = mapped_column(String, default="resume", nullable=False)
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+
+    owner: Mapped["User"] = relationship("User", back_populates="job_posts")
+
+
 class Resume(Base):
     __tablename__ = "resumes"
 

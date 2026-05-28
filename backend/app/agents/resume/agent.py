@@ -22,6 +22,8 @@ logger = logging.getLogger(__name__)
 _TOOLS_WITH_OPTIONAL_ARGS_ONLY = {"read_resume"}
 _AUTO_EXECUTE_TOOL_NAMES: set[str] = {
     "generate_job_match_summary",
+    "list_job_posts",
+    "read_job_post",
     "read_memory",
     "update_memory",
 }
@@ -39,11 +41,15 @@ _TOOL_PROFILES: dict[str, set[str]] = {
         "add_bullet",
         "remove_bullet",
         "generate_job_match_summary",
+        "list_job_posts",
+        "read_job_post",
         "read_memory",
         "update_memory",
     },
     "read_only": {
         "generate_job_match_summary",
+        "list_job_posts",
+        "read_job_post",
         "read_memory",
     },
 }
@@ -145,6 +151,8 @@ class ResumeAgent:
         allowed_sections: Optional[set[str]] = None,
         user_id: Optional[int] = None,
         resume_id: Optional[int] = None,
+        list_job_posts_reader: Any = None,
+        read_job_post_reader: Any = None,
     ) -> Dict[str, Any]:
         """用于执行一次非流式简历优化请求。"""
         runtime_result = await self.runtime.run(
@@ -155,6 +163,8 @@ class ResumeAgent:
                 "allowed_sections": allowed_sections,
                 "user_id": user_id,
                 "resume_id": resume_id,
+                "list_job_posts_reader": list_job_posts_reader,
+                "read_job_post_reader": read_job_post_reader,
             },
             conversation_history=conversation_history,
         )
@@ -175,6 +185,8 @@ class ResumeAgent:
         event_callback=None,
         user_id: Optional[int] = None,
         resume_id: Optional[int] = None,
+        list_job_posts_reader: Any = None,
+        read_job_post_reader: Any = None,
     ) -> AsyncGenerator[ResumeStreamEvent, None]:
         """用于执行一次带工具确认能力的流式简历优化请求。"""
         context: dict[str, Any] = {
@@ -182,6 +194,8 @@ class ResumeAgent:
             "allowed_sections": allowed_sections,
             "user_id": user_id,
             "resume_id": resume_id,
+            "list_job_posts_reader": list_job_posts_reader,
+            "read_job_post_reader": read_job_post_reader,
         }
         async for event in self.runtime.run_stream(
             agent=self.definition,

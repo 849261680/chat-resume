@@ -202,6 +202,75 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertIn("read_memory", agent.definition.tool_profiles["resume_edit"])
         self.assertIn("update_memory", agent.definition.tool_profiles["resume_edit"])
 
+    def test_resume_tools_schema_exposes_job_post_read_tools(self):
+        """用于验证简历 Agent 暴露 JD 库只读工具。"""
+        tool_names = {tool["function"]["name"] for tool in RESUME_TOOLS_SCHEMA}
+        agent = ResumeAgent()
+
+        self.assertIn("list_job_posts", tool_names)
+        self.assertIn("read_job_post", tool_names)
+        self.assertIn("list_job_posts", agent.definition.tool_profiles["resume_edit"])
+        self.assertIn("read_job_post", agent.definition.tool_profiles["read_only"])
+        self.assertIn("read_job_post", agent.definition.auto_execute_tool_names)
+
+    def test_job_post_tools_read_current_user_records_from_context(self):
+        """用于验证 JD 工具只能通过当前会话注入的用户上下文读取。"""
+        executor = ResumeToolExecutor()
+
+        def read_job_post(user_id: int, job_post_id: int) -> dict[str, Any] | None:
+            """用于模拟按用户读取 JD。"""
+            if user_id != 7 or job_post_id != 42:
+                return None
+            return {
+                "id": 42,
+                "company_name": "美团",
+                "job_title": "Agent 开发工程师",
+                "jd_text": "负责 Agent 工具调用、RAG 和评测体系。",
+            }
+
+        result = executor.execute(
+            tool_name="read_job_post",
+            tool_input={"job_post_id": 42},
+            context={
+                "resume_content": {},
+                "user_id": 7,
+                "read_job_post_reader": read_job_post,
+            },
+        )
+
+        self.assertTrue(result["result"]["success"])
+        self.assertEqual(result["tool_name"], "读取JD")
+        self.assertIn("RAG", result["result"]["job_post"]["jd_text"])
+
+    def test_job_post_list_tool_reads_summaries_from_context(self):
+        """用于验证 JD 列表工具返回当前用户的摘要列表。"""
+        executor = ResumeToolExecutor()
+
+        def list_job_posts(
+            user_id: int,
+            *,
+            query: str = "",
+            limit: int = 20,
+        ) -> list[dict[str, Any]]:
+            """用于模拟按用户列出 JD。"""
+            self.assertEqual(user_id, 7)
+            self.assertEqual(query, "Agent")
+            self.assertEqual(limit, 5)
+            return [{"id": 1, "job_title": "Agent 工程师", "jd_chars": 1200}]
+
+        result = executor.execute(
+            tool_name="list_job_posts",
+            tool_input={"query": "Agent", "limit": 5},
+            context={
+                "resume_content": {},
+                "user_id": 7,
+                "list_job_posts_reader": list_job_posts,
+            },
+        )
+
+        self.assertTrue(result["result"]["success"])
+        self.assertEqual(result["result"]["job_posts"][0]["id"], 1)
+
     def test_memory_tools_write_and_read_markdown_store(self):
         """用于验证记忆工具通过执行器读写固定 md 文件。"""
         executor = ResumeToolExecutor()

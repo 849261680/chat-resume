@@ -8,6 +8,7 @@ from typing import Any
 
 from .add_highlight_tool import add_bullet, add_highlight
 from .job_match_summary_tool import generate_job_match_summary
+from .job_post_tool import list_job_posts, read_job_post
 from .memory_tool import read_memory, update_memory
 from .read_resume_tool import read_resume_content
 from .remove_highlight_tool import remove_bullet, remove_highlight
@@ -342,6 +343,52 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
+            "name": "list_job_posts",
+            "description": (
+                "列出当前用户保存过的 JD 摘要，只读。适合用户要求查看、选择、"
+                "对比历史 JD，或没有提供 job_post_id 但希望读取某个旧 JD 时先调用。"
+                "该工具不修改简历。"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "可选关键词，可按公司、岗位或 JD 内容筛选",
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "返回数量，默认 20，最大 50",
+                    },
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "read_job_post",
+            "description": (
+                "按 job_post_id 读取当前用户保存过的一条完整 JD，只读。适合用户要求"
+                "基于某个历史 JD、任意 JD 或指定 JD 优化简历时调用。"
+                "只能读取当前用户自己的 JD，不能读取其他用户数据。"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "job_post_id": {
+                        "type": "integer",
+                        "description": "要读取的 JD 记录 id",
+                    },
+                },
+                "required": ["job_post_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "generate_job_match_summary",
             "description": (
                 "生成岗位匹配摘要，只读。适合在用户询问 JD 匹配、关键词命中、"
@@ -613,6 +660,16 @@ RESUME_TOOL_CATALOG: tuple[ResumeToolDefinition, ...] = (
         "generate_job_match_summary",
         generate_job_match_summary,
         _SCHEMA_BY_NAME.get("generate_job_match_summary"),
+    ),
+    ResumeToolDefinition(
+        "list_job_posts",
+        list_job_posts,
+        _SCHEMA_BY_NAME.get("list_job_posts"),
+    ),
+    ResumeToolDefinition(
+        "read_job_post",
+        read_job_post,
+        _SCHEMA_BY_NAME.get("read_job_post"),
     ),
     ResumeToolDefinition("read_memory", read_memory, _SCHEMA_BY_NAME.get("read_memory")),
     ResumeToolDefinition(

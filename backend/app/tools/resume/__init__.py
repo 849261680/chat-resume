@@ -2,6 +2,7 @@
 
 from .add_highlight_tool import add_bullet, add_highlight
 from .job_match_summary_tool import generate_job_match_summary
+from .job_post_tool import list_job_posts, read_job_post
 from .read_resume_tool import read_resume_content
 from .resume_item_tool import add_resume_item, remove_resume_item
 from .registry import RESUME_TOOLS_SCHEMA, execute_resume_tool
@@ -20,6 +21,8 @@ __all__ = [
     "add_resume_item",
     "execute_resume_tool",
     "generate_job_match_summary",
+    "list_job_posts",
+    "read_job_post",
     "read_resume_content",
     "remove_bullet",
     "remove_highlight",

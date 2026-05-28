@@ -69,6 +69,8 @@ RESUME_EDIT_TOOL_NAMES = {
     "add_bullet",
     "remove_bullet",
     "generate_job_match_summary",
+    "list_job_posts",
+    "read_job_post",
     "read_memory",
     "update_memory",
 }
@@ -277,6 +279,8 @@ def test_system_prompt_tool_list_matches_requested_profile():
 
     assert [tool.name for tool in pi_context.tools] == [
         "generate_job_match_summary",
+        "list_job_posts",
+        "read_job_post",
         "read_memory",
     ]
     assert "generate_job_match_summary" not in pi_context.system_prompt
@@ -358,13 +362,25 @@ def test_resume_turn_context_builder_prepares_profiled_tools_independently():
 
     assert [tool.name for tool in pi_context.tools] == [
         "generate_job_match_summary",
+        "list_job_posts",
+        "read_job_post",
         "read_memory",
     ]
     assert prompts[0].role == "user"
     assert context["tool_profile"] == "read_only"
-    assert context["available_tool_names"] == ["generate_job_match_summary", "read_memory"]
+    assert context["available_tool_names"] == [
+        "generate_job_match_summary",
+        "list_job_posts",
+        "read_job_post",
+        "read_memory",
+    ]
     assert state["tool_profile"] == "read_only"
-    assert state["tool_names"] == ["generate_job_match_summary", "read_memory"]
+    assert state["tool_names"] == [
+        "generate_job_match_summary",
+        "list_job_posts",
+        "read_job_post",
+        "read_memory",
+    ]
     assert state["prompt_chars"] == len(pi_context.system_prompt)
     assert config.convert_to_llm is not None
 

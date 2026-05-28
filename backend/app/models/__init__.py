@@ -17,6 +17,9 @@ from .interview import (
 )
 from .refresh_session import RefreshSession as RefreshSession
 from .resume import (
+    JobPost as JobPost,
+)
+from .resume import (
     OptimizationRecord as OptimizationRecord,
 )
 from .resume import (

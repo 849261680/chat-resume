@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from inspect import signature
 from typing import Any, AsyncIterator
 
 from sqlalchemy.orm import Session
@@ -74,6 +75,8 @@ class ResumeAgentHarness:
         event_callback=None,
         user_id: int | None = None,
         resume_id: int | None = None,
+        list_job_posts_reader=None,
+        read_job_post_reader=None,
     ) -> AsyncIterator[ResumeStreamEvent]:
         """用于驱动简历 Agent 流式运行并同步写入会话事件。"""
         final_content_parts: list[str] = []
@@ -84,6 +87,18 @@ class ResumeAgentHarness:
             agent_kwargs: dict[str, Any] = {"user_id": user_id}
             if resume_id is not None:
                 agent_kwargs["resume_id"] = resume_id
+            supports_list_reader = self._agent_accepts_kwarg(
+                agent,
+                "list_job_posts_reader",
+            )
+            supports_read_reader = self._agent_accepts_kwarg(
+                agent,
+                "read_job_post_reader",
+            )
+            if list_job_posts_reader is not None and supports_list_reader:
+                agent_kwargs["list_job_posts_reader"] = list_job_posts_reader
+            if read_job_post_reader is not None and supports_read_reader:
+                agent_kwargs["read_job_post_reader"] = read_job_post_reader
             async for event in agent.optimize_stream(
                 user_message=user_message,
                 resume_content=resume_content,
@@ -114,6 +129,12 @@ class ResumeAgentHarness:
             latest_resume_content=latest_resume_content,
         )
         logger.debug("ResumeAgentHarness run_resume_stream completed")
+
+    @staticmethod
+    def _agent_accepts_kwarg(agent: ResumeAgent, name: str) -> bool:
+        """用于兼容测试桩和旧 Agent 实现的可选上下文字段。"""
+        parameters = signature(agent.optimize_stream).parameters
+        return name in parameters
 
     def record_failure(self, session_id: str, exc: Exception) -> None:
         """用于在流式执行失败时更新会话状态并记录失败事件。"""

@@ -17,7 +17,7 @@ from sqlalchemy.sql import func
 from app.infra.database import Base
 
 if TYPE_CHECKING:
-    from app.models.resume import Resume
+    from app.models.resume import JobPost, Resume
 
 
 class ProviderIdentity(Base):
@@ -72,6 +72,11 @@ class User(Base):
 
     # Relationships
     resumes: Mapped[list["Resume"]] = relationship("Resume", back_populates="owner")
+    job_posts: Mapped[list["JobPost"]] = relationship(
+        "JobPost",
+        back_populates="owner",
+        cascade="all, delete-orphan",
+    )
     provider_identities: Mapped[list["ProviderIdentity"]] = relationship(
         "ProviderIdentity",
         back_populates="user",

@@ -108,7 +108,11 @@ function formatResumeModifiedAt(dateString: string | undefined, t: ReturnType<ty
   const modifiedAt = parseApiTimestamp(dateString)
   if (modifiedAt === null) return t('recentlyModified')
 
-  const elapsedHours = Math.max(1, Math.floor((Date.now() - modifiedAt) / 3600000))
+  const elapsedMs = Math.max(0, Date.now() - modifiedAt)
+  const elapsedMinutes = Math.floor(elapsedMs / 60000)
+  if (elapsedMinutes < 1) return t('recentlyModified')
+  if (elapsedMinutes < 60) return t('modifiedMinutesAgo', { count: elapsedMinutes })
+  const elapsedHours = Math.floor(elapsedMinutes / 60)
   if (elapsedHours < 24) return t('modifiedHoursAgo', { count: elapsedHours })
   if (elapsedHours < 48) return t('modifiedYesterday')
   return t('modifiedDaysAgo', { count: Math.floor(elapsedHours / 24) })

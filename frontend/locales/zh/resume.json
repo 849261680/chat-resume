@@ -20,6 +20,7 @@
     "cardUntargeted": "未设置目标岗位",
     "modifiedAt": "{value} 修改",
     "recentlyModified": "刚刚修改",
+    "modifiedMinutesAgo": "{count} 分钟前修改",
     "modifiedHoursAgo": "{count} 小时前修改",
     "modifiedYesterday": "昨天修改",
     "modifiedDaysAgo": "{count} 天前修改",

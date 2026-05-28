@@ -20,6 +20,7 @@
     "cardUntargeted": "No target role",
     "modifiedAt": "Modified {value}",
     "recentlyModified": "Recently modified",
+    "modifiedMinutesAgo": "Modified {count}m ago",
     "modifiedHoursAgo": "Modified {count}h ago",
     "modifiedYesterday": "Modified yesterday",
     "modifiedDaysAgo": "Modified {count}d ago",

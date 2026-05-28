@@ -8,6 +8,7 @@
     "loading": "加载简历列表...",
     "listTitle": "我的简历",
     "listSummary": "共 {total} 份简历 · 免费版最多保存 {limit} 份，已用 {used}/{limit}",
+    "listSummaryPlus": "共 {total} 份简历 · Plus 可保存无限简历",
     "searchPlaceholder": "搜索简历名称或目标岗位...",
     "filterAllStatus": "全部状态",
     "filterStatusLabel": "筛选简历状态",

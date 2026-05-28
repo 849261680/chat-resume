@@ -8,6 +8,7 @@
     "loading": "Loading resumes...",
     "listTitle": "My resumes",
     "listSummary": "{total} resumes · Free plan stores up to {limit}; used {used}/{limit}",
+    "listSummaryPlus": "{total} resumes · Plus includes unlimited resumes",
     "searchPlaceholder": "Search resume name or target role...",
     "filterAllStatus": "All status",
     "filterStatusLabel": "Filter resume status",

@@ -5,7 +5,7 @@ import { motion } from 'framer-motion'
 import { useEffect, useState, useRef } from 'react'
 import { useAuth } from '@/lib/auth'
 import { useRouter } from '@/i18n/navigation'
-import { resumeApi, type ResumeContent } from '@/lib/api'
+import { billingApi, resumeApi, type BillingStatus, type ResumeContent } from '@/lib/api'
 import { formatApiErrorMessage } from '@/lib/apiErrors'
 import { buildModuleConfig, deserializeLayoutConfig } from '@/lib/resumeLayoutConfig'
 import toast from 'react-hot-toast'
@@ -251,6 +251,7 @@ export default function ResumesPage() {
   const [mounted, setMounted] = useState(false)
   const [uploadLoading, setUploadLoading] = useState(false)
   const [resumes, setResumes] = useState<Resume[]>([])
+  const [billingStatus, setBillingStatus] = useState<BillingStatus | null>(null)
   const [resumesLoading, setResumesLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [resumeSearchQuery, setResumeSearchQuery] = useState('')
@@ -267,8 +268,9 @@ export default function ResumesPage() {
   const duplicateResumeDoneCopy = readOptionalTranslation(t, 'duplicateResumeDone', '已创建一份相同简历')
   const duplicateResumeFailedCopy = readOptionalTranslation(t, 'duplicateResumeFailed', '复制简历失败，请重试')
   const filteredResumes = getVisibleResumes(resumes, resumeSearchQuery, resumeStatusFilter, resumeSortOrder)
-  const visibleResumes = filteredResumes.slice(0, FREE_RESUME_LIMIT)
-  const hiddenResumeCount = Math.max(filteredResumes.length - FREE_RESUME_LIMIT, 0)
+  const hasUnlimitedResumes = billingStatus?.is_active === true
+  const visibleResumes = hasUnlimitedResumes ? filteredResumes : filteredResumes.slice(0, FREE_RESUME_LIMIT)
+  const hiddenResumeCount = hasUnlimitedResumes ? 0 : Math.max(filteredResumes.length - FREE_RESUME_LIMIT, 0)
 
   useEffect(() => { setMounted(true) }, [])
 
@@ -281,8 +283,12 @@ export default function ResumesPage() {
     if (!isAuthenticated) return
     try {
       setResumesLoading(true)
-      const data = await resumeApi.getResumes()
+      const [data, status] = await Promise.all([
+        resumeApi.getResumes(),
+        billingApi.getStatus().catch(() => null),
+      ])
       setResumes(data)
+      setBillingStatus(status)
     } catch {
       toast.error(t('fetchError'))
     } finally {
@@ -572,11 +578,13 @@ export default function ResumesPage() {
                   {t('listTitle')}
                 </h1>
                 <p className="mt-0.5 text-[13px]" style={{ color: LIST_FAINT }}>
-                  {t('listSummary', {
-                    total: resumes.length,
-                    limit: FREE_RESUME_LIMIT,
-                    used: resumes.length,
-                  })}
+                  {hasUnlimitedResumes
+                    ? t('listSummaryPlus', { total: resumes.length })
+                    : t('listSummary', {
+                        total: resumes.length,
+                        limit: FREE_RESUME_LIMIT,
+                        used: resumes.length,
+                      })}
                 </p>
               </div>
               <button

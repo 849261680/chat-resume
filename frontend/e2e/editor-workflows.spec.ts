@@ -595,11 +595,13 @@ test.describe('编辑页工作流', () => {
     await selectChatMessageText(page, chatText)
 
     await expect(page.getByRole('button', { name: '添加至对话框' })).toBeVisible()
+    await expect(page.getByTestId('chat-selection-highlight').first()).toBeVisible()
     await expect(page.getByRole('button', { name: '快速优化' })).toBeHidden()
     await page.getByRole('button', { name: '添加至对话框' }).click()
     await expect.poll(() => (
       page.evaluate(() => window.getSelection()?.toString() || '')
     )).toBe('')
+    await expect(page.getByTestId('chat-selection-highlight')).toHaveCount(0)
     const chatInputBox = page.getByTestId('resume-chat-input-box')
     await expect(chatInputBox.getByTestId('selected-resume-context')).toContainText(chatText)
     await expect(page.getByPlaceholder('输入消息...')).toBeFocused()

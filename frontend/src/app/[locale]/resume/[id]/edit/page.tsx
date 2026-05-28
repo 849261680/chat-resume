@@ -183,16 +183,14 @@ function buildSelectionAction(
 ): ResumeSelectionAction {
   const rangeRect = range.getBoundingClientRect()
   const panelRect = panel.getBoundingClientRect()
-  const highlightRects = source === 'preview'
-    ? Array.from(range.getClientRects())
-      .filter((rect) => rect.width > 0 && rect.height > 0)
-      .map((rect) => ({
-        top: rect.top - panelRect.top,
-        left: rect.left - panelRect.left,
-        width: rect.width,
-        height: rect.height,
-      }))
-    : []
+  const highlightRects = Array.from(range.getClientRects())
+    .filter((rect) => rect.width > 0 && rect.height > 0)
+    .map((rect) => ({
+      top: rect.top - panelRect.top,
+      left: rect.left - panelRect.left,
+      width: rect.width,
+      height: rect.height,
+    }))
   const actionWidth = Math.min(560, Math.max(230, panelRect.width - 16))
   const maxLeft = Math.max(8, panelRect.width - actionWidth - 8)
   const selectionTop = rangeRect.top - panelRect.top
@@ -1078,7 +1076,21 @@ export default function ResumeEditPage() {
                 border: '1px solid rgba(91,97,110,0.2)',
                 borderRadius: '16px',
               }}
-              >
+            >
+              {resumeSelectionAction?.source === 'chat' && resumeSelectionAction.mode === 'toolbar' && resumeSelectionAction.highlightRects.map((rect, index) => (
+                <div
+                  key={`${rect.top}-${rect.left}-${index}`}
+                  data-testid="chat-selection-highlight"
+                  className="pointer-events-none absolute z-20 rounded-[2px]"
+                  style={{
+                    top: rect.top,
+                    left: rect.left,
+                    width: rect.width,
+                    height: rect.height,
+                    backgroundColor: 'rgba(0,82,255,0.22)',
+                  }}
+                />
+              ))}
               {resumeSelectionAction?.source === 'chat' && resumeSelectionAction.mode === 'toolbar' && (
                 <div
                   data-resume-selection-action="true"

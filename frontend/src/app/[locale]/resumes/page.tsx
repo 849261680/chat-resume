@@ -20,7 +20,6 @@ import {
   ChevronDownIcon,
   DocumentTextIcon,
   ClockIcon,
-  DocumentDuplicateIcon,
   EllipsisVerticalIcon,
   LockClosedIcon,
   MagnifyingGlassIcon,
@@ -699,10 +698,9 @@ export default function ResumesPage() {
                                 event.stopPropagation()
                                 handleDuplicateResume(resume)
                               }}
-                              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium disabled:opacity-60"
+                              className="w-full rounded-md px-3 py-2 text-left text-sm font-medium disabled:opacity-60"
                               style={{ color: LIST_TEXT }}
                             >
-                              <DocumentDuplicateIcon className="h-4 w-4" />
                               {duplicatingResumeId === resume.id ? duplicatingResumeCopy : duplicateResumeCopy}
                             </button>
                             <button

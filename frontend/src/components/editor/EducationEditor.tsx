@@ -23,6 +23,11 @@ function fitTextareaToContent(element: HTMLTextAreaElement | null) {
   element.style.height = `${element.scrollHeight + 2}px`
 }
 
+// 用于把可选字段转换成受控表单需要的字符串值。
+function inputValue(value: string | undefined) {
+  return value ?? ''
+}
+
 // 用于渲染 EducationEditor 组件。
 export default function EducationEditor({ data, onChange }: EducationEditorProps) {
   const [educationList, setEducationList] = useState<Education[]>(Array.isArray(data) ? data : [])
@@ -151,7 +156,7 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
                   </label>
                   <input
                     type="text"
-                    value={education.school}
+                    value={inputValue(education.school)}
                     onChange={(e) => updateEducation(education.id!, 'school', e.target.value)}
                     placeholder={t('schoolPlaceholder')}
                     className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
@@ -165,7 +170,7 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
                   </label>
                   <input
                     type="text"
-                    value={education.major}
+                    value={inputValue(education.major)}
                     onChange={(e) => updateEducation(education.id!, 'major', e.target.value)}
                     placeholder={t('majorPlaceholder')}
                     className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
@@ -179,7 +184,7 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
                   </label>
                   <div className="relative">
                     <select
-                      value={education.degree}
+                      value={inputValue(education.degree)}
                       onChange={(e) => updateEducation(education.id!, 'degree', e.target.value)}
                       className="w-full appearance-none bg-white px-3 py-2 pr-10 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                     >
@@ -199,7 +204,7 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
                   </label>
                   <input
                     type="text"
-                    value={education.duration}
+                    value={inputValue(education.duration)}
                     onChange={(e) => updateEducation(education.id!, 'duration', e.target.value)}
                     placeholder="2018.09 - 2022.06"
                     className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
@@ -213,7 +218,7 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
                   </label>
                   <input
                     type="text"
-                    value={education.gpa || ''}
+                    value={inputValue(education.gpa)}
                     onChange={(e) => updateEducation(education.id!, 'gpa', e.target.value)}
                     placeholder="3.8/4.0"
                     className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
@@ -240,7 +245,7 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
                       <textarea
                         data-autogrow="education-highlight"
                         ref={fitTextareaToContent}
-                        value={highlight.text}
+                        value={inputValue(highlight.text)}
                         onChange={(e) => {
                           updateBullet(education.id!, highlightIndex, e.target.value)
                           fitTextareaToContent(e.currentTarget)

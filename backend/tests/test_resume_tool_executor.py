@@ -122,6 +122,27 @@ class ResumeToolExecutorTests(unittest.TestCase):
         self.assertEqual(result["result"]["error"]["type"], "hidden_section")
         self.assertFalse(result["result"]["error"]["recoverable"])
 
+    def test_add_resume_item_can_create_missing_skills_section(self):
+        """用于验证新增技能条目不依赖简历里已有 skills 数组。"""
+        resume = {"projects": []}
+        executor = ResumeToolExecutor()
+
+        result = cast(dict[str, Any], executor.execute(
+            tool_name="add_resume_item",
+            tool_input={
+                "section": "skills",
+                "item": {"category": "AI 工具", "items": ["Codex", "Cursor"]},
+                "source": "用户要求补充 AI 编程工具经验",
+                "reason": "补充 JD 加分项",
+            },
+            context={"resume_content": resume, "allowed_sections": {"projects"}},
+        ))
+
+        self.assertTrue(result["result"]["success"])
+        self.assertEqual(result["result"]["updated_section"], "skills")
+        self.assertEqual(resume["skills"][0]["category"], "AI 工具")
+        self.assertEqual(resume["skills"][0]["items"], ["Codex", "Cursor"])
+
 
 async def _await_tool_result(
     pending: Awaitable[dict[str, Any]],

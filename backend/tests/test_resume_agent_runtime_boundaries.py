@@ -918,8 +918,8 @@ async def test_update_memory_terminates_after_tool_result_without_second_llm(tmp
 
 
 @pytest.mark.asyncio
-async def test_resume_tool_preview_rejects_hidden_section_before_pending():
-    """用于验证隐藏模块工具调用在预览阶段失败且不进入确认卡片。"""
+async def test_resume_tool_preview_allows_hidden_section_additions():
+    """用于验证隐藏模块不阻止新增技能条目进入确认预览。"""
     agent = ResumeAgent()
     stage = ResumeToolExecutionStage()
     resume = {
@@ -961,12 +961,13 @@ async def test_resume_tool_preview_rejects_hidden_section_before_pending():
     while not event_queue.empty():
         events.append(event_queue.get_nowait())
 
-    assert "hidden_section" in str(result.details)
-    assert "板块 skills 当前已隐藏，禁止修改" in str(result.details)
-    assert not any(event.get("tool_pending") for event in events)
-    assert any(event.get("tool_call_failed") for event in events)
-    assert executed_tools[0]["success"] is False
-    assert resume["skills"] == [{"id": "skill_1", "category": "AI", "items": ["Agent"]}]
+    assert result.details["success"] is True
+    assert result.details["updated_section"] == "skills"
+    assert any(event.get("tool_pending") for event in events)
+    assert not any(event.get("tool_call_failed") for event in events)
+    assert executed_tools[0]["success"] is True
+    assert resume["skills"][0] == {"id": "skill_1", "category": "AI", "items": ["Agent"]}
+    assert resume["skills"][1]["category"] == "AI & Agent"
 
 
 @pytest.mark.asyncio

@@ -155,6 +155,7 @@ class ResumeToolExecutor(ToolExecutor):
             allowed_sections is not None
             and target_section
             and target_section not in allowed_sections
+            and tool_name != "add_resume_item"
         ):
             return self.error_result(
                 tool_name,

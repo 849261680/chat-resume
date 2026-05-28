@@ -20,7 +20,7 @@ def update_skills(
     """用于更新某个技能分类的名称和技能列表。"""
     skills = resume_content.get("skills")
     if not isinstance(skills, list):
-        return {"success": False, "message": "skills 数据格式异常"}
+        return {"success": False, "message": "当前没有可更新的技能分类，请先新增技能条目"}
     if mode not in SKILL_UPDATE_MODES:
         return {"success": False, "message": f"不支持的技能更新模式: {mode}"}
 

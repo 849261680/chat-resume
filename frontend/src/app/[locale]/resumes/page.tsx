@@ -696,7 +696,7 @@ export default function ResumesPage() {
                         </button>
                         {openResumeActionsId === resume.id && (
                           <div
-                            className="absolute right-4 top-[248px] z-10 rounded-lg border bg-white p-1 shadow-lg"
+                            className="absolute right-4 top-[248px] z-10 w-28 rounded-md border bg-white p-1 shadow-lg"
                             style={{ borderColor: 'rgba(91,97,110,0.16)' }}
                           >
                             <button
@@ -706,7 +706,7 @@ export default function ResumesPage() {
                                 event.stopPropagation()
                                 handleDuplicateResume(resume)
                               }}
-                              className="w-full rounded-md px-3 py-2 text-left text-sm font-medium disabled:opacity-60"
+                              className="h-8 w-full rounded px-2.5 text-left text-sm font-medium leading-8 disabled:opacity-60"
                               style={{ color: LIST_TEXT }}
                             >
                               {duplicatingResumeId === resume.id ? duplicatingResumeCopy : duplicateResumeCopy}
@@ -718,7 +718,7 @@ export default function ResumesPage() {
                                 setOpenResumeActionsId(null)
                                 handleDeleteResume(resume.id, resume.title)
                               }}
-                              className="w-full rounded-md px-3 py-2 text-left text-sm font-medium"
+                              className="h-8 w-full rounded px-2.5 text-left text-sm font-medium leading-8"
                               style={{ color: '#dc2626' }}
                             >
                               {t('deleteTitle')}

@@ -439,6 +439,27 @@ async function selectChatMessageText(page: Page, text: string) {
   expect(selectedText).toContain(text)
 }
 
+/** 读取聊天选区高亮和目标文本的视口位置差，用于验证滚动后仍贴合。 */
+// 用于读取聊天选区高亮alignment。
+async function readChatSelectionHighlightAlignment(page: Page, text: string) {
+  return page.evaluate((targetText) => {
+    const targetElement = Array.from(document.querySelectorAll<HTMLElement>('.agent-panel p'))
+      .find((element) => {
+        const rect = element.getBoundingClientRect()
+        return element.textContent?.includes(targetText) && rect.width > 0 && rect.height > 0
+      })
+    const highlight = document.querySelector<HTMLElement>('[data-testid="chat-selection-highlight"]')
+    const messages = document.querySelector<HTMLElement>('[data-testid="resume-chat-messages"]')
+    if (!targetElement || !highlight || !messages) return null
+    const targetRect = targetElement.getBoundingClientRect()
+    const highlightRect = highlight.getBoundingClientRect()
+    return {
+      topDelta: Math.round((highlightRect.top - targetRect.top) * 10) / 10,
+      scrollTop: messages.scrollTop,
+    }
+  }, text)
+}
+
 /**
  * 用真实鼠标拖拽选中多条预览内容，覆盖用户手动跨行选区的交互路径。
  */
@@ -605,6 +626,39 @@ test.describe('编辑页工作流', () => {
     const chatInputBox = page.getByTestId('resume-chat-input-box')
     await expect(chatInputBox.getByTestId('selected-resume-context')).toContainText(chatText)
     await expect(page.getByPlaceholder('输入消息...')).toBeFocused()
+  })
+
+  test('聊天选区颜色滚动时跟随文本', async ({ page }) => {
+    const chatText = 'Agent 建议保留 RAG 项目经验'
+    const chatMessages = [
+      { id: 1, role: 'assistant' as const, content: chatText },
+      ...Array.from({ length: 14 }, (_, index) => ({
+        id: index + 2,
+        role: 'assistant' as const,
+        content: `滚动占位消息 ${index}：用于撑开聊天区域，验证选区高亮跟随文本滚动。`,
+      })),
+    ]
+    await installEditorApiMock(page, buildResumeResponse(123), chatMessages)
+
+    await page.goto('/zh/resume/123/edit')
+    const messages = page.getByTestId('resume-chat-messages')
+    await messages.evaluate((element) => {
+      element.scrollTop = 0
+      element.dispatchEvent(new Event('scroll', { bubbles: true }))
+    })
+    await selectChatMessageText(page, chatText)
+
+    const before = await readChatSelectionHighlightAlignment(page, chatText)
+    expect(before).not.toBeNull()
+    expect(Math.abs(before!.topDelta)).toBeLessThanOrEqual(2)
+    await messages.evaluate((element) => {
+      element.scrollTop += 80
+      element.dispatchEvent(new Event('scroll', { bubbles: true }))
+    })
+    const after = await readChatSelectionHighlightAlignment(page, chatText)
+    expect(after).not.toBeNull()
+    expect(after!.scrollTop).toBeGreaterThan(before!.scrollTop)
+    expect(Math.abs(after!.topDelta)).toBeLessThanOrEqual(2)
   })
 
   test('点击预览区外部会取消选区颜色', async ({ page }) => {

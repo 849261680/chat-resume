@@ -179,15 +179,17 @@ function buildSelectionAction(
   range: Range,
   panel: HTMLElement,
   text: string,
-  source: ResumeSelectionSource
+  source: ResumeSelectionSource,
+  highlightPanel: HTMLElement = panel
 ): ResumeSelectionAction {
   const rangeRect = range.getBoundingClientRect()
   const panelRect = panel.getBoundingClientRect()
+  const highlightPanelRect = highlightPanel.getBoundingClientRect()
   const highlightRects = Array.from(range.getClientRects())
     .filter((rect) => rect.width > 0 && rect.height > 0)
     .map((rect) => ({
-      top: rect.top - panelRect.top,
-      left: rect.left - panelRect.left,
+      top: rect.top - highlightPanelRect.top + highlightPanel.scrollTop,
+      left: rect.left - highlightPanelRect.left + highlightPanel.scrollLeft,
       width: rect.width,
       height: rect.height,
     }))
@@ -566,7 +568,7 @@ export default function ResumeEditPage() {
       return
     }
     if (messagesPanel.contains(selectedElement)) {
-      setResumeSelectionAction(buildSelectionAction(range, agentPanel, selectedText, 'chat'))
+      setResumeSelectionAction(buildSelectionAction(range, agentPanel, selectedText, 'chat', messagesPanel))
       return
     }
     setResumeSelectionAction(null)
@@ -1077,20 +1079,6 @@ export default function ResumeEditPage() {
                 borderRadius: '16px',
               }}
             >
-              {resumeSelectionAction?.source === 'chat' && resumeSelectionAction.mode === 'toolbar' && resumeSelectionAction.highlightRects.map((rect, index) => (
-                <div
-                  key={`${rect.top}-${rect.left}-${index}`}
-                  data-testid="chat-selection-highlight"
-                  className="pointer-events-none absolute z-20 rounded-[2px]"
-                  style={{
-                    top: rect.top,
-                    left: rect.left,
-                    width: rect.width,
-                    height: rect.height,
-                    backgroundColor: 'rgba(0,82,255,0.22)',
-                  }}
-                />
-              ))}
               {resumeSelectionAction?.source === 'chat' && resumeSelectionAction.mode === 'toolbar' && (
                 <div
                   data-resume-selection-action="true"
@@ -1167,9 +1155,25 @@ export default function ResumeEditPage() {
                 {/* Messages Display Area */}
                 <div
                   ref={messagesContainerRef}
+                  data-testid="resume-chat-messages"
                   onScroll={handleMessagesScroll}
-                  className="flex-1 overflow-y-auto mb-4 space-y-3 min-h-0 max-h-full hide-scrollbar"
+                  className="relative flex-1 overflow-y-auto mb-4 min-h-0 max-h-full hide-scrollbar"
                 >
+                  {resumeSelectionAction?.source === 'chat' && resumeSelectionAction.mode === 'toolbar' && resumeSelectionAction.highlightRects.map((rect, index) => (
+                    <div
+                      key={`${rect.top}-${rect.left}-${index}`}
+                      data-testid="chat-selection-highlight"
+                      className="pointer-events-none absolute z-20 rounded-[2px]"
+                      style={{
+                        top: rect.top,
+                        left: rect.left,
+                        width: rect.width,
+                        height: rect.height,
+                        backgroundColor: 'rgba(0,82,255,0.22)',
+                      }}
+                    />
+                  ))}
+                  <div className="space-y-3">
                   {messages.map((message: ChatMessage) => (
                     <div
                       key={message.id}
@@ -1350,6 +1354,7 @@ export default function ResumeEditPage() {
                     </div>
                   )}
                   <div ref={messagesEndRef} />
+                  </div>
                 </div>
 
                 {/* Input Area */}

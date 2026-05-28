@@ -55,6 +55,14 @@ const LIST_SOFT_BORDER = 'rgba(0,0,0,0.08)'
 type ResumeStatusFilter = 'all' | 'optimized' | 'draft'
 type ResumeSortOrder = 'recent' | 'oldest'
 
+// 用于解析后端时间，SQLite 返回的无时区时间按 UTC 处理。
+function parseApiTimestamp(dateString: string) {
+  const normalized = dateString.includes('T') ? dateString : dateString.replace(' ', 'T')
+  const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/.test(normalized)
+  const timestamp = new Date(hasTimezone ? normalized : `${normalized}Z`).getTime()
+  return Number.isNaN(timestamp) ? null : timestamp
+}
+
 // 用于等待当前数据。
 function sleep(ms: number) {
   return new Promise(resolve => window.setTimeout(resolve, ms))
@@ -97,8 +105,8 @@ function ResumeCardTitleBlock({ resume, t }: { resume: Resume; t: ReturnType<typ
 // 用于格式化列表卡片的修改时间。
 function formatResumeModifiedAt(dateString: string | undefined, t: ReturnType<typeof useTranslations>) {
   if (!dateString) return t('recentlyModified')
-  const modifiedAt = new Date(dateString).getTime()
-  if (Number.isNaN(modifiedAt)) return t('recentlyModified')
+  const modifiedAt = parseApiTimestamp(dateString)
+  if (modifiedAt === null) return t('recentlyModified')
 
   const elapsedHours = Math.max(1, Math.floor((Date.now() - modifiedAt) / 3600000))
   if (elapsedHours < 24) return t('modifiedHoursAgo', { count: elapsedHours })
@@ -223,8 +231,7 @@ function resumeMatchesStatus(resume: Resume, filter: ResumeStatusFilter) {
 
 // 用于给简历排序提供稳定修改时间。
 function getResumeSortTimestamp(resume: Resume) {
-  const timestamp = new Date(resume.updated_at || resume.created_at).getTime()
-  return Number.isNaN(timestamp) ? resume.id : timestamp
+  return parseApiTimestamp(resume.updated_at || resume.created_at) ?? resume.id
 }
 
 // 用于组合搜索、状态筛选和修改时间排序。

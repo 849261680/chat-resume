@@ -63,6 +63,20 @@ function parseApiTimestamp(dateString: string) {
   return Number.isNaN(timestamp) ? null : timestamp
 }
 
+// 用于在局部翻译 key 缺失时保留页面可用性。
+function translateResumeCenter(
+  t: ReturnType<typeof useTranslations>,
+  key: string,
+  fallback: string,
+  values?: Record<string, number>
+) {
+  try {
+    return t(key, values)
+  } catch {
+    return fallback
+  }
+}
+
 // 用于等待当前数据。
 function sleep(ms: number) {
   return new Promise(resolve => window.setTimeout(resolve, ms))
@@ -104,18 +118,38 @@ function ResumeCardTitleBlock({ resume, t }: { resume: Resume; t: ReturnType<typ
 
 // 用于格式化列表卡片的修改时间。
 function formatResumeModifiedAt(dateString: string | undefined, t: ReturnType<typeof useTranslations>) {
-  if (!dateString) return t('recentlyModified')
+  if (!dateString) return translateResumeCenter(t, 'recentlyModified', '刚刚修改')
   const modifiedAt = parseApiTimestamp(dateString)
-  if (modifiedAt === null) return t('recentlyModified')
+  if (modifiedAt === null) return translateResumeCenter(t, 'recentlyModified', '刚刚修改')
 
   const elapsedMs = Math.max(0, Date.now() - modifiedAt)
   const elapsedMinutes = Math.floor(elapsedMs / 60000)
-  if (elapsedMinutes < 1) return t('recentlyModified')
-  if (elapsedMinutes < 60) return t('modifiedMinutesAgo', { count: elapsedMinutes })
+  if (elapsedMinutes < 1) return translateResumeCenter(t, 'recentlyModified', '刚刚修改')
+  if (elapsedMinutes < 60) {
+    return translateResumeCenter(
+      t,
+      'modifiedMinutesAgo',
+      `${elapsedMinutes} 分钟前修改`,
+      { count: elapsedMinutes }
+    )
+  }
   const elapsedHours = Math.floor(elapsedMinutes / 60)
-  if (elapsedHours < 24) return t('modifiedHoursAgo', { count: elapsedHours })
-  if (elapsedHours < 48) return t('modifiedYesterday')
-  return t('modifiedDaysAgo', { count: Math.floor(elapsedHours / 24) })
+  if (elapsedHours < 24) {
+    return translateResumeCenter(
+      t,
+      'modifiedHoursAgo',
+      `${elapsedHours} 小时前修改`,
+      { count: elapsedHours }
+    )
+  }
+  if (elapsedHours < 48) return translateResumeCenter(t, 'modifiedYesterday', '昨天修改')
+  const elapsedDays = Math.floor(elapsedHours / 24)
+  return translateResumeCenter(
+    t,
+    'modifiedDaysAgo',
+    `${elapsedDays} 天前修改`,
+    { count: elapsedDays }
+  )
 }
 
 // 简历卡片预览，优先展示真实简历内容。

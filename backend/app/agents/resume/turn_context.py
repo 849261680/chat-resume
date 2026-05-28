@@ -25,13 +25,6 @@ from app.agents.resume.message_conversion import (
 )
 from app.runtime.openrouter_adapter import build_openrouter_loop_config
 
-_IMPLICIT_TOOL_SECTIONS = {
-    "update_summary": {"summary"},
-    "update_profile": {"personal_info"},
-    "update_skills": {"skills"},
-}
-
-
 class ResumeTurnContextBuilder:
     """用于按 Pi Harness 的 turn-state 边界准备模型上下文和工具。"""
 
@@ -59,10 +52,6 @@ class ResumeTurnContextBuilder:
         tool_profile = self.tool_profile(agent, context)
         context["tool_profile"] = tool_profile
         tools_schema = self.profiled_tool_schemas(agent, tool_profile)
-        tools_schema = self.filter_tool_schemas_for_sections(
-            tools_schema,
-            context.get("allowed_sections"),
-        )
         context["available_tool_names"] = self.tool_names_from_schemas(tools_schema)
         prompt_context = agent.prompt_context_builder(context)
         system_prompt = agent.prompt_spec.render(**prompt_context)
@@ -237,80 +226,6 @@ class ResumeTurnContextBuilder:
             for schema in agent.tools_schema
             if schema.get("function", {}).get("name") in allowed
         ]
-
-    @classmethod
-    def filter_tool_schemas_for_sections(
-        cls,
-        schemas: list[dict[str, Any]],
-        allowed_sections: Any,
-    ) -> list[dict[str, Any]]:
-        """用于按可见简历模块裁剪模型可见工具 schema。"""
-        normalized = cls.normalized_allowed_sections(allowed_sections)
-        if normalized is None:
-            return schemas
-        filtered: list[dict[str, Any]] = []
-        for schema in schemas:
-            scoped = cls.schema_allowed_for_sections(schema, normalized)
-            if scoped is not None:
-                filtered.append(scoped)
-        return filtered
-
-    @staticmethod
-    def normalized_allowed_sections(allowed_sections: Any) -> set[str] | None:
-        """用于把运行时可见模块转换为可比较的 section 集合。"""
-        if allowed_sections is None:
-            return None
-        if not isinstance(allowed_sections, set | list | tuple):
-            return None
-        return {str(section) for section in allowed_sections if section}
-
-    @classmethod
-    def schema_allowed_for_sections(
-        cls,
-        schema: dict[str, Any],
-        allowed_sections: set[str],
-    ) -> dict[str, Any] | None:
-        """用于裁剪单个工具 schema 中的 section enum。"""
-        function = schema.get("function")
-        if not isinstance(function, dict):
-            return schema
-        tool_name = function.get("name")
-        if not cls.implicit_tool_visible(tool_name, allowed_sections):
-            return None
-        section_property = cls.section_property(function)
-        if section_property is None:
-            return schema
-        enum = section_property.get("enum")
-        if not isinstance(enum, list):
-            return schema
-        section_property["enum"] = [
-            section for section in enum if str(section) in allowed_sections
-        ]
-        if not section_property["enum"]:
-            return None
-        return schema
-
-    @staticmethod
-    def implicit_tool_visible(tool_name: Any, allowed_sections: set[str]) -> bool:
-        """用于隐藏没有 section 参数但只修改单一模块的工具。"""
-        if not isinstance(tool_name, str):
-            return True
-        implicit_sections = _IMPLICIT_TOOL_SECTIONS.get(tool_name)
-        if implicit_sections is None:
-            return True
-        return bool(implicit_sections & allowed_sections)
-
-    @staticmethod
-    def section_property(function: dict[str, Any]) -> dict[str, Any] | None:
-        """用于读取工具 schema 中的 section 参数定义。"""
-        parameters = function.get("parameters")
-        if not isinstance(parameters, dict):
-            return None
-        properties = parameters.get("properties")
-        if not isinstance(properties, dict):
-            return None
-        section = properties.get("section")
-        return section if isinstance(section, dict) else None
 
     @staticmethod
     def tool_names_from_schemas(schemas: list[dict[str, Any]]) -> list[str]:

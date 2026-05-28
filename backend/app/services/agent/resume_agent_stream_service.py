@@ -37,16 +37,6 @@ _RESUME_SNAPSHOT_KEYWORDS = (
     "列出我的简历",
     "把我的简历写出来",
 )
-_MODULE_TO_SECTION = {
-    "personal": "personal_info",
-    "summary": "summary",
-    "education": "education",
-    "work": "work_experience",
-    "projects": "projects",
-    "skills": "skills",
-}
-
-
 @dataclass(frozen=True)
 class ResumeAgentStreamInput:
     """用于承载一次简历 Agent 流式会话的应用层输入。"""
@@ -93,10 +83,7 @@ class ResumeAgentStreamService:
                     resume_id=request.resume_id,
                     user_id=request.user_id,
                 )
-                resume_dict = self._load_filtered_resume_content(
-                    resume,
-                    request.visible_modules,
-                )
+                resume_dict = self._load_resume_content(resume)
                 original_resume = deepcopy(resume_dict)
                 conversation_history = (
                     []
@@ -194,20 +181,13 @@ class ResumeAgentStreamService:
             resume_id=session.resume_id,
             user_id=user_id,
         )
-        metadata = (
-            session.metadata_json if isinstance(session.metadata_json, dict) else {}
-        )
-        visible_modules = metadata.get("visible_modules")
-        filtered_resume = self._load_filtered_resume_content(
-            resume,
-            visible_modules if isinstance(visible_modules, list) else [],
-        )
-        original_resume = deepcopy(filtered_resume)
+        resume_content = self._load_resume_content(resume)
+        original_resume = deepcopy(resume_content)
 
         result = ResumeAgentHarness(self.db, session_store=store).resume_session(
             session_id=session_id,
-            resume_content=filtered_resume,
-            allowed_sections=set(filtered_resume.keys()),
+            resume_content=resume_content,
+            allowed_sections=set(resume_content.keys()),
         )
         if not result["success"]:
             raise HTTPException(
@@ -280,27 +260,6 @@ class ResumeAgentStreamService:
         return any(keyword in normalized for keyword in _RESUME_SNAPSHOT_KEYWORDS)
 
     @staticmethod
-    def _filter_resume_by_visible_modules(
-        resume_content: dict[str, Any],
-        visible_modules: list[str],
-    ) -> dict[str, Any]:
-        """用于按前端可见模块裁剪传给 Agent 的简历内容。"""
-        if not visible_modules:
-            return resume_content
-        allowed_sections = {
-            _MODULE_TO_SECTION[module]
-            for module in visible_modules
-            if module in _MODULE_TO_SECTION
-        }
-        filtered = {}
-        if "job_application" in resume_content:
-            filtered["job_application"] = resume_content["job_application"]
-        for section in allowed_sections:
-            if section in resume_content:
-                filtered[section] = resume_content[section]
-        return filtered
-
-    @staticmethod
     def _get_resume_for_user(
         resume_service: ResumeService,
         *,
@@ -329,16 +288,10 @@ class ResumeAgentStreamService:
             resume.content if isinstance(resume.content, dict) else {},
         )
 
-    def _load_filtered_resume_content(
-        self,
-        resume: Any,
-        visible_modules: list[str],
-    ) -> dict[str, Any]:
-        """用于读取简历内容并按可见模块裁剪上下文。"""
-        return self._filter_resume_by_visible_modules(
-            self._dump_resume_content(resume),
-            visible_modules,
-        )
+    @staticmethod
+    def _load_resume_content(resume: Any) -> dict[str, Any]:
+        """用于读取完整简历内容供 Agent 推理和工具使用。"""
+        return ResumeAgentStreamService._dump_resume_content(resume)
 
     @staticmethod
     def _persist_resume_if_changed(

@@ -287,8 +287,8 @@ def test_system_prompt_tool_list_matches_requested_profile():
     assert "update_bullet" not in pi_context.system_prompt
 
 
-def test_turn_context_hides_tools_for_invisible_sections():
-    """用于验证模型不可见隐藏模块对应的修改工具。"""
+def test_turn_context_keeps_tools_available_for_hidden_sections():
+    """用于验证隐藏模块不会裁剪 Agent 可见工具 schema。"""
     agent = ResumeAgent()
     state = _new_test_stream_state()
     context = {
@@ -307,33 +307,28 @@ def test_turn_context_hides_tools_for_invisible_sections():
     )
 
     tools_by_name = {tool.name: tool for tool in pi_context.tools}
-    assert "update_skills" not in tools_by_name
+    assert "update_skills" in tools_by_name
     assert "add_resume_item" in tools_by_name
-    assert (
-        tools_by_name["add_resume_item"].parameters.properties["section"]["enum"]
-        == ["projects"]
-    )
-    assert "skills" not in str(tools_by_name["add_resume_item"].parameters.properties)
+    assert "skills" in tools_by_name["add_resume_item"].parameters.properties[
+        "section"
+    ]["enum"]
+    assert "update_skills" in state["tool_names"]
 
 
-def test_visible_module_filter_keeps_visible_summary_section():
-    """用于验证前端 summary 模块会映射到后端 summary section。"""
+def test_resume_stream_service_loads_full_resume_content_for_agent_tools():
+    """用于验证隐藏模块不会裁掉 Agent 可读写的简历内容。"""
     content = {
         "personal_info": {"name": "张三"},
         "summary": {"text": "AI Agent 开发工程师"},
         "projects": [{"id": "proj_1", "name": "Chat Resume"}],
         "skills": [{"id": "skill_1", "category": "AI", "items": ["Agent"]}],
     }
+    resume = type("ResumeStub", (), {"content": content})()
 
-    filtered = ResumeAgentStreamService._filter_resume_by_visible_modules(
-        content,
-        ["summary", "projects"],
-    )
+    loaded = ResumeAgentStreamService._load_resume_content(resume)
 
-    assert filtered == {
-        "summary": {"text": "AI Agent 开发工程师"},
-        "projects": [{"id": "proj_1", "name": "Chat Resume"}],
-    }
+    assert loaded == content
+    assert loaded["skills"] == [{"id": "skill_1", "category": "AI", "items": ["Agent"]}]
 
 
 def test_resume_turn_context_builder_prepares_profiled_tools_independently():

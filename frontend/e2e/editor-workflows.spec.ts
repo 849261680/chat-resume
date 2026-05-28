@@ -628,6 +628,69 @@ test.describe('编辑页工作流', () => {
     await expect(page.getByPlaceholder('输入消息...')).toBeFocused()
   })
 
+  test('跨多段聊天内容复制时使用缓存选区全文', async ({ page }) => {
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
+    const chatText = [
+      '# 综合 JD：AGENT 开发工程师（普适版）',
+      '',
+      '基于 12 条 JD（畅捷通 ×2、美团、京东、耳朵时间、智谱华章、星河觉醒、思格涡野 ×2、普适版 ×3）的综合提炼。',
+      '',
+      '---',
+      '',
+      '## 一、核心能力要求（4 家高频重叠）',
+      '',
+      '### 1. Agent 架构设计与落地',
+      '',
+      '- 独立完成 Planning → Tool Use → Memory → Multi-Agent 完整闭环',
+      '- 熟悉 Agentic 架构：Function Calling、ReAct、Prompt Chain',
+      '- 有可交互的 AI 项目 Demo 成果',
+      '',
+      '### 2. 技术栈',
+      '',
+      '- Python 精通（Pandas/NumPy + 高级特性）',
+      '- Agent 框架：LangChain / LlamaIndex / OpenClaw / Dify / Coze',
+      '- LLM：GPT-4、千问、Kimi 等主流模型 API 调用',
+      '- Prompt Engineering：Few-shot、Prompt Chain 设计与优化',
+    ].join('\n')
+    await installEditorApiMock(page, buildResumeResponse(123), [
+      {
+        id: 1,
+        role: 'assistant',
+        content: chatText,
+      },
+    ])
+
+    await page.goto('/zh/resume/123/edit')
+    await expect(page.locator('.agent-panel')).toContainText('Prompt Engineering')
+    await page.evaluate(async () => {
+      const root = document.querySelector<HTMLElement>('.agent-panel .markdown-content')
+      const firstElement = root?.querySelector('h1')
+      const lastElement = Array.from(root?.querySelectorAll('li') || []).at(-1)
+      if (!root || !firstElement || !lastElement) return ''
+
+      const range = document.createRange()
+      range.setStartBefore(firstElement)
+      range.setEndAfter(lastElement)
+      const selection = window.getSelection()
+      selection?.removeAllRanges()
+      selection?.addRange(range)
+      document.querySelector('main')?.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+    })
+    await expect(page.getByRole('button', { name: '添加至对话框' })).toBeVisible()
+    await page.evaluate(() => window.focus())
+    await page.evaluate(() => navigator.clipboard.writeText('before-copy'))
+    await page.keyboard.press(process.platform === 'darwin' ? 'Meta+C' : 'Control+C')
+    await expect.poll(() => (
+      page.evaluate(() => navigator.clipboard.readText())
+    )).not.toBe('before-copy')
+    const copiedText = await page.evaluate(() => navigator.clipboard.readText())
+
+    expect(copiedText).toContain('1. Agent 架构设计与落地')
+    expect(copiedText).toContain('2. 技术栈')
+    expect(copiedText).toContain('Prompt Engineering：Few-shot、Prompt Chain 设计与优化')
+  })
+
   test('聊天选区颜色滚动时跟随文本', async ({ page }) => {
     const chatText = 'Agent 建议保留 RAG 项目经验'
     const chatMessages = [

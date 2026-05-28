@@ -3,7 +3,10 @@
 
 import { motion, AnimatePresence } from 'framer-motion'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { PointerEvent as ReactPointerEvent } from 'react'
+import type {
+  ClipboardEvent as ReactClipboardEvent,
+  PointerEvent as ReactPointerEvent,
+} from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { useRouter } from '@/i18n/navigation'
 import { useAuth } from '@/lib/auth'
@@ -502,6 +505,18 @@ export default function ResumeEditPage() {
     clearResumeSelectionAction()
   }, [clearResumeSelectionAction, messagesContainerRef, resumeSelectionAction])
 
+  /**
+   * 复制自绘高亮对应的缓存文本，避免 React 重渲染后原生 Selection 被截断。
+   */
+  const handleMainCopy = useCallback((event: ReactClipboardEvent<HTMLElement>) => {
+    if (resumeSelectionAction?.mode !== 'toolbar') return
+    if (!resumeSelectionAction.text.trim()) return
+    const target = event.target
+    if (target instanceof Element && target.closest('[data-resume-selection-action="true"]')) return
+    event.clipboardData.setData('text/plain', resumeSelectionAction.text)
+    event.preventDefault()
+  }, [resumeSelectionAction])
+
   const latestPendingCallId = streamEvents.reduce<string | null>(
     (latest, event) => (event.type === 'tool_pending' ? event.callId : latest),
     null
@@ -780,6 +795,7 @@ export default function ResumeEditPage() {
         onPointerDown={handleMainPointerDown}
         onMouseUp={updateResumeSelectionAction}
         onKeyUp={updateResumeSelectionAction}
+        onCopy={handleMainCopy}
       >
         <div
           ref={mainPanelsRef}

@@ -163,6 +163,11 @@ async def test_generate_job_match_summary_uses_default_semantic_llm(monkeypatch)
     result = await generate_job_match_summary(resume)
 
     assert len(calls) == 1
+    prompt = str(calls[0]["system_prompt"])
+    assert "概念级关键词" in prompt
+    assert "不要把 JD 当作分词任务" in prompt
+    assert "Function Calling" in prompt
+    assert "不要同时输出 AGENT 和 Agent" in prompt
     assert models == ["deepseek/deepseek-v4-flash"]
     assert result["success"] is True
     assert result["job_match_summary"]["matched_keywords"] == ["React"]

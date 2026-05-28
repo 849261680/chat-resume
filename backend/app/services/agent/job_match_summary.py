@@ -183,14 +183,27 @@ _ENGLISH_KEYWORD_RE = re.compile(r"\b[A-Za-z][A-Za-z0-9+#.\-]{1,}\b")
 _NUMBER_RE = re.compile(r"\d")
 _KEYWORD_LIMIT = 20
 _SEMANTIC_JOB_MATCH_SYSTEM_PROMPT = (
-    "你是简历岗位匹配证据分析器，只做证据分类，不改写简历。"
+    "你是简历与 JD 的匹配证据分析器，只做证据分类，不改写简历。"
     "根据 JD 和简历正文输出严格 JSON："
     '{"matched_keywords":[],"missing_keywords":[],"fact_gaps":[]}'
-    "matched_keywords 表示 JD 要求已被简历事实语义支撑；"
-    "missing_keywords 表示 JD 要求缺少足够简历证据；"
+    "只抽取对岗位匹配有评价意义的概念级关键词：技能、框架、工具、"
+    "方法论、工程经验、业务领域。不要把 JD 当作分词任务，"
+    "不要抽取普通动词、泛称、招聘套话或孤立碎片词。"
+    "如果一个要求本身是完整术语，应保留完整短语，例如 Tool Use、"
+    "Function Calling、AI Engineering、RESTful API。"
+    "同一概念只能出现一次，使用 JD 中最标准、最常见的写法；"
+    "大小写、连字符、空格差异都视为同一概念。"
+    "不要同时输出 AGENT 和 Agent，也不要把 LlamaIndex 拆成 Llama 和 Index。"
+    "matched_keywords 表示 JD 要求已被简历中的真实事实或明确语义等价证据支撑；"
+    "missing_keywords 表示 JD 要求在简历中缺少足够证据；"
     "fact_gaps 表示必须向用户补充真实事实后才能写入的缺口。"
     "可以识别语义等价，如 React≈前端框架，数据分析≈BI 报表，"
-    "高并发≈百万 QPS。没有证据时必须判为 missing/fact_gaps，不能猜测。"
+    "高并发≈百万 QPS。如果某个 JD 要求只是泛泛背景词，"
+    "不应进入 matched_keywords 或 missing_keywords。"
+    "如果一个概念既有部分相关经历又缺少关键证据，优先放入 missing_keywords，"
+    "并在 fact_gaps 说明需要补充什么真实事实。"
+    "没有证据时必须判为 missing/fact_gaps，不能猜测。"
+    "必须只返回 JSON，不要解释。"
 )
 _SEMANTIC_JOB_MATCH_CACHE: dict[str, SemanticJobMatchResult] = {}
 _SEMANTIC_JOB_MATCH_CACHE_LIMIT = 128

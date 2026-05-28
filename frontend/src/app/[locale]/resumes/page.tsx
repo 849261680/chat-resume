@@ -210,6 +210,11 @@ function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
+// 用于读取可回退的翻译文案，避免旧消息包导致页面崩溃。
+function readOptionalTranslation(t: ReturnType<typeof useTranslations>, key: string, fallback: string) {
+  return t.has(key as never) ? t(key as never) : fallback
+}
+
 // 用于判断简历是否符合状态筛选。
 function resumeMatchesStatus(resume: Resume, filter: ResumeStatusFilter) {
   if (filter === 'all') return true
@@ -257,6 +262,11 @@ export default function ResumesPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const t = useTranslations('resume.center')
   const common = useTranslations('common')
+  const duplicateResumeCopy = readOptionalTranslation(t, 'duplicateResumeAction', '复制简历')
+  const duplicatingResumeCopy = readOptionalTranslation(t, 'duplicatingResumeAction', '复制中...')
+  const duplicateResumeStartCopy = readOptionalTranslation(t, 'duplicateResumeStart', '正在复制简历...')
+  const duplicateResumeDoneCopy = readOptionalTranslation(t, 'duplicateResumeDone', '已创建一份相同简历')
+  const duplicateResumeFailedCopy = readOptionalTranslation(t, 'duplicateResumeFailed', '复制简历失败，请重试')
   const filteredResumes = getVisibleResumes(resumes, resumeSearchQuery, resumeStatusFilter, resumeSortOrder)
   const visibleResumes = filteredResumes.slice(0, FREE_RESUME_LIMIT)
   const hiddenResumeCount = Math.max(filteredResumes.length - FREE_RESUME_LIMIT, 0)
@@ -354,7 +364,7 @@ export default function ResumesPage() {
   const handleDuplicateResume = async (sourceResume: Resume) => {
     setDuplicatingResumeId(sourceResume.id)
     try {
-      toast.loading(t('duplicateResumeStart'), { id: 'duplicate-resume' })
+      toast.loading(duplicateResumeStartCopy, { id: 'duplicate-resume' })
       const resume = await resumeApi.getResume(sourceResume.id)
       const duplicated = await resumeApi.createResume({
         title: buildDuplicateResumeTitle(resume.title, resumes),
@@ -363,10 +373,10 @@ export default function ResumesPage() {
         original_filename: resume.original_filename,
       })
       setOpenResumeActionsId(null)
-      toast.success(t('duplicateResumeDone'), { id: 'duplicate-resume' })
+      toast.success(duplicateResumeDoneCopy, { id: 'duplicate-resume' })
       router.push(`/resume/${duplicated.id}/edit`)
     } catch (error) {
-      toast.error(formatApiErrorMessage(error, {}, t('duplicateResumeFailed')), { id: 'duplicate-resume' })
+      toast.error(formatApiErrorMessage(error, {}, duplicateResumeFailedCopy), { id: 'duplicate-resume' })
     } finally {
       setDuplicatingResumeId(null)
     }
@@ -693,7 +703,7 @@ export default function ResumesPage() {
                               style={{ color: LIST_TEXT }}
                             >
                               <DocumentDuplicateIcon className="h-4 w-4" />
-                              {duplicatingResumeId === resume.id ? t('duplicatingResumeAction') : t('duplicateResumeAction')}
+                              {duplicatingResumeId === resume.id ? duplicatingResumeCopy : duplicateResumeCopy}
                             </button>
                             <button
                               type="button"

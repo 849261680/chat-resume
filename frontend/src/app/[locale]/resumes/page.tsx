@@ -20,6 +20,7 @@ import {
   ChevronDownIcon,
   DocumentTextIcon,
   ClockIcon,
+  DocumentDuplicateIcon,
   EllipsisVerticalIcon,
   LockClosedIcon,
   MagnifyingGlassIcon,
@@ -193,6 +194,22 @@ function resumeMatchesQuery(resume: Resume, query: string) {
   ].some(value => value?.toLowerCase().includes(normalizedQuery))
 }
 
+// 用于生成复制简历的新标题。
+function buildDuplicateResumeTitle(title: string, resumes: Resume[]) {
+  const baseTitle = title.replace(/-\d+$/, '')
+  const nextNumber = resumes.reduce((max, resume) => {
+    if (resume.title === baseTitle) return Math.max(max, 1)
+    const match = resume.title.match(new RegExp(`^${escapeRegExp(baseTitle)}-(\\d+)$`))
+    return match ? Math.max(max, Number(match[1])) : max
+  }, 1) + 1
+  return `${baseTitle}-${nextNumber}`
+}
+
+// 用于转义标题里的正则特殊字符。
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 // 用于判断简历是否符合状态筛选。
 function resumeMatchesStatus(resume: Resume, filter: ResumeStatusFilter) {
   if (filter === 'all') return true
@@ -236,6 +253,7 @@ export default function ResumesPage() {
   const [resumeStatusFilter, setResumeStatusFilter] = useState<ResumeStatusFilter>('all')
   const [resumeSortOrder, setResumeSortOrder] = useState<ResumeSortOrder>('recent')
   const [openResumeActionsId, setOpenResumeActionsId] = useState<number | null>(null)
+  const [duplicatingResumeId, setDuplicatingResumeId] = useState<number | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const t = useTranslations('resume.center')
   const common = useTranslations('common')
@@ -329,6 +347,28 @@ export default function ResumesPage() {
       toast.success(t('deleteDone'), { id: 'delete' })
     } catch (error) {
       toast.error(formatApiErrorMessage(error, {}, t('deleteFailed')), { id: 'delete' })
+    }
+  }
+
+  // 用于复制出一份新的完整简历。
+  const handleDuplicateResume = async (sourceResume: Resume) => {
+    setDuplicatingResumeId(sourceResume.id)
+    try {
+      toast.loading(t('duplicateResumeStart'), { id: 'duplicate-resume' })
+      const resume = await resumeApi.getResume(sourceResume.id)
+      const duplicated = await resumeApi.createResume({
+        title: buildDuplicateResumeTitle(resume.title, resumes),
+        content: resume.content,
+        layout_config: resume.layout_config,
+        original_filename: resume.original_filename,
+      })
+      setOpenResumeActionsId(null)
+      toast.success(t('duplicateResumeDone'), { id: 'duplicate-resume' })
+      router.push(`/resume/${duplicated.id}/edit`)
+    } catch (error) {
+      toast.error(formatApiErrorMessage(error, {}, t('duplicateResumeFailed')), { id: 'duplicate-resume' })
+    } finally {
+      setDuplicatingResumeId(null)
     }
   }
 
@@ -644,12 +684,25 @@ export default function ResumesPage() {
                           >
                             <button
                               type="button"
+                              disabled={duplicatingResumeId === resume.id}
+                              onClick={event => {
+                                event.stopPropagation()
+                                handleDuplicateResume(resume)
+                              }}
+                              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium disabled:opacity-60"
+                              style={{ color: LIST_TEXT }}
+                            >
+                              <DocumentDuplicateIcon className="h-4 w-4" />
+                              {duplicatingResumeId === resume.id ? t('duplicatingResumeAction') : t('duplicateResumeAction')}
+                            </button>
+                            <button
+                              type="button"
                               onClick={event => {
                                 event.stopPropagation()
                                 setOpenResumeActionsId(null)
                                 handleDeleteResume(resume.id, resume.title)
                               }}
-                              className="rounded-md px-3 py-2 text-sm font-medium"
+                              className="w-full rounded-md px-3 py-2 text-left text-sm font-medium"
                               style={{ color: '#dc2626' }}
                             >
                               {t('deleteTitle')}

@@ -45,6 +45,7 @@ class ResumeService:
         resume = Resume(
             title=resume_create.title,
             content=self._serialize_content(resume_create.content),
+            layout_config=resume_create.layout_config,
             original_filename=resume_create.original_filename,
             owner_id=owner_id,
         )

@@ -511,6 +511,7 @@ class ResumeCreate(BaseModel):
 
     title: str
     content: ResumeContent
+    layout_config: Optional[dict[str, Any]] = None
     original_filename: Optional[str] = None
 
 

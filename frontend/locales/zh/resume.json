@@ -81,6 +81,11 @@
     "createDone": "简历创建成功！",
     "createFailed": "创建失败，请重试",
     "untitled": "未命名简历",
+    "duplicateResumeAction": "复制简历",
+    "duplicatingResumeAction": "复制中...",
+    "duplicateResumeStart": "正在复制简历...",
+    "duplicateResumeDone": "已创建一份相同简历",
+    "duplicateResumeFailed": "复制简历失败，请重试",
     "deleteTitle": "删除简历",
     "chat": "优化"
   },

@@ -29,6 +29,8 @@ export interface ResumeListItem {
 interface CreateResumeData {
   title: string
   content: ResumeContent
+  layout_config?: Record<string, unknown> | null
+  original_filename?: string
 }
 
 interface UpdateResumeData {

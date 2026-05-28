@@ -149,7 +149,10 @@ function JobMatchSummaryCard({ summary }: { summary: JobMatchSummary }) {
   )
 }
 
+type ResumeSelectionSource = 'preview' | 'chat'
+
 interface ResumeSelectionAction {
+  source: ResumeSelectionSource
   text: string
   top: number
   quickEditTop: number
@@ -161,6 +164,50 @@ interface ResumeSelectionAction {
     height: number
   }>
   mode: 'toolbar' | 'quick_edit'
+}
+
+/** 从当前浏览器选区里读取所属元素。 */
+function getSelectionElement(range: Range): Element | null {
+  const rangeNode = range.commonAncestorContainer
+  return rangeNode.nodeType === Node.ELEMENT_NODE
+    ? rangeNode as Element
+    : rangeNode.parentElement
+}
+
+/** 将原生选区转换成相对容器定位的浮层状态。 */
+function buildSelectionAction(
+  range: Range,
+  panel: HTMLElement,
+  text: string,
+  source: ResumeSelectionSource
+): ResumeSelectionAction {
+  const rangeRect = range.getBoundingClientRect()
+  const panelRect = panel.getBoundingClientRect()
+  const highlightRects = source === 'preview'
+    ? Array.from(range.getClientRects())
+      .filter((rect) => rect.width > 0 && rect.height > 0)
+      .map((rect) => ({
+        top: rect.top - panelRect.top,
+        left: rect.left - panelRect.left,
+        width: rect.width,
+        height: rect.height,
+      }))
+    : []
+  const actionWidth = Math.min(560, Math.max(230, panelRect.width - 16))
+  const maxLeft = Math.max(8, panelRect.width - actionWidth - 8)
+  const selectionTop = rangeRect.top - panelRect.top
+  const selectionBottom = rangeRect.bottom - panelRect.top
+  const left = Math.min(
+    Math.max(rangeRect.right - panelRect.left + 8, 8),
+    maxLeft
+  )
+  const top = Math.max(selectionTop - 40, 8)
+  const quickEditHeight = 64
+  const quickEditGap = 8
+  const quickEditTop = selectionTop > quickEditHeight + quickEditGap
+    ? selectionTop - quickEditHeight - quickEditGap
+    : selectionBottom + quickEditGap
+  return { source, text, top, quickEditTop, left, highlightRects, mode: 'toolbar' }
 }
 
 /** 从 Next 路由参数中读取单个简历 ID。 */
@@ -290,6 +337,7 @@ export default function ResumeEditPage() {
   const [quickEditPrompt, setQuickEditPrompt] = useState('')
   const quickEditInputRef = useRef<HTMLTextAreaElement>(null)
   const previewPanelRef = useRef<HTMLDivElement>(null)
+  const agentPanelRef = useRef<HTMLDivElement>(null)
   const t = useTranslations('resume.editor')
   const common = useTranslations('common')
 
@@ -442,13 +490,17 @@ export default function ResumeEditPage() {
     if (!(target instanceof Element)) return
     if (target.closest('[data-resume-selection-action="true"]')) return
     if (!resumeSelectionAction && !window.getSelection()?.toString()) return
-    if (previewPanelRef.current?.contains(target)) {
+    const isSelectionPanel = Boolean(
+      previewPanelRef.current?.contains(target) ||
+      messagesContainerRef.current?.contains(target)
+    )
+    if (isSelectionPanel) {
       setQuickEditPrompt('')
       setResumeSelectionAction(null)
       return
     }
     clearResumeSelectionAction()
-  }, [clearResumeSelectionAction, resumeSelectionAction])
+  }, [clearResumeSelectionAction, messagesContainerRef, resumeSelectionAction])
 
   const latestPendingCallId = streamEvents.reduce<string | null>(
     (latest, event) => (event.type === 'tool_pending' ? event.callId : latest),
@@ -492,55 +544,35 @@ export default function ResumeEditPage() {
     })
   }, [streamEvents, isStreaming, latestPendingCallId])
 
-  /**
-   * 读取预览区当前选中文本，并把浮动按钮定位到选区上方。
-   */
+  /** 读取预览区或聊天内容区当前选中文本，并把浮动按钮定位到选区上方。 */
   const updateResumeSelectionAction = useCallback(() => {
     const previewPanel = previewPanelRef.current
+    const agentPanel = agentPanelRef.current
+    const messagesPanel = messagesContainerRef.current
     const selection = window.getSelection()
-    if (!previewPanel || !selection || selection.rangeCount === 0) {
+    if (!previewPanel || !agentPanel || !messagesPanel || !selection || selection.rangeCount === 0) {
       setResumeSelectionAction(null)
       return
     }
 
     const selectedText = selection.toString().trim()
     const range = selection.getRangeAt(0)
-    const rangeNode = range.commonAncestorContainer
-    const selectedElement = rangeNode.nodeType === Node.ELEMENT_NODE
-      ? rangeNode
-      : rangeNode.parentElement
-
-    if (!selectedText || !selectedElement || !previewPanel.contains(selectedElement)) {
+    const selectedElement = getSelectionElement(range)
+    if (!selectedText || !selectedElement) {
       setResumeSelectionAction(null)
       return
     }
 
-    const rangeRect = range.getBoundingClientRect()
-    const panelRect = previewPanel.getBoundingClientRect()
-    const highlightRects = Array.from(range.getClientRects())
-      .filter((rect) => rect.width > 0 && rect.height > 0)
-      .map((rect) => ({
-        top: rect.top - panelRect.top,
-        left: rect.left - panelRect.left,
-        width: rect.width,
-        height: rect.height,
-      }))
-    const actionWidth = Math.min(560, Math.max(230, panelRect.width - 16))
-    const maxLeft = Math.max(8, panelRect.width - actionWidth - 8)
-    const selectionTop = rangeRect.top - panelRect.top
-    const selectionBottom = rangeRect.bottom - panelRect.top
-    const left = Math.min(
-      Math.max(rangeRect.right - panelRect.left + 8, 8),
-      maxLeft
-    )
-    const top = Math.max(selectionTop - 40, 8)
-    const quickEditHeight = 64
-    const quickEditGap = 8
-    const quickEditTop = selectionTop > quickEditHeight + quickEditGap
-      ? selectionTop - quickEditHeight - quickEditGap
-      : selectionBottom + quickEditGap
-    setResumeSelectionAction({ text: selectedText, top, quickEditTop, left, highlightRects, mode: 'toolbar' })
-  }, [clearResumeSelectionAction])
+    if (previewPanel.contains(selectedElement)) {
+      setResumeSelectionAction(buildSelectionAction(range, previewPanel, selectedText, 'preview'))
+      return
+    }
+    if (messagesPanel.contains(selectedElement)) {
+      setResumeSelectionAction(buildSelectionAction(range, agentPanel, selectedText, 'chat'))
+      return
+    }
+    setResumeSelectionAction(null)
+  }, [messagesContainerRef])
 
   /**
    * 把预览区选中文本放入聊天输入框，等待用户继续编辑或发送。
@@ -901,7 +933,7 @@ export default function ResumeEditPage() {
             className="preview-panel relative flex flex-col min-h-0 min-w-0 print:w-full print:h-auto print:absolute print:top-0 print:left-0 print:m-0 print:p-0"
             style={{ flex: `0 0 calc(${previewFlex}% - 16px)` }}
           >
-            {resumeSelectionAction?.mode === 'toolbar' && (
+            {resumeSelectionAction?.source === 'preview' && resumeSelectionAction.mode === 'toolbar' && (
               <div
                 data-resume-selection-action="true"
                 className="absolute z-30 inline-flex items-center overflow-hidden whitespace-nowrap text-sm font-normal shadow-sm print:hidden"
@@ -915,6 +947,7 @@ export default function ResumeEditPage() {
                 }}
                 onPointerDown={(event) => event.stopPropagation()}
                 onMouseDown={(event) => event.preventDefault()}
+                onMouseUp={(event) => event.stopPropagation()}
               >
                 <button
                   type="button"
@@ -933,7 +966,7 @@ export default function ResumeEditPage() {
                 </button>
               </div>
             )}
-            {resumeSelectionAction?.mode === 'quick_edit' && resumeSelectionAction.highlightRects.map((rect, index) => (
+            {resumeSelectionAction?.source === 'preview' && resumeSelectionAction.mode === 'quick_edit' && resumeSelectionAction.highlightRects.map((rect, index) => (
               <div
                 key={`${rect.top}-${rect.left}-${index}`}
                 data-testid="resume-selection-highlight"
@@ -947,7 +980,7 @@ export default function ResumeEditPage() {
                 }}
               />
             ))}
-            {resumeSelectionAction?.mode === 'quick_edit' && (
+            {resumeSelectionAction?.source === 'preview' && resumeSelectionAction.mode === 'quick_edit' && (
               <div
                 data-resume-selection-action="true"
                 className="absolute z-30 w-[min(360px,calc(100%-16px))] rounded-lg border bg-white px-2 py-1 shadow-lg print:hidden"
@@ -1038,13 +1071,39 @@ export default function ResumeEditPage() {
             style={{ flex: `0 0 calc(${editorOpen ? agentFlex : collapsedAgentFlex}% - 8px)` }}
           >
             <div
+              ref={agentPanelRef}
               className="relative p-4 flex-1 overflow-hidden flex flex-col"
               style={{
                 backgroundColor: '#ffffff',
                 border: '1px solid rgba(91,97,110,0.2)',
                 borderRadius: '16px',
               }}
-            >
+              >
+              {resumeSelectionAction?.source === 'chat' && resumeSelectionAction.mode === 'toolbar' && (
+                <div
+                  data-resume-selection-action="true"
+                  className="absolute z-30 inline-flex items-center overflow-hidden whitespace-nowrap text-sm font-normal shadow-sm"
+                  style={{
+                    top: resumeSelectionAction.top,
+                    left: resumeSelectionAction.left,
+                    borderRadius: '2px',
+                    backgroundColor: '#0052ff',
+                    border: '1px solid #0052ff',
+                    color: '#ffffff',
+                  }}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onMouseUp={(event) => event.stopPropagation()}
+                >
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 transition-colors"
+                    onClick={pasteResumeSelectionToChat}
+                  >
+                    <span>{t('pasteSelectionToChat')}</span>
+                  </button>
+                </div>
+              )}
               <div className="mb-3 flex-shrink-0 pr-12 text-lg font-semibold text-[#0a0b0d]">
                 简历智能体
               </div>

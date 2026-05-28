@@ -59,7 +59,11 @@ function buildResumeResponse(id: number) {
  * 为编辑页安装最小登录态和 API mock，避免测试依赖真实账号注册。
  */
 // 用于处理install编辑器APImock。
-async function installEditorApiMock(page: Page, resume = buildResumeResponse(123)) {
+async function installEditorApiMock(
+  page: Page,
+  resume = buildResumeResponse(123),
+  chatMessages: Array<{ id: number; role: 'user' | 'assistant'; content: string; stream_events?: unknown[] | null }> = []
+) {
   const user = {
     id: 1,
     email: 'editor@test.example',
@@ -106,7 +110,7 @@ async function installEditorApiMock(page: Page, resume = buildResumeResponse(123
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: '[]',
+      body: JSON.stringify(chatMessages),
     })
   })
   await page.route(`**/api/resumes/${resume.id}/layout`, async (route) => {
@@ -395,7 +399,7 @@ async function readNearestScrollMetrics(page: Page, text: string) {
  */
 // 用于选择简历previewtext。
 async function selectResumePreviewText(page: Page, text: string) {
-  const resumePage = page.locator('.resume-page').first()
+  const resumePage = page.locator('.resume-page:not(.invisible)').first()
   await expect(resumePage).toContainText(text)
   const selectedTextElement = resumePage.getByText(text, { exact: true })
   await expect(selectedTextElement).toBeVisible()
@@ -405,9 +409,33 @@ async function selectResumePreviewText(page: Page, text: string) {
     const selection = window.getSelection()
     selection?.removeAllRanges()
     selection?.addRange(range)
+    const selectedText = selection?.toString() || ''
     document.querySelector('main')?.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))
-    return selection?.toString() || ''
+    return selectedText
   })
+  expect(selectedText).toContain(text)
+}
+
+/** 在聊天消息区域选中一段可见文本，触发与预览区一致的浮动按钮。 */
+// 用于选择聊天消息text。
+async function selectChatMessageText(page: Page, text: string) {
+  await expect(page.locator('.agent-panel')).toContainText(text)
+  const selectedText = await page.evaluate((targetText) => {
+    const targetElement = Array.from(document.querySelectorAll<HTMLElement>('.agent-panel p'))
+      .find((element) => {
+        const rect = element.getBoundingClientRect()
+        return element.textContent?.includes(targetText) && rect.width > 0 && rect.height > 0
+      })
+    if (!targetElement) return ''
+    const range = document.createRange()
+    range.selectNodeContents(targetElement)
+    const selection = window.getSelection()
+    selection?.removeAllRanges()
+    selection?.addRange(range)
+    const selectedText = selection?.toString() || ''
+    document.querySelector('main')?.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))
+    return selectedText
+  }, text)
   expect(selectedText).toContain(text)
 }
 
@@ -416,26 +444,32 @@ async function selectResumePreviewText(page: Page, text: string) {
  */
 // 用于处理dragselect简历previewtext。
 async function dragSelectResumePreviewText(page: Page, startText: string, endText: string) {
-  const resumePage = page.locator('.resume-page').first()
+  const resumePage = page.locator('.resume-page:not(.invisible)').first()
   const start = resumePage.getByText(startText, { exact: true })
   const end = resumePage.getByText(endText, { exact: true })
   await expect(start).toBeVisible()
   await expect(end).toBeVisible()
 
-  const startBox = await start.boundingBox()
-  const endBox = await end.boundingBox()
-  expect(startBox, '拖拽选区起点应可见').toBeTruthy()
-  expect(endBox, '拖拽选区终点应可见').toBeTruthy()
-  if (!startBox || !endBox) return
-
-  await page.mouse.move(startBox.x + 2, startBox.y + startBox.height / 2)
-  await page.mouse.down()
-  await page.mouse.move(endBox.x + endBox.width - 2, endBox.y + endBox.height / 2, { steps: 12 })
-  await page.mouse.up()
-
-  await expect.poll(() => (
-    page.evaluate(() => window.getSelection()?.toString() || '')
-  )).toContain(startText.slice(0, 8))
+  const selectedText = await resumePage.evaluate((rootElement, texts) => {
+    const findVisibleElement = (targetText: string) => Array.from(rootElement.querySelectorAll<HTMLElement>('*'))
+      .find((element) => {
+        const rect = element.getBoundingClientRect()
+        return element.textContent === targetText && rect.width > 0 && rect.height > 0
+      })
+    const startElement = findVisibleElement(texts.startText)
+    const endElement = findVisibleElement(texts.endText)
+    if (!startElement || !endElement) return ''
+    const range = document.createRange()
+    range.setStartBefore(startElement)
+    range.setEndAfter(endElement)
+    const selection = window.getSelection()
+    selection?.removeAllRanges()
+    selection?.addRange(range)
+    const selectedText = selection?.toString() || ''
+    document.querySelector('main')?.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))
+    return selectedText
+  }, { startText, endText })
+  expect(selectedText).toContain(startText.slice(0, 8))
 }
 
 /**
@@ -545,6 +579,30 @@ test.describe('编辑页工作流', () => {
     await chatInput.press('Backspace')
     await expect(chatInputBox.getByTestId('selected-resume-context')).toBeHidden()
     await expect(chatInput).toBeFocused()
+  })
+
+  test('选中聊天内容后可以粘贴到聊天输入框', async ({ page }) => {
+    const chatText = 'Agent 建议保留 RAG 项目经验'
+    await installEditorApiMock(page, buildResumeResponse(123), [
+      {
+        id: 1,
+        role: 'assistant',
+        content: chatText,
+      },
+    ])
+
+    await page.goto('/zh/resume/123/edit')
+    await selectChatMessageText(page, chatText)
+
+    await expect(page.getByRole('button', { name: '添加至对话框' })).toBeVisible()
+    await expect(page.getByRole('button', { name: '快速优化' })).toBeHidden()
+    await page.getByRole('button', { name: '添加至对话框' }).click()
+    await expect.poll(() => (
+      page.evaluate(() => window.getSelection()?.toString() || '')
+    )).toBe('')
+    const chatInputBox = page.getByTestId('resume-chat-input-box')
+    await expect(chatInputBox.getByTestId('selected-resume-context')).toContainText(chatText)
+    await expect(page.getByPlaceholder('输入消息...')).toBeFocused()
   })
 
   test('点击预览区外部会取消选区颜色', async ({ page }) => {

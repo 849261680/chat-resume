@@ -43,6 +43,7 @@ _UNEXECUTED_MUTATION_RETRY_PROMPT = (
 _UNEXECUTED_MUTATION_FALLBACK = (
     "我还没有通过简历工具完成修改，因此不能声称已完成改动。请明确要修改的具体条目。"
 )
+_MODEL_STREAM_ERROR_MESSAGE = "AI服务暂时不可用，请稍后重试。"
 _MUTATION_CLAIM_MARKERS = (
     "已新增",
     "已更新",
@@ -158,6 +159,13 @@ class ResumeAgentLoop:
             )
             messages.append(assistant_message)
             if assistant_message.stop_reason in ("error", "aborted"):
+                await self.publish_model_stream_error(
+                    agent=agent,
+                    run_id=run_id,
+                    event_queue=event_queue,
+                    event_callback=event_callback,
+                    state=state,
+                )
                 return
 
             tool_calls = self.assistant_tool_calls(assistant_message)
@@ -307,6 +315,26 @@ class ResumeAgentLoop:
             return assistant_message, text_deltas
         finally:
             cancel_event.set()
+
+    async def publish_model_stream_error(
+        self,
+        *,
+        agent: AgentDefinition,
+        run_id: str,
+        event_queue: asyncio.Queue[Any] | None,
+        event_callback: RuntimeEventCallback | None,
+        state: dict[str, Any],
+    ) -> None:
+        """用于把模型供应商或断流错误转成前端可见消息。"""
+        state["error_type"] = "model_stream_error"
+        await self.publish_text_deltas(
+            agent=agent,
+            run_id=run_id,
+            event_queue=event_queue,
+            event_callback=event_callback,
+            state=state,
+            text_deltas=[_MODEL_STREAM_ERROR_MESSAGE],
+        )
 
     @classmethod
     async def publish_failed_visible_tool_call_on_stream_error(

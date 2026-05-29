@@ -1181,6 +1181,53 @@ async def test_stream_assistant_turn_only_publishes_first_tool_call_event():
 
 
 @pytest.mark.asyncio
+async def test_model_stream_error_publishes_visible_message():
+    """用于验证模型供应商错误不会让前端只收到空完成事件。"""
+    agent = ResumeAgent()
+    error_message = AssistantMessage(
+        content=[],
+        stop_reason="error",
+        error_message="OpenRouter error 402: insufficient credits",
+    )
+    stream_fn = FakeLoopStream([error_message])
+    stage = ResumeToolExecutionStage()
+    loop = ResumeAgentLoop(stream_fn=stream_fn, tool_stage=stage)
+    state = _new_test_stream_state()
+    context: dict[str, Any] = {"resume_content": {}}
+    pi_context, prompts, config = _build_test_turn_inputs(
+        agent,
+        user_message="你好",
+        context=context,
+        state=state,
+    )
+    event_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+
+    await loop.run(
+        agent=agent.definition,
+        run_id="test",
+        pi_context=pi_context,
+        prompts=prompts,
+        config=config,
+        context=context,
+        confirmation_queue=None,
+        event_queue=event_queue,
+        event_callback=None,
+        state=state,
+        executed_tools=[],
+        model_name="deepseek/deepseek-v4-pro",
+    )
+
+    events: list[dict[str, Any]] = []
+    while not event_queue.empty():
+        events.append(event_queue.get_nowait())
+
+    visible_text = [event for event in events if event.get("event_type") == "text_delta"]
+    assert visible_text
+    assert visible_text[-1]["content"] == "AI服务暂时不可用，请稍后重试。"
+    assert state["response_parts"] == ["AI服务暂时不可用，请稍后重试。"]
+
+
+@pytest.mark.asyncio
 async def test_stream_error_closes_visible_early_tool_call_event():
     """用于验证模型断流时已提前展示的工具卡片会收到失败收尾事件。"""
     agent = ResumeAgent()

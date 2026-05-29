@@ -98,13 +98,16 @@ class ResumeAgentRunner:
             error_type = type(exc).__name__
             raise
         finally:
+            state_error_type = state.get("error_type")
+            if not isinstance(state_error_type, str):
+                state_error_type = None
             self.lifecycle.log_run_summary(
                 agent=agent,
                 run_id=run_id,
                 mode="sync",
                 state=state,
-                success=error_type is None,
-                error_type=error_type,
+                success=error_type is None and state_error_type is None,
+                error_type=error_type or state_error_type,
             )
 
     async def run_stream(

@@ -102,8 +102,6 @@ class JDOcrService:
                 "HTTP-Referer": "https://chat-resume.com",
                 "X-Title": "Chat Resume JD OCR",
             },
-            thinking_type=None,
-            reasoning_effort=None,
         )
 
     @staticmethod

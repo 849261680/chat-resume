@@ -1,4 +1,4 @@
-"""用于把 DeepSeek 官方流式响应适配为 pi-agent-core 事件。"""
+"""用于把 OpenRouter 流式响应适配为 pi-agent-core 事件。"""
 
 from __future__ import annotations
 
@@ -194,10 +194,10 @@ async def _pump_with_retry(
     queue: asyncio.Queue[AssistantMessageEvent | None],
 ) -> None:
     """包装 _pump_openrouter_stream，对可重试错误执行指数退避重试。"""
-    max_retries = settings.DEEPSEEK_MAX_RETRIES
-    circuit_enabled = settings.DEEPSEEK_CIRCUIT_BREAKER_ENABLED
-    circuit_failure_threshold = settings.DEEPSEEK_CIRCUIT_BREAKER_FAILURE_THRESHOLD
-    circuit_cooldown_seconds = settings.DEEPSEEK_CIRCUIT_BREAKER_COOLDOWN_SECONDS
+    max_retries = settings.OPENROUTER_MAX_RETRIES
+    circuit_enabled = settings.OPENROUTER_CIRCUIT_BREAKER_ENABLED
+    circuit_failure_threshold = settings.OPENROUTER_CIRCUIT_BREAKER_FAILURE_THRESHOLD
+    circuit_cooldown_seconds = settings.OPENROUTER_CIRCUIT_BREAKER_COOLDOWN_SECONDS
     last_exc: Exception | None = None
 
     _OPENROUTER_CIRCUIT_BREAKER.before_request(
@@ -261,10 +261,10 @@ async def _pump_openrouter_stream(
     started_at = monotonic()
 
     timeout = httpx.Timeout(
-        connect=settings.DEEPSEEK_CONNECT_TIMEOUT_SECONDS,
-        read=settings.DEEPSEEK_READ_TIMEOUT_SECONDS,
-        write=settings.DEEPSEEK_WRITE_TIMEOUT_SECONDS,
-        pool=settings.DEEPSEEK_CONNECT_TIMEOUT_SECONDS,
+        connect=settings.OPENROUTER_CONNECT_TIMEOUT_SECONDS,
+        read=settings.OPENROUTER_READ_TIMEOUT_SECONDS,
+        write=settings.OPENROUTER_WRITE_TIMEOUT_SECONDS,
+        pool=settings.OPENROUTER_CONNECT_TIMEOUT_SECONDS,
     )
     _log_openrouter_stage(
         "request_started",
@@ -277,7 +277,7 @@ async def _pump_openrouter_stream(
         async with httpx.AsyncClient(timeout=timeout) as client:
             async with client.stream(
                 "POST",
-                f"{settings.DEEPSEEK_API_BASE.rstrip('/')}/chat/completions",
+                f"{settings.OPENROUTER_API_BASE.rstrip('/')}/chat/completions",
                 headers=headers,
                 json=body,
             ) as response:
@@ -512,12 +512,11 @@ def _openrouter_body(
         "model": model.id,
         "messages": _openai_messages(context),
         "tools": _openai_tools(context),
+        "reasoning": {"effort": "none"},
         "stream": True,
         "stream_options": {"include_usage": True},
-        "thinking": {"type": settings.DEEPSEEK_THINKING_TYPE},
+        "parallel_tool_calls": False,
     }
-    if settings.DEEPSEEK_THINKING_TYPE == "enabled":
-        body["reasoning_effort"] = settings.DEEPSEEK_REASONING_EFFORT
     if options.temperature is not None:
         body["temperature"] = options.temperature
     if options.max_tokens is not None:
@@ -535,18 +534,20 @@ def _context_tool_names(context: AgentContext) -> set[str]:
 
 
 def _openrouter_headers(options: SimpleStreamOptions) -> dict[str, str]:
-    """用于处理 DeepSeek 官方请求头。"""
-    api_key = options.api_key or settings.DEEPSEEK_API_KEY
+    """用于处理OpenRouter请求头。"""
+    api_key = options.api_key or settings.OPENROUTER_API_KEY
     return {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
+        "HTTP-Referer": "https://chat-resume.com",
+        "X-Title": "Chat Resume AI Assistant",
     }
 
 
 def _openrouter_host() -> str:
-    """用于提取 DeepSeek base URL 的主机名，避免日志记录完整路径。"""
-    parsed = urlparse(settings.DEEPSEEK_API_BASE)
-    return parsed.netloc or settings.DEEPSEEK_API_BASE
+    """用于提取 OpenRouter base URL 的主机名，避免日志记录完整路径。"""
+    parsed = urlparse(settings.OPENROUTER_API_BASE)
+    return parsed.netloc or settings.OPENROUTER_API_BASE
 
 
 def _elapsed_ms(started_at: float) -> float:
@@ -573,12 +574,12 @@ def _log_openrouter_stage(stage: str, *, started_at: float, **fields: Any) -> No
 
 def _first_event_timeout_seconds() -> float:
     """用于读取首条 SSE 事件超时配置。"""
-    return max(float(settings.DEEPSEEK_FIRST_EVENT_TIMEOUT_SECONDS), 0.001)
+    return max(float(settings.OPENROUTER_FIRST_EVENT_TIMEOUT_SECONDS), 0.001)
 
 
 def _first_token_timeout_seconds() -> float:
     """用于读取首个模型文本或工具增量超时配置。"""
-    return float(settings.DEEPSEEK_FIRST_TOKEN_TIMEOUT_SECONDS)
+    return float(settings.OPENROUTER_FIRST_TOKEN_TIMEOUT_SECONDS)
 
 
 def _remaining_timeout_seconds(*, started_at: float, timeout_seconds: float) -> float:

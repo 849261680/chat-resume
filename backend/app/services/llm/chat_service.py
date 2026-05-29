@@ -1,7 +1,7 @@
 """
 AI 聊天服务模块
 
-提供基于 DeepSeek 官方 API 的统一 AI 聊天接口。
+提供基于 OpenRouter 的统一 AI 聊天接口。
 """
 
 import asyncio
@@ -25,37 +25,27 @@ class ChatService:
         *,
         api_key: str | None = None,
         api_base: str | None = None,
-        provider_name: str = "DeepSeek",
+        provider_name: str = "OpenRouter",
         extra_headers: dict[str, str] | None = None,
-        thinking_type: Literal["enabled", "disabled"] | None = None,
-        reasoning_effort: Literal["high", "max"] | None = None,
     ):
         """用于初始化聊天服务并允许按场景覆盖模型。"""
         self.provider_name = provider_name
-        self.api_key = api_key if api_key is not None else settings.DEEPSEEK_API_KEY
-        self.api_base = api_base if api_base is not None else settings.DEEPSEEK_API_BASE
-        self.model = model or settings.DEEPSEEK_MODEL
-        self.thinking_type = (
-            thinking_type
-            if thinking_type is not None
-            else settings.DEEPSEEK_THINKING_TYPE
-        )
-        self.reasoning_effort = (
-            reasoning_effort
-            if reasoning_effort is not None
-            else settings.DEEPSEEK_REASONING_EFFORT
-        )
+        self.api_key = api_key if api_key is not None else settings.OPENROUTER_API_KEY
+        self.api_base = api_base if api_base is not None else settings.OPENROUTER_API_BASE
+        self.model = model or settings.OPENROUTER_MODEL
         self.timeout = httpx.Timeout(
-            connect=settings.DEEPSEEK_CONNECT_TIMEOUT_SECONDS,
-            read=settings.DEEPSEEK_READ_TIMEOUT_SECONDS,
-            write=settings.DEEPSEEK_WRITE_TIMEOUT_SECONDS,
-            pool=settings.DEEPSEEK_READ_TIMEOUT_SECONDS,
+            connect=settings.OPENROUTER_CONNECT_TIMEOUT_SECONDS,
+            read=settings.OPENROUTER_READ_TIMEOUT_SECONDS,
+            write=settings.OPENROUTER_WRITE_TIMEOUT_SECONDS,
+            pool=settings.OPENROUTER_READ_TIMEOUT_SECONDS,
         )
-        self.max_retries = max(0, settings.DEEPSEEK_MAX_RETRIES)
-        self.retry_backoff_seconds = max(0.0, settings.DEEPSEEK_RETRY_BACKOFF_SECONDS)
+        self.max_retries = max(0, settings.OPENROUTER_MAX_RETRIES)
+        self.retry_backoff_seconds = max(0.0, settings.OPENROUTER_RETRY_BACKOFF_SECONDS)
         self.headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
+            "HTTP-Referer": "https://chat-resume.com",
+            "X-Title": "Chat Resume AI Assistant",
         }
         if extra_headers:
             self.headers.update(extra_headers)
@@ -324,11 +314,6 @@ class ChatService:
             "temperature": temperature,
             "stream": stream,
         }
-        if self.thinking_type is not None:
-            payload["thinking"] = {"type": self.thinking_type}
-        if self.thinking_type == "enabled" and self.reasoning_effort:
-            payload["reasoning_effort"] = self.reasoning_effort
-
         if max_tokens:
             payload["max_tokens"] = max_tokens
 

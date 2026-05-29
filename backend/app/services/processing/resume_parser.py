@@ -25,23 +25,22 @@ load_dotenv()
 
 
 class AIResumeParser:
-    """基于 DeepSeek 官方 API 的智能简历解析器。"""
+    """基于 OpenRouter 的智能简历解析器。"""
 
     def __init__(self):
         """用于初始化当前对象。"""
         self.file_service = FileService()
-        self.api_key = os.getenv("DEEPSEEK_API_KEY", "")
-        self.api_base = os.getenv("DEEPSEEK_API_BASE", "https://api.deepseek.com")
+        self.api_key = os.getenv("OPENROUTER_API_KEY", "")
+        self.api_base = os.getenv("OPENROUTER_API_BASE", "https://openrouter.ai/api/v1")
         self.model = (
-            os.getenv("DEEPSEEK_RESUME_PARSER_MODEL", "").strip()
-            or os.getenv("DEEPSEEK_MODEL", "deepseek-v4-pro")
+            os.getenv("OPENROUTER_RESUME_PARSER_MODEL", "").strip()
+            or os.getenv("OPENROUTER_MODEL", "google/gemini-2.5-flash")
         )
-        self.thinking_type = os.getenv("DEEPSEEK_THINKING_TYPE", "disabled")
         self.max_retries = 3
         self.timeout = 30
 
         if not self.api_key:
-            logger.warning("DEEPSEEK_API_KEY not found in environment variables")
+            logger.warning("OPENROUTER_API_KEY not found in environment variables")
 
     def parse_resume_text(self, text: str) -> Dict[str, Any]:
         """解析简历文本并结构化 - 主入口方法"""
@@ -95,8 +94,8 @@ class AIResumeParser:
         """使用AI解析简历"""
         # 首先检查API密钥
         if not self.api_key or self.api_key.strip() == "":
-            logger.error("DeepSeek API密钥未配置，无法进行AI解析")
-            raise Exception("DeepSeek API密钥未配置")
+            logger.error("OpenRouter API密钥未配置，无法进行AI解析")
+            raise Exception("OpenRouter API密钥未配置")
 
         prompt = self._create_prompt(text)
 
@@ -145,7 +144,6 @@ class AIResumeParser:
                             "temperature": 0.1,
                             "max_tokens": 8000,
                             "stream": False,
-                            "thinking": {"type": self.thinking_type},
                         },
                     )
 
@@ -210,7 +208,7 @@ class AIResumeParser:
                     extra={"model": self.model, "attempt": attempt + 1},
                 )
                 if attempt == self.max_retries - 1:
-                    raise Exception(f"无法连接到DeepSeek API服务器: {e}")
+                    raise Exception(f"无法连接到OpenRouter API服务器: {e}")
                 await asyncio.sleep(2)
             except httpx.HTTPStatusError as e:
                 logger.warning(

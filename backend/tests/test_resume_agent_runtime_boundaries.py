@@ -1050,7 +1050,7 @@ def test_openrouter_adapter_preserves_business_model_defaults():
 
     config = build_openrouter_config(agent.definition)
 
-    assert config.model.provider == "deepseek"
+    assert config.model.provider == "openrouter"
     assert config.model.api == "openai-compatible"
     assert config.temperature == agent.prompt_spec.model_defaults["temperature"]
     assert config.max_tokens == agent.prompt_spec.model_defaults["max_tokens"]

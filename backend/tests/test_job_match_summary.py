@@ -3,7 +3,6 @@
 import pytest
 
 from app.services.agent import job_match_summary
-from app.infra.config import settings
 from app.services.agent.job_match_summary import (
     build_job_match_summary,
     build_job_match_top_gaps,
@@ -169,7 +168,7 @@ async def test_generate_job_match_summary_uses_default_semantic_llm(monkeypatch)
     assert "不要把 JD 当作分词任务" in prompt
     assert "Function Calling" in prompt
     assert "不要同时输出 AGENT 和 Agent" in prompt
-    assert models == [settings.DEEPSEEK_JOB_MATCH_MODEL]
+    assert models == [job_match_summary.settings.OPENROUTER_JOB_MATCH_MODEL]
     assert result["success"] is True
     assert result["job_match_summary"]["matched_keywords"] == ["React"]
     assert result["job_match_summary"]["missing_keywords"] == ["Redis"]

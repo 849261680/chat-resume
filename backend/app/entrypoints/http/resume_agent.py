@@ -350,7 +350,7 @@ async def get_ai_status():
         # 简单的状态检查
         if chat_service.api_key and chat_service.api_key.strip():
             return {
-                "service": "deepseek",
+                "service": "openrouter",
                 "status": "connected",
                 "is_configured": True,
             }

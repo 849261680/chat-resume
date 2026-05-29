@@ -105,16 +105,62 @@ class Settings(BaseSettings):
             raise ValueError("AUTH_COOKIE_SAMESITE must be one of: lax, strict, none")
         return cast(Literal["lax", "strict", "none"], normalized)
 
-    # OpenRouter API
+    # DeepSeek API
+    DEEPSEEK_API_KEY: str = os.getenv("DEEPSEEK_API_KEY", "")
+    DEEPSEEK_API_BASE: str = os.getenv("DEEPSEEK_API_BASE", "https://api.deepseek.com")
+    DEEPSEEK_MODEL: str = os.getenv("DEEPSEEK_MODEL", "deepseek-v4-pro")
+    DEEPSEEK_JOB_MATCH_MODEL: str = os.getenv(
+        "DEEPSEEK_JOB_MATCH_MODEL",
+        os.getenv("DEEPSEEK_MODEL", "deepseek-v4-pro"),
+    )
+    DEEPSEEK_RESUME_PARSER_MODEL: str = os.getenv(
+        "DEEPSEEK_RESUME_PARSER_MODEL",
+        os.getenv("DEEPSEEK_MODEL", "deepseek-v4-pro"),
+    )
+    DEEPSEEK_THINKING_TYPE: Literal["enabled", "disabled"] = cast(
+        Literal["enabled", "disabled"],
+        os.getenv("DEEPSEEK_THINKING_TYPE", "disabled"),
+    )
+    DEEPSEEK_REASONING_EFFORT: Literal["high", "max"] = cast(
+        Literal["high", "max"],
+        os.getenv("DEEPSEEK_REASONING_EFFORT", "high"),
+    )
+    DEEPSEEK_CONNECT_TIMEOUT_SECONDS: float = float(
+        os.getenv("DEEPSEEK_CONNECT_TIMEOUT_SECONDS", "15")
+    )
+    DEEPSEEK_READ_TIMEOUT_SECONDS: float = float(
+        os.getenv("DEEPSEEK_READ_TIMEOUT_SECONDS", "90")
+    )
+    DEEPSEEK_WRITE_TIMEOUT_SECONDS: float = float(
+        os.getenv("DEEPSEEK_WRITE_TIMEOUT_SECONDS", "30")
+    )
+    DEEPSEEK_FIRST_EVENT_TIMEOUT_SECONDS: float = float(
+        os.getenv("DEEPSEEK_FIRST_EVENT_TIMEOUT_SECONDS", "45")
+    )
+    DEEPSEEK_FIRST_TOKEN_TIMEOUT_SECONDS: float = float(
+        os.getenv("DEEPSEEK_FIRST_TOKEN_TIMEOUT_SECONDS", "0")
+    )
+    DEEPSEEK_MAX_RETRIES: int = int(os.getenv("DEEPSEEK_MAX_RETRIES", "3"))
+    DEEPSEEK_RETRY_BACKOFF_SECONDS: float = float(
+        os.getenv("DEEPSEEK_RETRY_BACKOFF_SECONDS", "1")
+    )
+    DEEPSEEK_CIRCUIT_BREAKER_ENABLED: bool = (
+        os.getenv("DEEPSEEK_CIRCUIT_BREAKER_ENABLED", "true").strip().lower()
+        == "true"
+    )
+    DEEPSEEK_CIRCUIT_BREAKER_FAILURE_THRESHOLD: int = int(
+        os.getenv("DEEPSEEK_CIRCUIT_BREAKER_FAILURE_THRESHOLD", "3")
+    )
+    DEEPSEEK_CIRCUIT_BREAKER_COOLDOWN_SECONDS: float = float(
+        os.getenv("DEEPSEEK_CIRCUIT_BREAKER_COOLDOWN_SECONDS", "30")
+    )
+
+    # OpenRouter vision API, kept for JD image OCR models.
     OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
     OPENROUTER_API_BASE: str = os.getenv(
         "OPENROUTER_API_BASE", "https://openrouter.ai/api/v1"
     )
     OPENROUTER_MODEL: str = os.getenv("OPENROUTER_MODEL", "google/gemini-2.5-flash")
-    OPENROUTER_JOB_MATCH_MODEL: str = os.getenv(
-        "OPENROUTER_JOB_MATCH_MODEL",
-        "deepseek/deepseek-v4-flash",
-    )
     OPENROUTER_VISION_MODEL: str = os.getenv(
         "OPENROUTER_VISION_MODEL",
         "qwen/qwen2.5-vl-72b-instruct",
@@ -123,34 +169,58 @@ class Settings(BaseSettings):
         "OPENROUTER_VISION_FALLBACK_MODELS",
         "google/gemini-2.5-flash",
     )
+    OPENROUTER_JOB_MATCH_MODEL: str = os.getenv(
+        "OPENROUTER_JOB_MATCH_MODEL",
+        DEEPSEEK_JOB_MATCH_MODEL,
+    )
     OPENROUTER_CONNECT_TIMEOUT_SECONDS: float = float(
-        os.getenv("OPENROUTER_CONNECT_TIMEOUT_SECONDS", "15")
+        os.getenv("OPENROUTER_CONNECT_TIMEOUT_SECONDS", str(DEEPSEEK_CONNECT_TIMEOUT_SECONDS))
     )
     OPENROUTER_READ_TIMEOUT_SECONDS: float = float(
-        os.getenv("OPENROUTER_READ_TIMEOUT_SECONDS", "90")
+        os.getenv("OPENROUTER_READ_TIMEOUT_SECONDS", str(DEEPSEEK_READ_TIMEOUT_SECONDS))
     )
     OPENROUTER_WRITE_TIMEOUT_SECONDS: float = float(
-        os.getenv("OPENROUTER_WRITE_TIMEOUT_SECONDS", "30")
+        os.getenv("OPENROUTER_WRITE_TIMEOUT_SECONDS", str(DEEPSEEK_WRITE_TIMEOUT_SECONDS))
     )
     OPENROUTER_FIRST_EVENT_TIMEOUT_SECONDS: float = float(
-        os.getenv("OPENROUTER_FIRST_EVENT_TIMEOUT_SECONDS", "45")
+        os.getenv(
+            "OPENROUTER_FIRST_EVENT_TIMEOUT_SECONDS",
+            str(DEEPSEEK_FIRST_EVENT_TIMEOUT_SECONDS),
+        )
     )
     OPENROUTER_FIRST_TOKEN_TIMEOUT_SECONDS: float = float(
-        os.getenv("OPENROUTER_FIRST_TOKEN_TIMEOUT_SECONDS", "0")
+        os.getenv(
+            "OPENROUTER_FIRST_TOKEN_TIMEOUT_SECONDS",
+            str(DEEPSEEK_FIRST_TOKEN_TIMEOUT_SECONDS),
+        )
     )
-    OPENROUTER_MAX_RETRIES: int = int(os.getenv("OPENROUTER_MAX_RETRIES", "3"))
+    OPENROUTER_MAX_RETRIES: int = int(
+        os.getenv("OPENROUTER_MAX_RETRIES", str(DEEPSEEK_MAX_RETRIES))
+    )
     OPENROUTER_RETRY_BACKOFF_SECONDS: float = float(
-        os.getenv("OPENROUTER_RETRY_BACKOFF_SECONDS", "1")
+        os.getenv(
+            "OPENROUTER_RETRY_BACKOFF_SECONDS",
+            str(DEEPSEEK_RETRY_BACKOFF_SECONDS),
+        )
     )
     OPENROUTER_CIRCUIT_BREAKER_ENABLED: bool = (
-        os.getenv("OPENROUTER_CIRCUIT_BREAKER_ENABLED", "true").strip().lower()
+        os.getenv(
+            "OPENROUTER_CIRCUIT_BREAKER_ENABLED",
+            str(DEEPSEEK_CIRCUIT_BREAKER_ENABLED).lower(),
+        ).strip().lower()
         == "true"
     )
     OPENROUTER_CIRCUIT_BREAKER_FAILURE_THRESHOLD: int = int(
-        os.getenv("OPENROUTER_CIRCUIT_BREAKER_FAILURE_THRESHOLD", "3")
+        os.getenv(
+            "OPENROUTER_CIRCUIT_BREAKER_FAILURE_THRESHOLD",
+            str(DEEPSEEK_CIRCUIT_BREAKER_FAILURE_THRESHOLD),
+        )
     )
     OPENROUTER_CIRCUIT_BREAKER_COOLDOWN_SECONDS: float = float(
-        os.getenv("OPENROUTER_CIRCUIT_BREAKER_COOLDOWN_SECONDS", "30")
+        os.getenv(
+            "OPENROUTER_CIRCUIT_BREAKER_COOLDOWN_SECONDS",
+            str(DEEPSEEK_CIRCUIT_BREAKER_COOLDOWN_SECONDS),
+        )
     )
 
     # MiniMax TTS API

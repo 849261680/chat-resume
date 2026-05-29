@@ -34,49 +34,49 @@ def _parser() -> AIResumeParser:
 
 
 class TestParserModelConfig(unittest.TestCase):
-    def test_resume_parser_model_overrides_global_openrouter_model(self):
+    def test_resume_parser_model_overrides_global_deepseek_model(self):
         """用于验证简历parsermodeloverridesglobalopenroutermodel。"""
         with patch.dict(
             "os.environ",
             {
-                "OPENROUTER_API_KEY": "test-key",
-                "OPENROUTER_MODEL": "deepseek/deepseek-v4-pro",
-                "OPENROUTER_RESUME_PARSER_MODEL": "deepseek/deepseek-v4-flash",
+                "DEEPSEEK_API_KEY": "test-key",
+                "DEEPSEEK_MODEL": "deepseek-v4-pro",
+                "DEEPSEEK_RESUME_PARSER_MODEL": "deepseek-v4-flash",
             },
             clear=False,
         ):
             parser = AIResumeParser()
 
-        self.assertEqual(parser.model, "deepseek/deepseek-v4-flash")
+        self.assertEqual(parser.model, "deepseek-v4-flash")
 
-    def test_resume_parser_model_falls_back_to_global_openrouter_model(self):
+    def test_resume_parser_model_falls_back_to_global_deepseek_model(self):
         """用于验证简历parsermodelfallsbacktoglobalopenroutermodel。"""
         with patch.dict(
             "os.environ",
             {
-                "OPENROUTER_API_KEY": "test-key",
-                "OPENROUTER_MODEL": "deepseek/deepseek-v4-pro",
+                "DEEPSEEK_API_KEY": "test-key",
+                "DEEPSEEK_MODEL": "deepseek-v4-pro",
             },
             clear=False,
         ):
-            with patch.dict("os.environ", {"OPENROUTER_RESUME_PARSER_MODEL": ""}):
+            with patch.dict("os.environ", {"DEEPSEEK_RESUME_PARSER_MODEL": ""}):
                 parser = AIResumeParser()
 
-        self.assertEqual(parser.model, "deepseek/deepseek-v4-pro")
+        self.assertEqual(parser.model, "deepseek-v4-pro")
 
-    def test_openrouter_vision_model_does_not_inherit_global_chat_model(self):
+    def test_openrouter_vision_model_does_not_inherit_global_deepseek_model(self):
         """用于验证openroutervisionmodeldoesnotinheritglobalchatmodel。"""
         from app.infra.config import Settings
 
         with patch.dict(
             "os.environ",
-            {"OPENROUTER_MODEL": "deepseek/deepseek-v4-pro"},
+            {"DEEPSEEK_MODEL": "deepseek-v4-pro"},
             clear=False,
         ):
             os.environ.pop("OPENROUTER_VISION_MODEL", None)
             settings = Settings()
 
-        self.assertEqual(settings.OPENROUTER_MODEL, "deepseek/deepseek-v4-pro")
+        self.assertEqual(settings.DEEPSEEK_MODEL, "deepseek-v4-pro")
         self.assertEqual(
             settings.OPENROUTER_VISION_MODEL,
             "qwen/qwen2.5-vl-72b-instruct",

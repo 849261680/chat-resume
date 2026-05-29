@@ -194,9 +194,12 @@ eval/                          # Agent eval 脚本和用例
 # backend/.env
 DATABASE_URL=sqlite:///./chat_resume.db
 SECRET_KEY=your-secret-key-here
-OPENROUTER_API_KEY=
-OPENROUTER_JOB_MATCH_MODEL=deepseek/deepseek-v4-flash
-OPENROUTER_RESUME_PARSER_MODEL=deepseek/deepseek-v4-flash
+DEEPSEEK_API_KEY=
+DEEPSEEK_API_BASE=https://api.deepseek.com
+DEEPSEEK_MODEL=deepseek-v4-pro
+DEEPSEEK_JOB_MATCH_MODEL=deepseek-v4-pro
+DEEPSEEK_RESUME_PARSER_MODEL=deepseek-v4-pro
+DEEPSEEK_THINKING_TYPE=disabled
 FRONTEND_URL=http://localhost:3000
 BACKEND_CORS_ORIGINS=http://localhost:3000,https://localhost:3000
 

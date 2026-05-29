@@ -168,7 +168,7 @@ async def test_generate_job_match_summary_uses_default_semantic_llm(monkeypatch)
     assert "不要把 JD 当作分词任务" in prompt
     assert "Function Calling" in prompt
     assert "不要同时输出 AGENT 和 Agent" in prompt
-    assert models == ["deepseek/deepseek-v4-flash"]
+    assert models == ["deepseek-v4-pro"]
     assert result["success"] is True
     assert result["job_match_summary"]["matched_keywords"] == ["React"]
     assert result["job_match_summary"]["missing_keywords"] == ["Redis"]

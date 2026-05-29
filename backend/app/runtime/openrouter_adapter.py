@@ -1,4 +1,4 @@
-"""用于集中构建 OpenRouter provider 配置和 pi-agent-core loop 配置。"""
+"""用于集中构建 DeepSeek provider 配置和 pi-agent-core loop 配置。"""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from app.runtime.contracts import AgentDefinition
 
 @dataclass(frozen=True)
 class OpenRouterAdapterConfig:
-    """用于描述一次 OpenRouter LLM 请求的 provider 配置。"""
+    """用于描述一次 DeepSeek LLM 请求的 provider 配置。"""
 
     model: Model
     api_key: str | None
@@ -24,14 +24,14 @@ class OpenRouterAdapterConfig:
 
 
 def build_openrouter_config(agent: AgentDefinition) -> OpenRouterAdapterConfig:
-    """用于从业务 Agent 默认值构造 OpenRouter 配置。"""
+    """用于从业务 Agent 默认值构造 DeepSeek 配置。"""
     return OpenRouterAdapterConfig(
         model=Model(
             api="openai-compatible",
-            provider="openrouter",
-            id=settings.OPENROUTER_MODEL,
+            provider="deepseek",
+            id=settings.DEEPSEEK_MODEL,
         ),
-        api_key=settings.OPENROUTER_API_KEY,
+        api_key=settings.DEEPSEEK_API_KEY,
         temperature=agent.prompt_spec.model_defaults.get("temperature", 0.3),
         max_tokens=agent.prompt_spec.model_defaults.get("max_tokens", 1500),
     )
@@ -42,7 +42,7 @@ def build_openrouter_loop_config(
     *,
     convert_to_llm: Callable[[list[Message]], list[Message]],
 ) -> AgentLoopConfig:
-    """用于创建 pi-agent-core 可执行的 OpenRouter loop 配置。"""
+    """用于创建 pi-agent-core 可执行的 DeepSeek loop 配置。"""
     config = build_openrouter_config(agent)
     return AgentLoopConfig(
         model=config.model,
@@ -56,7 +56,7 @@ def build_openrouter_loop_config(
 
 def openrouter_chat_model_name() -> str:
     """用于返回当前聊天模型名称。"""
-    return settings.OPENROUTER_MODEL
+    return settings.DEEPSEEK_MODEL
 
 
 __all__ = [

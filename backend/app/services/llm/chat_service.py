@@ -1,7 +1,7 @@
 """
 AI 聊天服务模块
 
-提供基于 OpenRouter 的统一 AI 聊天接口。
+提供基于 DeepSeek 官方 API 的统一 AI 聊天接口。
 """
 
 import asyncio
@@ -17,27 +17,48 @@ logger = logging.getLogger(__name__)
 
 
 class ChatService:
-    """AI 聊天服务类，基于 OpenRouter"""
+    """用于封装 OpenAI 兼容聊天接口的异步调用。"""
 
-    def __init__(self, model: str | None = None):
+    def __init__(
+        self,
+        model: str | None = None,
+        *,
+        api_key: str | None = None,
+        api_base: str | None = None,
+        provider_name: str = "DeepSeek",
+        extra_headers: dict[str, str] | None = None,
+        thinking_type: Literal["enabled", "disabled"] | None = None,
+        reasoning_effort: Literal["high", "max"] | None = None,
+    ):
         """用于初始化聊天服务并允许按场景覆盖模型。"""
-        self.api_key = settings.OPENROUTER_API_KEY
-        self.api_base = settings.OPENROUTER_API_BASE
-        self.model = model or settings.OPENROUTER_MODEL
-        self.timeout = httpx.Timeout(
-            connect=settings.OPENROUTER_CONNECT_TIMEOUT_SECONDS,
-            read=settings.OPENROUTER_READ_TIMEOUT_SECONDS,
-            write=settings.OPENROUTER_WRITE_TIMEOUT_SECONDS,
-            pool=settings.OPENROUTER_READ_TIMEOUT_SECONDS,
+        self.provider_name = provider_name
+        self.api_key = api_key if api_key is not None else settings.DEEPSEEK_API_KEY
+        self.api_base = api_base if api_base is not None else settings.DEEPSEEK_API_BASE
+        self.model = model or settings.DEEPSEEK_MODEL
+        self.thinking_type = (
+            thinking_type
+            if thinking_type is not None
+            else settings.DEEPSEEK_THINKING_TYPE
         )
-        self.max_retries = max(0, settings.OPENROUTER_MAX_RETRIES)
-        self.retry_backoff_seconds = max(0.0, settings.OPENROUTER_RETRY_BACKOFF_SECONDS)
+        self.reasoning_effort = (
+            reasoning_effort
+            if reasoning_effort is not None
+            else settings.DEEPSEEK_REASONING_EFFORT
+        )
+        self.timeout = httpx.Timeout(
+            connect=settings.DEEPSEEK_CONNECT_TIMEOUT_SECONDS,
+            read=settings.DEEPSEEK_READ_TIMEOUT_SECONDS,
+            write=settings.DEEPSEEK_WRITE_TIMEOUT_SECONDS,
+            pool=settings.DEEPSEEK_READ_TIMEOUT_SECONDS,
+        )
+        self.max_retries = max(0, settings.DEEPSEEK_MAX_RETRIES)
+        self.retry_backoff_seconds = max(0.0, settings.DEEPSEEK_RETRY_BACKOFF_SECONDS)
         self.headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
-            "HTTP-Referer": "https://chat-resume.com",
-            "X-Title": "Chat Resume AI Assistant",
         }
+        if extra_headers:
+            self.headers.update(extra_headers)
         self.client = httpx.AsyncClient(timeout=self.timeout)
 
     async def __aenter__(self):
@@ -101,7 +122,7 @@ class ChatService:
             AI响应结果(流式时为异步生成器,非流式时为字典)
         """
         if not self.api_key:
-            raise ValueError("未配置 OpenRouter API 密钥")
+            raise ValueError(f"未配置 {self.provider_name} API 密钥")
 
         # 添加系统提示
         if system_prompt:
@@ -131,7 +152,8 @@ class ChatService:
         response = await self._post_with_retries(url, payload)
         elapsed = perf_counter() - started_at
         logger.info(
-            "OpenRouter non-stream completed model=%s elapsed=%.2fs tools=%s",
+            "%s non-stream completed model=%s elapsed=%.2fs tools=%s",
+            self.provider_name,
             self.model,
             elapsed,
             bool(tools),
@@ -201,9 +223,10 @@ class ChatService:
                 if not emitted_any_delta:
                     logger.warning(
                         (
-                            "OpenRouter stream completed without usable deltas "
+                            "%s stream completed without usable deltas "
                             "model=%s payload_size=%s"
                         ),
+                        self.provider_name,
                         self.model,
                         len(_json.dumps(payload, ensure_ascii=False)),
                     )
@@ -301,6 +324,10 @@ class ChatService:
             "temperature": temperature,
             "stream": stream,
         }
+        if self.thinking_type is not None:
+            payload["thinking"] = {"type": self.thinking_type}
+        if self.thinking_type == "enabled" and self.reasoning_effort:
+            payload["reasoning_effort"] = self.reasoning_effort
 
         if max_tokens:
             payload["max_tokens"] = max_tokens
@@ -341,7 +368,8 @@ class ChatService:
         for attempt in range(self.max_retries + 1):
             try:
                 logger.debug(
-                    "OpenRouter request attempt=%s model=%s max_retries=%s",
+                    "%s request attempt=%s model=%s max_retries=%s",
+                    self.provider_name,
                     attempt + 1,
                     self.model,
                     self.max_retries,
@@ -358,7 +386,8 @@ class ChatService:
                 status = e.response.status_code
                 body = e.response.text[:500]
                 logger.warning(
-                    "OpenRouter HTTP error attempt=%s status=%s body=%s",
+                    "%s HTTP error attempt=%s status=%s body=%s",
+                    self.provider_name,
                     attempt + 1,
                     status,
                     body,
@@ -373,14 +402,19 @@ class ChatService:
                 httpx.NetworkError,
             ) as e:
                 logger.warning(
-                    "OpenRouter network error attempt=%s type=%s message=%s",
+                    "%s network error attempt=%s type=%s message=%s",
+                    self.provider_name,
                     attempt + 1,
                     type(e).__name__,
                     str(e),
                 )
                 last_error = e
             except Exception as e:
-                logger.exception("OpenRouter unexpected error attempt=%s", attempt + 1)
+                logger.exception(
+                    "%s unexpected error attempt=%s",
+                    self.provider_name,
+                    attempt + 1,
+                )
                 last_error = e
 
             if attempt < self.max_retries:

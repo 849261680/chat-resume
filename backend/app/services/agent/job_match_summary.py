@@ -77,7 +77,7 @@ class OpenRouterSemanticJobMatchAnalyzer:
             "jd_text": jd_text[:12000],
             "resume_text": resume_text[:18000],
         }
-        async with ChatService(model=settings.OPENROUTER_JOB_MATCH_MODEL) as chat_service:
+        async with ChatService(model=settings.DEEPSEEK_JOB_MATCH_MODEL) as chat_service:
             response = await chat_service.chat_completion(
                 messages=[
                     {

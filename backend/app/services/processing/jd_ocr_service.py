@@ -44,7 +44,7 @@ class JDOcrService:
         last_error: Exception | None = None
         for model in self._candidate_models():
             try:
-                async with ChatService(model=model) as chat_service:
+                async with self._openrouter_chat_service(model) as chat_service:
                     response = await chat_service.chat_completion(
                         messages=messages,
                         temperature=0,
@@ -89,6 +89,22 @@ class JDOcrService:
             if model and model not in candidates:
                 candidates.append(model)
         return candidates
+
+    @staticmethod
+    def _openrouter_chat_service(model: str) -> ChatService:
+        """用于创建 JD 图片 OCR 专用的 OpenRouter 视觉模型客户端。"""
+        return ChatService(
+            model=model,
+            api_key=settings.OPENROUTER_API_KEY,
+            api_base=settings.OPENROUTER_API_BASE,
+            provider_name="OpenRouter",
+            extra_headers={
+                "HTTP-Referer": "https://chat-resume.com",
+                "X-Title": "Chat Resume JD OCR",
+            },
+            thinking_type=None,
+            reasoning_effort=None,
+        )
 
     @staticmethod
     def _is_provider_rejection(exc: Exception) -> bool:

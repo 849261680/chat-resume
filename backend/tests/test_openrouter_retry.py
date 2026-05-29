@@ -171,13 +171,14 @@ def _make_openrouter_stream_args() -> tuple[
     return model, context, options, partial, queue
 
 
-def test_openrouter_body_disables_reasoning_explicitly():
-    """OpenRouter 请求体应显式关闭 reasoning，避免 provider 默认开启深度推理。"""
+def test_openrouter_body_disables_thinking_explicitly():
+    """DeepSeek 请求体应显式关闭 thinking，避免工具调用缺 reasoning_content。"""
     model, context, options, _, _ = _make_openrouter_stream_args()
 
     body = _openrouter_body(model, context, options)
 
-    assert body["reasoning"] == {"effort": "none"}
+    assert body["thinking"] == {"type": "disabled"}
+    assert "reasoning" not in body
 
 
 def test_openai_assistant_tool_call_omits_empty_content():
@@ -492,7 +493,7 @@ async def test_openrouter_stream_times_out_before_first_event(
     model, context, options, partial, queue = _make_openrouter_stream_args()
     _FakeOpenRouterClient.lines = ["data: [DONE]"]
     _FakeOpenRouterClient.delay_seconds = 0.05
-    monkeypatch.setattr(openrouter.settings, "OPENROUTER_FIRST_EVENT_TIMEOUT_SECONDS", 0.01)
+    monkeypatch.setattr(openrouter.settings, "DEEPSEEK_FIRST_EVENT_TIMEOUT_SECONDS", 0.01)
 
     with patch(
         "app.runtime.pi_agent_openrouter.httpx.AsyncClient",
@@ -513,8 +514,8 @@ async def test_openrouter_stream_times_out_before_first_token(
         'data: {"choices":[{"delta":{"content":"晚了"}}]}',
     ]
     _FakeOpenRouterClient.delay_seconds = 0.05
-    monkeypatch.setattr(openrouter.settings, "OPENROUTER_FIRST_EVENT_TIMEOUT_SECONDS", 1.0)
-    monkeypatch.setattr(openrouter.settings, "OPENROUTER_FIRST_TOKEN_TIMEOUT_SECONDS", 0.01)
+    monkeypatch.setattr(openrouter.settings, "DEEPSEEK_FIRST_EVENT_TIMEOUT_SECONDS", 1.0)
+    monkeypatch.setattr(openrouter.settings, "DEEPSEEK_FIRST_TOKEN_TIMEOUT_SECONDS", 0.01)
 
     with patch(
         "app.runtime.pi_agent_openrouter.httpx.AsyncClient",
@@ -536,8 +537,8 @@ async def test_openrouter_first_token_timeout_can_be_disabled(
         "data: [DONE]",
     ]
     _FakeOpenRouterClient.delay_seconds = 0.02
-    monkeypatch.setattr(openrouter.settings, "OPENROUTER_FIRST_EVENT_TIMEOUT_SECONDS", 1.0)
-    monkeypatch.setattr(openrouter.settings, "OPENROUTER_FIRST_TOKEN_TIMEOUT_SECONDS", 0.0)
+    monkeypatch.setattr(openrouter.settings, "DEEPSEEK_FIRST_EVENT_TIMEOUT_SECONDS", 1.0)
+    monkeypatch.setattr(openrouter.settings, "DEEPSEEK_FIRST_TOKEN_TIMEOUT_SECONDS", 0.0)
 
     with patch(
         "app.runtime.pi_agent_openrouter.httpx.AsyncClient",
@@ -565,8 +566,8 @@ async def test_429_retry_then_success():
         side_effect=fake_pump,
     ), patch(
         "app.runtime.pi_agent_openrouter.settings",
-        OPENROUTER_MAX_RETRIES=3,
-        OPENROUTER_CIRCUIT_BREAKER_ENABLED=False,
+        DEEPSEEK_MAX_RETRIES=3,
+        DEEPSEEK_CIRCUIT_BREAKER_ENABLED=False,
     ), patch(
         "asyncio.sleep",
         new_callable=AsyncMock,
@@ -589,8 +590,8 @@ async def test_503_all_retries_exhausted_raises():
         side_effect=fake_pump,
     ), patch(
         "app.runtime.pi_agent_openrouter.settings",
-        OPENROUTER_MAX_RETRIES=3,
-        OPENROUTER_CIRCUIT_BREAKER_ENABLED=False,
+        DEEPSEEK_MAX_RETRIES=3,
+        DEEPSEEK_CIRCUIT_BREAKER_ENABLED=False,
     ), patch(
         "asyncio.sleep",
         new_callable=AsyncMock,
@@ -622,8 +623,8 @@ async def test_429_with_retry_after_header_uses_header_value():
         side_effect=fake_pump,
     ), patch(
         "app.runtime.pi_agent_openrouter.settings",
-        OPENROUTER_MAX_RETRIES=3,
-        OPENROUTER_CIRCUIT_BREAKER_ENABLED=False,
+        DEEPSEEK_MAX_RETRIES=3,
+        DEEPSEEK_CIRCUIT_BREAKER_ENABLED=False,
     ), patch(
         "asyncio.sleep",
         side_effect=fake_sleep,
@@ -650,8 +651,8 @@ async def test_400_non_retryable_raises_immediately():
         side_effect=fake_pump,
     ), patch(
         "app.runtime.pi_agent_openrouter.settings",
-        OPENROUTER_MAX_RETRIES=3,
-        OPENROUTER_CIRCUIT_BREAKER_ENABLED=False,
+        DEEPSEEK_MAX_RETRIES=3,
+        DEEPSEEK_CIRCUIT_BREAKER_ENABLED=False,
     ), patch(
         "asyncio.sleep",
         new_callable=AsyncMock,
@@ -679,8 +680,8 @@ async def test_connect_error_retried():
         side_effect=fake_pump,
     ), patch(
         "app.runtime.pi_agent_openrouter.settings",
-        OPENROUTER_MAX_RETRIES=2,
-        OPENROUTER_CIRCUIT_BREAKER_ENABLED=False,
+        DEEPSEEK_MAX_RETRIES=2,
+        DEEPSEEK_CIRCUIT_BREAKER_ENABLED=False,
     ), patch(
         "asyncio.sleep",
         new_callable=AsyncMock,
@@ -709,10 +710,10 @@ async def test_circuit_breaker_opens_after_repeated_failures():
         side_effect=fake_pump,
     ), patch(
         "app.runtime.pi_agent_openrouter.settings",
-        OPENROUTER_MAX_RETRIES=0,
-        OPENROUTER_CIRCUIT_BREAKER_ENABLED=True,
-        OPENROUTER_CIRCUIT_BREAKER_FAILURE_THRESHOLD=2,
-        OPENROUTER_CIRCUIT_BREAKER_COOLDOWN_SECONDS=60,
+        DEEPSEEK_MAX_RETRIES=0,
+        DEEPSEEK_CIRCUIT_BREAKER_ENABLED=True,
+        DEEPSEEK_CIRCUIT_BREAKER_FAILURE_THRESHOLD=2,
+        DEEPSEEK_CIRCUIT_BREAKER_COOLDOWN_SECONDS=60,
     ), patch(
         "asyncio.sleep",
         new_callable=AsyncMock,
@@ -746,10 +747,10 @@ async def test_circuit_breaker_allows_probe_after_cooldown():
         side_effect=fake_pump,
     ), patch(
         "app.runtime.pi_agent_openrouter.settings",
-        OPENROUTER_MAX_RETRIES=0,
-        OPENROUTER_CIRCUIT_BREAKER_ENABLED=True,
-        OPENROUTER_CIRCUIT_BREAKER_FAILURE_THRESHOLD=2,
-        OPENROUTER_CIRCUIT_BREAKER_COOLDOWN_SECONDS=60,
+        DEEPSEEK_MAX_RETRIES=0,
+        DEEPSEEK_CIRCUIT_BREAKER_ENABLED=True,
+        DEEPSEEK_CIRCUIT_BREAKER_FAILURE_THRESHOLD=2,
+        DEEPSEEK_CIRCUIT_BREAKER_COOLDOWN_SECONDS=60,
     ), patch(
         "app.runtime.pi_agent_openrouter.monotonic",
         side_effect=lambda: now,

@@ -23,8 +23,9 @@ class JDOcrServiceTests(unittest.IsolatedAsyncioTestCase):
                 """用于处理coercecontenttext。"""
                 return value if isinstance(value, str) else ""
 
-            def __init__(self, model: str):
+            def __init__(self, model: str, **kwargs):
                 """用于处理init。"""
+                del kwargs
                 self.model = model
                 called_models.append(model)
 

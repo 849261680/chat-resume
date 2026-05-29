@@ -236,6 +236,7 @@ def test_render_pdf_with_playwright_uses_expected_page_settings(tmp_path, monkey
     assert captured["pdf"] == {
         "path": str(output_path),
         "format": "A4",
+        "prefer_css_page_size": True,
         "print_background": True,
         "margin": {"top": "0", "right": "0", "bottom": "0", "left": "0"},
     }

@@ -92,7 +92,7 @@ async function measureFirstPageBottomGap(page: Page) {
     if (!pageElement || lineElements.length === 0) return 0
 
     const pageRect = pageElement.getBoundingClientRect()
-    const previewScale = pageRect.width / 793
+    const previewScale = pageRect.width / 794
     const lastLineBottom = Math.max(...lineElements.map(element => element.getBoundingClientRect().bottom))
     return (pageRect.bottom - lastLineBottom) / previewScale
   })
@@ -102,7 +102,7 @@ test('切换简历样式时预览不会先放大再缩回', async ({ page }) => 
   await mockEditorApis(page)
   await page.goto('/zh/resume/123/edit')
 
-  const pageSheet = page.locator('.resume-page').first()
+  const pageSheet = page.locator('#resume-export-content .resume-page').first()
   await expect(pageSheet).toBeVisible()
   await expect(page.getByText('计算中...')).toHaveCount(0)
   const beforeBox = await pageSheet.boundingBox()
@@ -112,7 +112,7 @@ test('切换简历样式时预览不会先放大再缩回', async ({ page }) => 
     const samples: number[] = []
     Object.assign(window, { __resumePageWidthSamples: samples })
     const sample = () => {
-      const pageElement = document.querySelector('.resume-page')
+      const pageElement = document.querySelector('#resume-export-content .resume-page')
       if (pageElement) {
         samples.push(pageElement.getBoundingClientRect().width)
       }

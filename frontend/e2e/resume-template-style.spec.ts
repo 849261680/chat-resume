@@ -269,10 +269,13 @@ test.describe('简历模板样式', () => {
     const printState = await page.evaluate(() => {
       return Array.from(document.querySelectorAll<HTMLElement>('.resume-page')).map((element) => {
         const style = window.getComputedStyle(element)
+        const rect = element.getBoundingClientRect()
         return {
           display: style.display,
           pageBreakAfter: style.pageBreakAfter,
           breakAfter: style.breakAfter,
+          height: rect.height,
+          width: rect.width,
           visible: style.display !== 'none' && style.visibility !== 'hidden',
         }
       })
@@ -280,6 +283,8 @@ test.describe('简历模板样式', () => {
 
     const printablePages = printState.filter((item) => item.visible)
     expect(printablePages).toHaveLength(1)
+    expect(printablePages[0].width).toBeGreaterThan(793)
+    expect(printablePages[0].height).toBeGreaterThan(1120)
     expect(printablePages[0].pageBreakAfter).not.toBe('always')
     expect(printablePages[0].breakAfter).not.toBe('page')
   })
@@ -336,6 +341,7 @@ test.describe('简历模板样式', () => {
     const pdf = await page.pdf({
       format: 'A4',
       margin: { top: '0', right: '0', bottom: '0', left: '0' },
+      preferCSSPageSize: true,
       printBackground: true,
     })
 

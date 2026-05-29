@@ -23,6 +23,9 @@ export default function PrintRootLayout({
 }) {
   return (
     <html lang="zh" data-scroll-behavior="smooth" suppressHydrationWarning>
+      <head>
+        <link id="resume-print-styles" rel="stylesheet" href="/styles/resume-print.css" />
+      </head>
       <body className="font-sans">
         <NextIntlClientProvider>{children}</NextIntlClientProvider>
       </body>

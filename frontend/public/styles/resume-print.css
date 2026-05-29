@@ -21,11 +21,11 @@
     margin: 0 !important;
     box-shadow: none !important;
     border: none !important;
-    width: 793px !important;
-    min-height: 1100px !important;
-    height: 1100px !important;
+    width: 210mm !important;
+    min-height: 297mm !important;
+    height: 297mm !important;
     background: white !important;
-    aspect-ratio: 793 / 1100 !important;
+    aspect-ratio: 210 / 297 !important;
     box-sizing: border-box !important;
   }
 
@@ -243,7 +243,7 @@
 /* 超大屏幕适配 */
 @media screen and (min-width: 1920px) {
   .resume-page {
-    max-width: 793px; /* 限制最大宽度为A4标准 */
+    max-width: 794px; /* 限制最大宽度为A4标准 */
   }
 }
 

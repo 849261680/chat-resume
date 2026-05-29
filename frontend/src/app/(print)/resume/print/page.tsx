@@ -1,5 +1,10 @@
 // 用于提供 app/(print)/resume/print/page.tsx 模块。
 import ResumePreview from '@/components/preview/ResumePreview'
+import {
+  buildModuleConfig,
+  deserializeLayoutConfig,
+} from '@/lib/resumeLayoutConfig'
+import type { ResumeContent } from '@/types/resume'
 import type { ResumeTemplateStyle } from '@/types/resumeLayout'
 import { getTranslations } from 'next-intl/server'
 
@@ -20,7 +25,8 @@ function decodePayload(data?: string) {
   try {
     const json = Buffer.from(data, 'base64url').toString('utf-8')
     return JSON.parse(json) as {
-      content?: Record<string, unknown>
+      content?: ResumeContent
+      layout_config?: Record<string, unknown> | null
       template?: string
     }
   } catch {
@@ -39,7 +45,14 @@ export default async function ResumePrintPage({ searchParams }: PageProps) {
   const resolvedSearchParams = await searchParams
   const payload = decodePayload(resolvedSearchParams?.data)
   const content = payload?.content
-  const templateStyle = normalizeTemplateStyle(payload?.template)
+  const layoutConfig = deserializeLayoutConfig(payload?.layout_config)
+  const templateStyle = normalizeTemplateStyle(
+    payload?.template || layoutConfig.templateStyle,
+  )
+  const moduleOrder = buildModuleConfig(
+    layoutConfig.moduleOrder,
+    layoutConfig.visibleModules,
+  )
 
   if (!content) {
     return (
@@ -51,7 +64,12 @@ export default async function ResumePrintPage({ searchParams }: PageProps) {
 
   return (
     <main className="bg-white">
-      <ResumePreview content={content} templateStyle={templateStyle} />
+      <ResumePreview
+        content={content}
+        moduleOrder={moduleOrder}
+        spacingScale={layoutConfig.spacingScale}
+        templateStyle={templateStyle}
+      />
     </main>
   )
 }

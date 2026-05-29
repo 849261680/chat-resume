@@ -1,4 +1,5 @@
 import type { ResumeContent } from '@/types/resume'
+import type { ResumeLayoutConfig } from './resumeLayoutConfig'
 import { apiFetch, fetchWithTimeout, handleApiResponse } from './httpClient'
 
 // 简历内容接口定义
@@ -409,7 +410,8 @@ class ResumeAPI {
   static async exportResume(
     id: number,
     format: 'pdf' | 'docx' | 'html',
-    template: string = 'default'
+    template: string = 'default',
+    layoutConfig?: ResumeLayoutConfig | Record<string, unknown>,
   ): Promise<ExportResponse> {
     const response = await apiFetch(`/api/resumes/${id}/export`, {
       method: 'POST',
@@ -419,6 +421,7 @@ class ResumeAPI {
       body: JSON.stringify({
         format,
         template,
+        layout_config: layoutConfig,
       }),
     })
 

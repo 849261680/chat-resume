@@ -146,7 +146,7 @@ export function deserializeLayoutConfig(raw: Record<string, unknown> | null | un
  * 将 ResumeLayoutConfig 序列化为可存 JSON 的对象（Set → Array）
  */
 // 用于序列化布局配置。
-function serializeLayoutConfig(config: ResumeLayoutConfig) {
+export function serializeLayoutConfig(config: ResumeLayoutConfig) {
   return {
     density: config.density,
     moduleOrder: config.moduleOrder,

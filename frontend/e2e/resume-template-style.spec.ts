@@ -86,7 +86,7 @@ test.describe('简历模板样式', () => {
 
     await page.goto(`/resume/print?data=${payload}`)
 
-    const pageSheet = page.locator('.resume-page.resume-template-emerald')
+    const pageSheet = page.locator('.resume-page.resume-template-emerald:not(.invisible)').first()
     await expect(pageSheet).toBeVisible()
 
     const header = pageSheet.locator('.resume-emerald-personal')
@@ -171,11 +171,61 @@ test.describe('简历模板样式', () => {
 
     await page.goto(`/resume/print?data=${payload}`)
 
-    const pageSheet = page.locator('.resume-page.resume-template-formal')
+    const pageSheet = page.locator('.resume-page.resume-template-formal:not(.invisible)').first()
     await expect(pageSheet).toBeVisible()
     await expect(page.getByRole('heading', { name: '彭世雄' })).toHaveCSS('text-align', 'left')
     await expect(pageSheet).toContainText('GitHub: https://github.com/849261680')
     await expect(pageSheet).toContainText('个人网站: https://psx1.vercel.app')
+  })
+
+  test('打印页复用导出载荷中的布局配置', async ({ page }) => {
+    const payload = encodePrintPayload({
+      template: 'classic',
+      layout_config: {
+        density: 'compact',
+        moduleOrder: ['personal', 'work', 'projects', 'skills', 'education'],
+        visibleModules: ['personal', 'work'],
+        spacingScale: 0.7,
+        templateStyle: 'classic',
+      },
+      content: {
+        personal_info: {
+          name: '布局导出',
+          email: 'layout@example.com',
+        },
+        education: [
+          {
+            school: '不应显示大学',
+            degree: '本科',
+            major: '计算机',
+            duration: '2019-2023',
+          },
+        ],
+        work_experience: [
+          {
+            company: '优先工作经历',
+            position: '工程师',
+            duration: '2024-至今',
+          },
+        ],
+        skills: [
+          {
+            category: '不应显示技能',
+            items: ['TypeScript'],
+          },
+        ],
+        projects: [],
+      },
+    })
+
+    await page.goto(`/resume/print?data=${payload}`)
+
+    const pageSheet = page.locator('.resume-page.resume-template-classic:not(.invisible)').first()
+    await expect(pageSheet).toBeVisible()
+    await expect(pageSheet).toContainText('布局导出')
+    await expect(pageSheet).toContainText('优先工作经历')
+    await expect(pageSheet).not.toContainText('不应显示大学')
+    await expect(pageSheet).not.toContainText('不应显示技能')
   })
 
   test('分页断点落在文字行上，避免页尾大块空白', async ({ page }) => {

@@ -5,17 +5,22 @@
 支持多种格式导出的数据验证和序列化。
 """
 
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel
 
 
 class ExportRequest(BaseModel):
+    """用于校验导出请求参数。"""
+
     format: str  # pdf, docx, html
     template: Optional[str] = "default"
+    layout_config: Optional[dict[str, Any]] = None
 
 
 class ExportResponse(BaseModel):
+    """用于返回导出文件下载信息。"""
+
     download_url: str
     filename: str
     format: str

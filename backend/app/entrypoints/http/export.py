@@ -48,9 +48,16 @@ async def export_resume(
             Dict[str, Any], resume.content if resume.content is not None else {}
         )
         template_name: str = export_request.template or "default"
+        layout_config: Dict[str, Any] | None = export_request.layout_config
+        if layout_config is None and resume.layout_config is not None:
+            layout_config = cast(Dict[str, Any], resume.layout_config)
 
         if export_request.format == "pdf":
-            filepath = await export_service.export_to_pdf(resume_data, template_name)
+            filepath = await export_service.export_to_pdf(
+                resume_data,
+                template_name,
+                layout_config,
+            )
         elif export_request.format == "docx":
             filepath = export_service.export_to_docx(resume_data, template_name)
         elif export_request.format == "html":

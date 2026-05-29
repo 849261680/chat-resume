@@ -22,6 +22,7 @@ import {
   ResumeModule,
   saveLayoutConfig,
   saveLayoutConfigToServer,
+  serializeLayoutConfig,
 } from '@/lib/resumeLayoutConfig'
 import type { ModuleConfig } from '@/types/resumeLayout'
 
@@ -168,7 +169,12 @@ export function useResumeEditor({ resumeId, isAuthenticated }: UseResumeEditorOp
     try {
       setExporting(true)
       const toastId = toast.loading(t('editor.exporting'))
-      const result = await resumeApi.exportResume(resume.id, 'pdf', layoutConfig.templateStyle)
+      const result = await resumeApi.exportResume(
+        resume.id,
+        'pdf',
+        layoutConfig.templateStyle,
+        serializeLayoutConfig(layoutConfig),
+      )
       const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
       const downloadUrl = `${apiBaseUrl}${result.download_url}`
       const link = document.createElement('a')

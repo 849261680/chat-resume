@@ -2,7 +2,7 @@
 import { streamText } from 'ai'
 
 const result = streamText({
-  model: 'openai/gpt-5.5',
+  model: 'deepseek/deepseek-v4-pro',
   prompt: 'Explain quantum computing in simple terms.',
 })
 

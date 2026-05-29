@@ -220,7 +220,7 @@ export default function PaginatedResumePreview({
   const paginationMeasurementContent = useMemo(() => (
     <div
       ref={contentRef}
-      className={`resume-template-${templateStyle} invisible absolute -top-[9999px] left-0 pointer-events-none`}
+      className={`resume-template-${templateStyle} invisible absolute -top-[9999px] left-0 pointer-events-none print:hidden`}
       style={{
         width: `${pageContentWidth}px`,
         boxSizing: 'border-box',
@@ -236,7 +236,7 @@ export default function PaginatedResumePreview({
   const smartFitMeasurementContent = useMemo(() => (
     <div
       ref={smartFitPageRef}
-      className={`resume-page resume-template-${templateStyle} invisible absolute -top-[9999px] left-0 pointer-events-none bg-white border border-gray-200`}
+      className={`resume-page resume-template-${templateStyle} invisible absolute -top-[9999px] left-0 pointer-events-none bg-white border border-gray-200 print:hidden`}
       style={{
         width: `${A4_WIDTH}px`,
         aspectRatio: `${210 / 297}`,
@@ -334,7 +334,7 @@ export default function PaginatedResumePreview({
                   key={pageIndex}
                   pageNumber={pageIndex + 1}
                   totalPages={totalPages}
-                  className="print:break-after-page"
+                  className={pageIndex < pages.length - 1 ? 'print:break-after-page' : ''}
                   templateStyle={templateStyle}
                 >
                   {renderPageSlice(pageIndex)}

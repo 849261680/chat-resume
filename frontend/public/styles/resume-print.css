@@ -15,7 +15,8 @@
 
   /* 页面容器 */
   .resume-page {
-    page-break-after: always;
+    page-break-after: auto;
+    break-after: auto;
     page-break-inside: avoid;
     margin: 0 !important;
     box-shadow: none !important;
@@ -155,7 +156,8 @@
   }
 
   .print\\:break-after-page {
-    page-break-after: always;
+    page-break-after: always !important;
+    break-after: page !important;
   }
 
   .resume-page.print\\:break-after-page:last-child {

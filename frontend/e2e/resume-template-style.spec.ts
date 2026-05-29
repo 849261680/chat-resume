@@ -228,6 +228,56 @@ test.describe('简历模板样式', () => {
     await expect(pageSheet).not.toContainText('不应显示技能')
   })
 
+  test('单页打印页不会产生尾部空白页', async ({ page }) => {
+    const payload = encodePrintPayload({
+      template: 'classic',
+      content: {
+        personal_info: {
+          name: '单页打印',
+          email: 'one-page@example.com',
+        },
+        education: [
+          {
+            school: '测试大学',
+            degree: '本科',
+            major: '计算机',
+            duration: '2019-2023',
+          },
+        ],
+        work_experience: [
+          {
+            company: '测试公司',
+            position: '工程师',
+            duration: '2024-至今',
+            highlights: [{ text: '负责简历打印页一致性修复。' }],
+          },
+        ],
+        skills: [],
+        projects: [],
+      },
+    })
+
+    await page.goto(`/resume/print?data=${payload}`)
+    await page.emulateMedia({ media: 'print' })
+
+    const printState = await page.evaluate(() => {
+      return Array.from(document.querySelectorAll<HTMLElement>('.resume-page')).map((element) => {
+        const style = window.getComputedStyle(element)
+        return {
+          display: style.display,
+          pageBreakAfter: style.pageBreakAfter,
+          breakAfter: style.breakAfter,
+          visible: style.display !== 'none' && style.visibility !== 'hidden',
+        }
+      })
+    })
+
+    const printablePages = printState.filter((item) => item.visible)
+    expect(printablePages).toHaveLength(1)
+    expect(printablePages[0].pageBreakAfter).not.toBe('always')
+    expect(printablePages[0].breakAfter).not.toBe('page')
+  })
+
   test('分页断点落在文字行上，避免页尾大块空白', async ({ page }) => {
     const longText = '针对复杂项目经历描述较长时的换行场景，分页器应该继续把下一条可见文字行排到当前页底部，而不是把整个项目块推到下一页造成大块空白。'
     const payload = encodePrintPayload({

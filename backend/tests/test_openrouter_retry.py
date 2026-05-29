@@ -244,6 +244,23 @@ def test_openai_tools_normalizes_enum_property_types():
     assert properties["meta"]["properties"]["level"]["type"] == "number"
 
 
+def test_resume_update_skills_schema_uses_deepseek_safe_field_name():
+    """update_skills 不应暴露 items 作为参数名，避免 DeepSeek 误判 schema。"""
+    from app.tools.resume.registry import RESUME_TOOLS_SCHEMA
+
+    schema = next(
+        item
+        for item in RESUME_TOOLS_SCHEMA
+        if item.get("function", {}).get("name") == "update_skills"
+    )
+    parameters = schema["function"]["parameters"]
+    properties = parameters["properties"]
+
+    assert "skills" in properties
+    assert "items" not in properties
+    assert "skills" in parameters["required"]
+
+
 @pytest.mark.asyncio
 async def test_openrouter_stream_logs_latency_stages(caplog: pytest.LogCaptureFixture):
     """OpenRouter 流式请求应记录关键阶段，便于定位慢在哪一段。"""

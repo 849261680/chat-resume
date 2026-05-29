@@ -66,6 +66,7 @@ _ARGUMENT_ALIASES_BY_TOOL = {
     "update_bullet": {"highlight_id": "bullet_id"},
     "remove_bullet": {"highlight_id": "bullet_id"},
     "update_overview": {"text": "overview", "description": "overview"},
+    "update_skills": {"skills": "items"},
 }
 
 

@@ -134,7 +134,7 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
                         "type": "string",
                         "description": "新的技能分类名称",
                     },
-                    "items": {
+                    "skills": {
                         "type": "array",
                         "items": {"type": "string"},
                         "description": "技能列表",
@@ -149,7 +149,7 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
                         "description": "本次修改的简短理由，供前端展示",
                     },
                 },
-                "required": ["category_id", "items"],
+                "required": ["category_id", "skills"],
             },
         },
     },

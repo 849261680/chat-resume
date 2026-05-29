@@ -135,7 +135,6 @@ export default function PaginatedResumePreview({
 
       const container = containerRef.current
       const containerWidth = container.clientWidth
-      const A4_WIDTH = 816
       const padding = viewportPadding
 
       const availableWidth = containerWidth - padding * 2
@@ -239,7 +238,7 @@ export default function PaginatedResumePreview({
       className={`resume-page resume-template-${templateStyle} invisible absolute -top-[9999px] left-0 pointer-events-none bg-white border border-gray-200 print:hidden`}
       style={{
         width: `${A4_WIDTH}px`,
-        aspectRatio: `${210 / 297}`,
+        aspectRatio: `${A4_WIDTH / A4_HEIGHT}`,
         paddingTop: `calc(var(--spacing-scale, 1) * ${PAGE_PADDING}px)`,
         paddingBottom: `calc(var(--spacing-scale, 1) * ${PAGE_PADDING}px)`,
         paddingLeft: `${PAGE_PADDING}px`,

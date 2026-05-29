@@ -1,6 +1,6 @@
 // 用于提供 components/preview/ResumePage.tsx 模块。
 import React, { forwardRef } from 'react'
-import { A4_WIDTH, PAGE_PADDING } from './hooks/useLineBasedPagination'
+import { A4_HEIGHT, A4_WIDTH, PAGE_PADDING } from './hooks/useLineBasedPagination'
 import type { ResumeTemplateStyle } from '@/types/resumeLayout'
 
 interface ResumePageProps {
@@ -13,8 +13,7 @@ interface ResumePageProps {
 
 const ResumePage = forwardRef<HTMLDivElement, ResumePageProps>(
   ({ pageNumber, totalPages, children, className = '', templateStyle = 'classic' }, ref) => {
-    // A4纸张比例: 210mm x 297mm = 0.7070
-    const A4_RATIO = 210 / 297
+    const pageRatio = A4_WIDTH / A4_HEIGHT
     
     return (
       <div
@@ -22,8 +21,7 @@ const ResumePage = forwardRef<HTMLDivElement, ResumePageProps>(
         className={`resume-page resume-template-${templateStyle} relative bg-white border border-gray-200 mx-auto mb-6 ${className}`}
         style={{
           width: `${A4_WIDTH}px`, // 基础宽度，会被transform scale缩放
-          aspectRatio: `${A4_RATIO}`, // 保持A4比例
-          margin: '0 auto 24px auto',
+          aspectRatio: `${pageRatio}`,
           paddingTop: `calc(var(--spacing-scale, 1) * ${PAGE_PADDING}px)`,
           paddingBottom: `calc(var(--spacing-scale, 1) * ${PAGE_PADDING}px)`,
           paddingLeft: `${PAGE_PADDING}px`,

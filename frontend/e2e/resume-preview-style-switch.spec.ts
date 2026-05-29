@@ -92,7 +92,7 @@ async function measureFirstPageBottomGap(page: Page) {
     if (!pageElement || lineElements.length === 0) return 0
 
     const pageRect = pageElement.getBoundingClientRect()
-    const previewScale = pageRect.width / 816
+    const previewScale = pageRect.width / 793
     const lastLineBottom = Math.max(...lineElements.map(element => element.getBoundingClientRect().bottom))
     return (pageRect.bottom - lastLineBottom) / previewScale
   })

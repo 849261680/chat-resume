@@ -6,6 +6,12 @@ function encodePrintPayload(payload: Record<string, unknown>) {
   return Buffer.from(JSON.stringify(payload)).toString('base64url')
 }
 
+// 用于统计 Playwright 生成的 PDF 页数。
+function countPdfPages(pdf: Buffer) {
+  const text = pdf.toString('latin1')
+  return (text.match(/\/Type\s*\/Page\b/g) || []).length
+}
+
 test.describe('简历模板样式', () => {
   test('打印页不触发登录态刷新', async ({ page }) => {
     const authRequests: string[] = []
@@ -276,6 +282,64 @@ test.describe('简历模板样式', () => {
     expect(printablePages).toHaveLength(1)
     expect(printablePages[0].pageBreakAfter).not.toBe('always')
     expect(printablePages[0].breakAfter).not.toBe('page')
+  })
+
+  test('单页打印页导出的 PDF 只有一页', async ({ page }) => {
+    const payload = encodePrintPayload({
+      template: 'emerald',
+      content: {
+        personal_info: {
+          name: '彭世雄',
+          position: 'AI Agent开发工程师',
+          phone: '18980162782',
+          email: 'psx849261680@gmail.com',
+          github: 'https://github.com/849261680',
+        },
+        education: [
+          {
+            school: '东北大学',
+            degree: '本科',
+            major: '信息安全',
+            duration: '2019-2023',
+          },
+        ],
+        work_experience: [
+          {
+            company: '世优科技',
+            position: 'AI Agent开发工程师',
+            duration: '2025/08 - 2025/11',
+            highlights: [
+              { text: '设计 Agent Planning、Tool Use、Memory 多阶段执行链路。' },
+              { text: '基于 RAG 检索增强构建企业知识库问答与任务执行。' },
+            ],
+          },
+        ],
+        projects: [
+          {
+            name: 'Chat Resume',
+            role: '核心开发者',
+            duration: '2025',
+            overview: 'AI 驱动的求职辅导平台。',
+            highlights: [
+              { text: '集成 MCP 工具调用、简历解析和模拟面试工作流。' },
+              { text: '实现 JD 匹配度分析和结构化优化建议。' },
+            ],
+          },
+        ],
+        skills: [],
+      },
+    })
+
+    await page.goto(`/resume/print?data=${payload}`)
+    await expect(page.locator('.resume-page.resume-template-emerald:not(.invisible)').first()).toBeVisible()
+
+    const pdf = await page.pdf({
+      format: 'A4',
+      margin: { top: '0', right: '0', bottom: '0', left: '0' },
+      printBackground: true,
+    })
+
+    expect(countPdfPages(pdf)).toBe(1)
   })
 
   test('分页断点落在文字行上，避免页尾大块空白', async ({ page }) => {

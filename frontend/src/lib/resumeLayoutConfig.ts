@@ -67,7 +67,6 @@ function normalizeVisibleModules(rawVisible: unknown): Set<ResumeModule> {
   const visible = rawVisible.filter((module): module is ResumeModule => (
     DEFAULT_MODULE_ORDER.includes(module as ResumeModule)
   ))
-  if (!rawVisible.includes('summary')) visible.push('summary')
   return new Set(visible)
 }
 

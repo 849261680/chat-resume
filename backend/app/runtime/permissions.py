@@ -21,7 +21,7 @@ class ConfirmationSessionManager:
         """用于按 session_id 获取已有确认队列。"""
         return self._queues.get(session_id)
 
-    async def put(self, session_id: str, confirmed: bool) -> bool:
+    async def put(self, session_id: str, confirmed: bool | dict) -> bool:
         """用于向指定会话投递一次确认结果。"""
         q = self._queues.get(session_id)
         if q is None:

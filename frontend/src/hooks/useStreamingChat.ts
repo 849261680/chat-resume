@@ -859,16 +859,23 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
   }
 
   // 用于处理confirm工具。
-  const confirmTool = async (callId: string, confirmed: boolean, source = 'unknown') => {
+  const confirmTool = async (
+    callId: string,
+    confirmed: boolean,
+    source = 'unknown',
+    feedback?: string,
+  ) => {
     const clickedAt = nowMs()
     const timing = pendingToolTimingsRef.current[callId]
     const sid = sessionIdRef.current
+    const cleanFeedback = feedback?.trim()
     if (!sid) {
       console.warn('[confirmTool] 没有活跃 session', { callId, confirmed, source })
       debugStreamLog('[confirmTool] no active session', {
         callId,
         confirmed,
         source,
+        hasFeedback: Boolean(cleanFeedback),
         elapsedSincePendingReceivedMs: timing
           ? Math.round((clickedAt - timing.receivedAt) * 100) / 100
           : null,
@@ -890,6 +897,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
       callId,
       confirmed,
       source,
+      hasFeedback: Boolean(cleanFeedback),
       sessionIdShort: sid.slice(0, 8),
       elapsedSincePendingReceivedMs: timing
         ? Math.round((clickedAt - timing.receivedAt) * 100) / 100
@@ -904,6 +912,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
       callId,
       confirmed,
       source,
+      hasFeedback: Boolean(cleanFeedback),
       sessionIdShort: sid.slice(0, 8),
       elapsedSinceClickMs: Math.round((fetchStartedAt - clickedAt) * 100) / 100,
     })
@@ -913,7 +922,13 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ session_id: sid, call_id: callId, confirmed, source }),
+      body: JSON.stringify({
+        session_id: sid,
+        call_id: callId,
+        confirmed,
+        source,
+        ...(cleanFeedback ? { feedback: cleanFeedback } : {}),
+      }),
     })
     if (response.status === 409) {
       console.warn('[confirmTool] 工具确认状态已变化，忽略重复确认', {
@@ -939,6 +954,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
       callId,
       confirmed,
       source,
+      hasFeedback: Boolean(cleanFeedback),
       status: response.status,
       ok: Boolean(body?.ok),
       resumable: Boolean(body?.resumable),

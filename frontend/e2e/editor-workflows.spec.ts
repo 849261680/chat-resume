@@ -230,8 +230,8 @@ async function installResumeAgentMock(
     const serializedDiffItems = omitDiffItems ? undefined : diffItems
 
     ;(window as Window & {
-      __resumeAgentConfirmCalls?: Array<{ session_id: string; call_id: string; confirmed: boolean }>
-      __resumeAgentResolve?: (confirmed: boolean) => void
+      __resumeAgentConfirmCalls?: Array<{ session_id: string; call_id: string; confirmed: boolean; feedback?: string }>
+      __resumeAgentResolve?: (decision: { confirmed: boolean; feedback?: string }) => void
       __resumeAgentContinueAfterToolCall?: () => void
     }).__resumeAgentConfirmCalls = []
 
@@ -256,11 +256,14 @@ async function installResumeAgentMock(
           ? JSON.parse(init.body)
           : { confirmed: false }
         const runtimeWindow = window as Window & {
-          __resumeAgentConfirmCalls?: Array<{ session_id: string; call_id: string; confirmed: boolean }>
-          __resumeAgentResolve?: (confirmed: boolean) => void
+          __resumeAgentConfirmCalls?: Array<{ session_id: string; call_id: string; confirmed: boolean; feedback?: string }>
+          __resumeAgentResolve?: (decision: { confirmed: boolean; feedback?: string }) => void
         }
         runtimeWindow.__resumeAgentConfirmCalls?.push(payload)
-        runtimeWindow.__resumeAgentResolve?.(Boolean(payload.confirmed))
+        runtimeWindow.__resumeAgentResolve?.({
+          confirmed: Boolean(payload.confirmed),
+          feedback: typeof payload.feedback === 'string' ? payload.feedback : undefined,
+        })
 
         return new Response(JSON.stringify({ ok: true }), {
           status: 200,
@@ -274,10 +277,10 @@ async function installResumeAgentMock(
           // 用于处理start。
           async start(controller) {
             const runtimeWindow = window as Window & {
-              __resumeAgentResolve?: (confirmed: boolean) => void
+              __resumeAgentResolve?: (decision: { confirmed: boolean; feedback?: string }) => void
               __resumeAgentContinueAfterToolCall?: () => void
             }
-            const decision = new Promise<boolean>((resolve) => {
+            const decision = new Promise<{ confirmed: boolean; feedback?: string }>((resolve) => {
               runtimeWindow.__resumeAgentResolve = resolve
             })
             // 用于处理pushevent。
@@ -319,7 +322,7 @@ async function installResumeAgentMock(
               done: false,
             })
 
-            const confirmed = await decision
+            const { confirmed, feedback } = await decision
             await sleep(50)
             pushEvent({
               [confirmed ? 'tool_confirmed' : 'tool_rejected']: true,
@@ -332,7 +335,11 @@ async function installResumeAgentMock(
             })
             await sleep(50)
             pushEvent({
-              content: confirmed ? '已应用修改。' : '已保留原文。',
+              content: confirmed
+                ? '已应用修改。'
+                : feedback
+                  ? '已按反馈重新生成修改。'
+                  : '已保留原文。',
               done: false,
             })
             await sleep(30)
@@ -359,7 +366,7 @@ async function installResumeAgentMock(
 async function readResumeAgentConfirmCalls(page: Page) {
   return page.evaluate(() => {
     const runtimeWindow = window as Window & {
-      __resumeAgentConfirmCalls?: Array<{ session_id: string; call_id: string; confirmed: boolean }>
+      __resumeAgentConfirmCalls?: Array<{ session_id: string; call_id: string; confirmed: boolean; feedback?: string }>
     }
     return runtimeWindow.__resumeAgentConfirmCalls || []
   })
@@ -1481,6 +1488,32 @@ test.describe('编辑页工作流', () => {
       session_id: 'resume_session_e2e',
       call_id: 'call_e2e',
       confirmed: false,
+    })
+  })
+
+  test('Resume Agent 可以提交反馈重新生成待确认修改', async ({ page }) => {
+    const resumeId = await createResumeFromDashboard(page, uniqueEmail('agentfeedback'))
+
+    await installResumeAgentMock(page)
+    await page.goto(`/resume/${resumeId}/edit`)
+    await page.waitForLoadState('networkidle')
+
+    const input = page.getByPlaceholder('输入消息...')
+    await input.fill('请帮我优化项目经历')
+    await input.press('Enter')
+
+    await expect(page.getByPlaceholder('输入你希望 Agent 重新生成时参考的反馈...')).toBeVisible()
+    await page.getByPlaceholder('输入你希望 Agent 重新生成时参考的反馈...').fill('补充量化结果，不要只写高并发')
+    await page.getByRole('button', { name: '按反馈重试' }).click()
+
+    await expect(page.getByText('已按反馈重新生成修改。')).toBeVisible()
+    const confirmCalls = await readResumeAgentConfirmCalls(page)
+    expect(confirmCalls).toHaveLength(1)
+    expect(confirmCalls[0]).toMatchObject({
+      session_id: 'resume_session_e2e',
+      call_id: 'call_e2e',
+      confirmed: false,
+      feedback: '补充量化结果，不要只写高并发',
     })
   })
 })

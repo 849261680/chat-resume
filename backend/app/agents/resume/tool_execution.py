@@ -299,11 +299,12 @@ class ResumeToolExecutionStage:
             ),
         )
         wait_started_at = perf_counter()
-        confirmed = await self.confirmation_policy.wait_for_decision(confirmation_queue)
+        decision = await self.confirmation_policy.wait_for_decision(confirmation_queue)
         confirmation_wait_ms = round((perf_counter() - wait_started_at) * 1000, 2)
         stream_state["confirmation_wait_ms"] += confirmation_wait_ms
         confirmation_result = self.confirmation_policy.after_tool_decision(
-            confirmed=confirmed,
+            confirmed=decision.confirmed,
+            feedback=decision.feedback,
         )
         self.trace_tool_confirmation(
             agent,
@@ -311,13 +312,21 @@ class ResumeToolExecutionStage:
             call_id,
             tool_name,
             preview_result["tool_name"],
-            confirmed,
+            confirmation_result.confirmed,
             confirmation_wait_ms,
             confirmation_result.terminate_turn,
         )
-        if confirmed:
+        if confirmation_result.confirmed:
             return preview_result
-        rejected = {"success": False, "error": "用户拒绝了此修改"}
+        rejected_error = "用户拒绝了此修改"
+        if confirmation_result.feedback:
+            rejected_error = f"用户拒绝了此修改，并反馈：{confirmation_result.feedback}"
+        rejected = {
+            "success": False,
+            "error": rejected_error,
+            "feedback": confirmation_result.feedback,
+            "recoverable": True,
+        }
         await self.publish_rejected_tool(
             agent=agent,
             run_id=run_id,
@@ -338,7 +347,11 @@ class ResumeToolExecutionStage:
             stream_state=stream_state,
             event_queue=event_queue,
             event_callback=event_callback,
-            content="已取消这处修改。",
+            content=(
+                "已收到反馈，我会重新生成修改。"
+                if confirmation_result.feedback
+                else "已取消这处修改。"
+            ),
         )
         return json.dumps(rejected, ensure_ascii=False)
 

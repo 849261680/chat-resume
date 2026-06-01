@@ -338,6 +338,7 @@ export default function ResumeEditPage() {
   const [isCreatingInterview, setIsCreatingInterview] = useState(false)
   const [resumeSelectionAction, setResumeSelectionAction] = useState<ResumeSelectionAction | null>(null)
   const [quickEditPrompt, setQuickEditPrompt] = useState('')
+  const [toolFeedbackDrafts, setToolFeedbackDrafts] = useState<Record<string, string>>({})
   const quickEditInputRef = useRef<HTMLTextAreaElement>(null)
   const previewPanelRef = useRef<HTMLDivElement>(null)
   const agentPanelRef = useRef<HTMLDivElement>(null)
@@ -426,6 +427,23 @@ export default function ResumeEditPage() {
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  // 用于记录待确认工具调用的用户反馈草稿。
+  const updateToolFeedbackDraft = useCallback((callId: string, value: string) => {
+    setToolFeedbackDrafts((drafts) => ({ ...drafts, [callId]: value }))
+  }, [])
+
+  // 用于把反馈作为拒绝原因交回 Agent，触发重新生成修改。
+  const retryToolWithFeedback = useCallback((callId: string) => {
+    const feedback = toolFeedbackDrafts[callId]?.trim()
+    if (!feedback) return
+    void confirmTool(callId, false, 'resume_edit_feedback_retry_button', feedback)
+    setToolFeedbackDrafts((drafts) => {
+      const next = { ...drafts }
+      delete next[callId]
+      return next
+    })
+  }, [confirmTool, toolFeedbackDrafts])
 
   useEffect(() => {
     if (!mounted || isLoading || !isAuthenticated || hasValidResumeId) return
@@ -1258,6 +1276,7 @@ export default function ResumeEditPage() {
                             const memoryActivity = renderMemoryToolDecisionActivity(event, streamEvents, idx)
                             if (memoryActivity !== undefined) return memoryActivity
                             const isActivePending = event.callId === latestPendingCallId
+                            const feedbackDraft = toolFeedbackDrafts[event.callId] || ''
                             return (
                               <div key={idx} className="mb-2 rounded-2xl border border-gray-200 bg-white overflow-hidden text-xs shadow-sm">
                                 {/* 标题栏 */}
@@ -1276,6 +1295,16 @@ export default function ResumeEditPage() {
                                   diffItems={event.diffItems}
                                   isConfirmed={true}
                                 />
+                                <div className="px-4 py-3 bg-white border-t border-gray-100">
+                                  <textarea
+                                    value={feedbackDraft}
+                                    disabled={!isActivePending}
+                                    rows={2}
+                                    placeholder={t('toolFeedbackPlaceholder')}
+                                    onChange={(changeEvent) => updateToolFeedbackDraft(event.callId, changeEvent.target.value)}
+                                    className="w-full resize-none rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs leading-5 text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-blue-500 focus:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+                                  />
+                                </div>
                                 {/* 操作按钮 */}
                                 <div className="px-4 py-3 bg-white border-t border-gray-200 flex gap-2">
                                   <button
@@ -1288,6 +1317,19 @@ export default function ResumeEditPage() {
                                     }}
                                   >
                                     {t('acceptChange')}
+                                  </button>
+                                  <button
+                                    disabled={!isActivePending || !feedbackDraft.trim()}
+                                    onClick={() => retryToolWithFeedback(event.callId)}
+                                    className="flex-1 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                                    style={{
+                                      borderRadius: '56px',
+                                      border: '1px solid rgba(0,82,255,0.22)',
+                                      backgroundColor: '#eef4ff',
+                                      color: '#0052ff',
+                                    }}
+                                  >
+                                    {t('retryWithFeedback')}
                                   </button>
                                   <button
                                     disabled={!isActivePending}

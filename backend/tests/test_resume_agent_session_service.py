@@ -97,6 +97,29 @@ class ResumeAgentSessionServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(queue.get_nowait())
         self.assertEqual(self.store.get_session("session_1").status, "running")
 
+    async def test_confirm_tool_dispatches_feedback_to_active_queue(self):
+        """用于验证confirmtool把用户反馈传入活动队列。"""
+        self._create_waiting_session()
+        queue = self.confirmations.create("session_1")
+
+        result = await self.service.confirm_tool(
+            session_id="session_1",
+            call_id="call_1",
+            confirmed=False,
+            user_id=self.user.id,
+            feedback="补充量化结果，不要只写高并发",
+        )
+
+        self.assertEqual(result.to_response(), {"ok": True})
+        self.assertEqual(
+            queue.get_nowait(),
+            {
+                "confirmed": False,
+                "feedback": "补充量化结果，不要只写高并发",
+            },
+        )
+        self.assertEqual(self.store.get_session("session_1").status, "running")
+
     async def test_confirm_tool_records_resumable_result_without_queue(self):
         """用于验证confirmtoolrecordsresumable结果withoutqueue。"""
         self._create_waiting_session()
@@ -114,6 +137,23 @@ class ResumeAgentSessionServiceTests(unittest.IsolatedAsyncioTestCase):
         latest = self.store.get_latest_event("session_1")
         self.assertEqual(latest.event_type, "tool_call_confirmed")
         self.assertFalse(latest.payload["active_stream"])
+
+    async def test_confirm_tool_persists_feedback_without_queue(self):
+        """用于验证confirmtool断流时持久化用户反馈。"""
+        self._create_waiting_session()
+
+        result = await self.service.confirm_tool(
+            session_id="session_1",
+            call_id="call_1",
+            confirmed=False,
+            user_id=self.user.id,
+            feedback="不要编造新数据",
+        )
+
+        self.assertFalse(result.ok)
+        latest = self.store.get_latest_event("session_1")
+        self.assertEqual(latest.event_type, "tool_call_rejected")
+        self.assertEqual(latest.payload["feedback"], "不要编造新数据")
 
     async def test_confirm_tool_treats_processed_status_as_duplicate(self):
         """用于验证confirmtooltreatsprocessed状态asduplicate。"""

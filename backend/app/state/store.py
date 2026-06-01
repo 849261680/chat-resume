@@ -156,17 +156,21 @@ class AgentSessionStore:
         source: str = "user",
         tool_name: str | None = None,
         active_stream: bool = True,
+        feedback: str | None = None,
     ) -> AgentEvent:
         """用于把工具确认结果写成标准事件。"""
+        payload: dict[str, Any] = {
+            "call_id": call_id,
+            "tool_name": tool_name,
+            "active_stream": active_stream,
+        }
+        if feedback:
+            payload["feedback"] = feedback
         return self.append_event(
             session_id=session_id,
             event_type="tool_call_confirmed" if confirmed else "tool_call_rejected",
             source=source,
-            payload={
-                "call_id": call_id,
-                "tool_name": tool_name,
-                "active_stream": active_stream,
-            },
+            payload=payload,
         )
 
     def append_stream_event(

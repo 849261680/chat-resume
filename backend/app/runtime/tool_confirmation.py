@@ -20,6 +20,7 @@ class ToolConfirmationResult:
 
     confirmed: bool
     terminate_turn: bool
+    feedback: str | None = None
 
 
 class ToolConfirmationPolicy:
@@ -41,13 +42,25 @@ class ToolConfirmationPolicy:
             )
         )
 
-    async def wait_for_decision(self, confirmation_queue: asyncio.Queue) -> bool:
+    async def wait_for_decision(
+        self,
+        confirmation_queue: asyncio.Queue,
+    ) -> ToolConfirmationResult:
         """用于等待用户确认结果。"""
         return await wait_for_tool_confirmation(confirmation_queue)
 
-    def after_tool_decision(self, *, confirmed: bool) -> ToolConfirmationResult:
+    def after_tool_decision(
+        self,
+        *,
+        confirmed: bool,
+        feedback: str | None = None,
+    ) -> ToolConfirmationResult:
         """用于在用户确认或拒绝后把结果交还给模型继续 ReAct。"""
-        return ToolConfirmationResult(confirmed=confirmed, terminate_turn=False)
+        return ToolConfirmationResult(
+            confirmed=confirmed,
+            terminate_turn=False,
+            feedback=normalize_confirmation_feedback(feedback),
+        )
 
 
 def requires_tool_confirmation(
@@ -63,27 +76,45 @@ def requires_tool_confirmation(
     )
 
 
+def normalize_confirmation_feedback(value: object) -> str | None:
+    """用于把用户反馈清洗为可传给 Agent 的短文本。"""
+    if not isinstance(value, str):
+        return None
+    feedback = value.strip()
+    return feedback[:1000] if feedback else None
+
+
+def parse_confirmation_queue_item(value: object) -> ToolConfirmationResult:
+    """用于兼容旧布尔确认值和新结构化确认值。"""
+    if not isinstance(value, dict):
+        return ToolConfirmationResult(confirmed=bool(value), terminate_turn=False)
+    return ToolConfirmationResult(
+        confirmed=bool(value.get("confirmed")),
+        terminate_turn=False,
+        feedback=normalize_confirmation_feedback(value.get("feedback")),
+    )
+
+
 async def wait_for_tool_confirmation(
     confirmation_queue: asyncio.Queue,
     *,
     timeout_seconds: int = 300,
-) -> bool:
+) -> ToolConfirmationResult:
     """用于等待用户确认，超时按拒绝处理。"""
     try:
-        return bool(
-            await asyncio.wait_for(
-                confirmation_queue.get(),
-                timeout=timeout_seconds,
-            )
+        return parse_confirmation_queue_item(
+            await asyncio.wait_for(confirmation_queue.get(), timeout=timeout_seconds)
         )
     except asyncio.TimeoutError:
-        return False
+        return ToolConfirmationResult(confirmed=False, terminate_turn=False)
 
 
 __all__ = [
     "ToolConfirmationDecision",
     "ToolConfirmationPolicy",
     "ToolConfirmationResult",
+    "normalize_confirmation_feedback",
+    "parse_confirmation_queue_item",
     "requires_tool_confirmation",
     "wait_for_tool_confirmation",
 ]

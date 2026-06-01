@@ -665,20 +665,24 @@ def test_convert_resume_messages_filters_internal_only_messages():
 async def test_confirmation_policy_returns_feedback_without_terminating_turn():
     """用于验证确认 hook 将确认结果交还给模型继续 ReAct。"""
     policy = ToolConfirmationPolicy()
-    queue: asyncio.Queue[bool] = asyncio.Queue()
+    queue: asyncio.Queue[object] = asyncio.Queue()
 
-    decision = policy.before_tool_call(
+    confirmation_decision = policy.before_tool_call(
         confirmation_queue=queue,
         tool_name="update_bullet",
         auto_execute_tool_names=set(),
     )
-    queue.put_nowait(False)
-    confirmed = await policy.wait_for_decision(queue)
-    result = policy.after_tool_decision(confirmed=confirmed)
+    queue.put_nowait({"confirmed": False, "feedback": "补充量化结果，不要只写高并发"})
+    decision = await policy.wait_for_decision(queue)
+    result = policy.after_tool_decision(
+        confirmed=decision.confirmed,
+        feedback=decision.feedback,
+    )
 
-    assert decision.requires_confirmation is True
+    assert confirmation_decision.requires_confirmation is True
     assert result.confirmed is False
     assert result.terminate_turn is False
+    assert result.feedback == "补充量化结果，不要只写高并发"
 
 
 @pytest.mark.asyncio
@@ -740,6 +744,67 @@ async def test_resume_tool_execution_stage_runs_confirmed_tool_independently():
     assert any(event.get("tool_confirmed") for event in events)
     assert executed_tools[0]["success"] is True
     assert stream_state["confirmed_diff_items"]
+
+
+@pytest.mark.asyncio
+async def test_resume_tool_execution_stage_returns_feedback_on_rejection():
+    """用于验证用户反馈会作为可恢复工具结果交还给 Agent。"""
+    agent = ResumeAgent()
+    stage = ResumeToolExecutionStage()
+    resume = {
+        "work_experience": [
+            {
+                "id": "work_1",
+                "company": "某科技公司",
+                "position": "Python 开发工程师",
+                "highlights": [{"id": "hl_1", "text": "维护多个后台服务"}],
+            }
+        ]
+    }
+    confirmation_queue: asyncio.Queue[object] = asyncio.Queue()
+    confirmation_queue.put_nowait({
+        "confirmed": False,
+        "feedback": "补充量化结果，不要只写高并发",
+    })
+    event_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+    stream_state = {
+        "visible_tool_call_ids": set(),
+        "confirmed_diff_items": [],
+        "confirmation_wait_ms": 0.0,
+        "chunk_index": 0,
+        "response_parts": [],
+    }
+    executed_tools: list[dict[str, Any]] = []
+
+    result = await stage.execute_tool_result(
+        agent=agent.definition,
+        run_id="run_feedback_reject",
+        call_id="call_feedback_reject",
+        tool_name="update_bullet",
+        tool_input={
+            "section": "work_experience",
+            "item_id": "work_1",
+            "bullet_id": "hl_1",
+            "text": "维护多个后台服务，支撑高并发场景",
+        },
+        context={"resume_content": resume, "allowed_sections": {"work_experience"}},
+        confirmation_queue=confirmation_queue,
+        event_queue=event_queue,
+        event_callback=None,
+        executed_tools=executed_tools,
+        stream_state=stream_state,
+    )
+
+    events: list[dict[str, Any]] = []
+    while not event_queue.empty():
+        events.append(event_queue.get_nowait())
+
+    assert result.details["success"] is False
+    assert result.details["feedback"] == "补充量化结果，不要只写高并发"
+    assert "补充量化结果" in result.details["error"]
+    assert resume["work_experience"][0]["highlights"][0]["text"] == "维护多个后台服务"
+    assert any(event.get("tool_rejected") for event in events)
+    assert any(event.get("content") == "已收到反馈，我会重新生成修改。" for event in events)
 
 
 @pytest.mark.asyncio

@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.runtime.permissions import ConfirmationSessionManager, confirmation_manager
+from app.runtime.tool_confirmation import normalize_confirmation_feedback
 from app.state.models import AgentEvent
 from app.state.store import AgentSessionStore
 
@@ -58,11 +59,14 @@ class ResumeAgentSessionService:
         call_id: str,
         confirmed: bool,
         user_id: int,
+        source: str | None = None,
+        feedback: str | None = None,
     ) -> ConfirmToolResult:
         """用于确认工具。"""
         session = self.session_store.get_session(session_id)
         if not session or session.user_id != user_id:
             raise ResumeAgentSessionNotFound(f"Session {session_id} 不存在")
+        clean_feedback = normalize_confirmation_feedback(feedback)
 
         latest_pending = self.session_store.get_latest_event(
             session_id,
@@ -89,6 +93,8 @@ class ResumeAgentSessionService:
                 confirmed=confirmed,
                 tool_name=self._pending_tool_name(latest_pending),
                 active_stream=False,
+                source=source or "user",
+                feedback=clean_feedback,
             )
             self.session_store.update_status(
                 session_id,
@@ -109,7 +115,11 @@ class ResumeAgentSessionService:
             "running",
             clear_current_step=True,
         )
-        await queue.put(confirmed)
+        await queue.put(
+            {"confirmed": confirmed, "feedback": clean_feedback}
+            if clean_feedback
+            else confirmed
+        )
         return ConfirmToolResult(ok=True)
 
     @staticmethod

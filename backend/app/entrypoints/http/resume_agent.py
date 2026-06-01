@@ -96,6 +96,7 @@ class ConfirmToolRequest(BaseModel):
     call_id: str
     confirmed: bool
     source: str | None = None
+    feedback: str | None = None
 
 
 class ResumeSessionRequest(BaseModel):
@@ -286,6 +287,8 @@ async def confirm_tool(
                 call_id=request.call_id,
                 confirmed=request.confirmed,
                 user_id=current_user["id"],
+                source=request.source,
+                feedback=request.feedback,
             )
         except ResumeAgentSessionNotFound as exc:
             raise HTTPException(

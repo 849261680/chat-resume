@@ -1143,6 +1143,36 @@ test.describe('编辑页工作流', () => {
     )).toBe(true)
   })
 
+  test('教育要点最后一条可以删除且空白要点不显示在预览', async ({ page }) => {
+    const resume = buildResumeResponse(123)
+    resume.content.education = [
+      {
+        id: 'edu_1',
+        school: '东北大学（985）',
+        major: '信息安全',
+        degree: '本科',
+        duration: '2018.09 - 2022.06',
+        highlights: [{ id: 'edu_hl_1', text: '   ' }],
+      },
+    ]
+    await installEditorApiMock(page, resume)
+
+    await page.goto('/zh/resume/123/edit')
+    await page.getByRole('button', { name: '教育' }).click()
+
+    const preview = page.locator('#resume-preview-content')
+    await expect(preview).toContainText('东北大学（985）')
+    await expect(preview.locator('li')).toHaveCount(0)
+
+    const highlightInput = page.getByPlaceholder('985高校、主要课程、奖项、研究方向等')
+    await expect(highlightInput).toBeVisible()
+    await page.locator('button[title="删除此要点"]').click()
+
+    await expect(highlightInput).toHaveCount(0)
+    await expect(page.locator('button[title="删除此要点"]')).toHaveCount(0)
+    await expect(preview.locator('li')).toHaveCount(0)
+  })
+
   test('项目编辑区内容超过面板高度时可以向下滚动', async ({ page }) => {
     await page.setViewportSize({ width: 1124, height: 786 })
     const resume = buildResumeResponse(123)

@@ -3,6 +3,7 @@
 
 import type { Education } from '@/types/resume'
 import type { ResumeTemplateStyle } from '@/types/resumeLayout'
+import { visibleHighlightTexts } from '@/lib/resumeHighlights'
 import { useTranslations } from 'next-intl'
 import BulletLeadText from './BulletLeadText'
 
@@ -14,9 +15,7 @@ interface EducationPreviewProps {
 
 // 单个教育项组件
 function EducationItem({ edu, lineIndex, templateStyle = 'classic' }: { edu: Education; lineIndex: number; templateStyle?: ResumeTemplateStyle }) {
-  const highlights = edu.highlights && edu.highlights.length > 0
-    ? edu.highlights.map(item => item.text)
-    : []
+  const highlights = visibleHighlightTexts(edu.highlights)
   const isFormal = templateStyle === 'formal'
   const isEmerald = templateStyle === 'emerald'
 

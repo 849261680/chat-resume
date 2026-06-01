@@ -58,7 +58,7 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
       major: '',
       degree: '',
       duration: '',
-      highlights: [{ id: `edu_hl_${Date.now()}`, text: '' }],
+      highlights: [],
       gpa: ''
     }
     commit([...educationList, newEducation])
@@ -103,7 +103,6 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
     const education = educationList.find(item => item.id === educationId)
     if (!education) return
     const current = education.highlights || []
-    if (current.length <= 1) return
     updateEducationList(
       educationList.map(item =>
         item.id === educationId
@@ -254,7 +253,7 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
                         rows={1}
                         className="min-h-[42px] flex-1 overflow-hidden px-3 py-2 text-sm leading-relaxed border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none [field-sizing:content]"
                       />
-                      {(education.highlights || []).length > 1 && (
+                      {(education.highlights || []).length > 0 && (
                         <button
                           onClick={() => removeBullet(education.id!, highlightIndex)}
                           className="text-gray-400 hover:text-gray-600 p-1 transition-colors"

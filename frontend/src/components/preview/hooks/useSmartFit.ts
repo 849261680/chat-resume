@@ -2,15 +2,14 @@
 // 用于提供 useSmartFit.ts 对应的前端状态逻辑。
 
 import { useCallback, useRef, useState } from 'react'
-import { A4_HEIGHT, PAGE_PADDING, SAFETY_MARGIN, RenderableLine } from './useLineBasedPagination'
-
-const MIN_SPACING_SCALE = 0.5
-const MAX_SPACING_SCALE = 4
-const SPACING_SCALE_STEP = 0.05
+import { applyTooMuchContentFallback, MAX_SPACING_SCALE, MIN_SPACING_SCALE, SPACING_SCALE_STEP } from './smartFitCore'
+import { A4_HEIGHT, PAGE_PADDING, SAFETY_MARGIN } from './useLineBasedPagination'
+import type { RenderableLine } from './useLineBasedPagination'
+import type { TooMuchContentResult } from './smartFitCore'
 
 export type SmartFitResult =
   | { status: 'already_fits' }
-  | { status: 'too_much_content'; pages: number }
+  | TooMuchContentResult
   | { status: 'success'; oldScale: number; newScale: number }
   | { status: 'failed' }
 
@@ -95,7 +94,9 @@ export function useSmartFit({
 
         if (minContentBottom > minPageBottom) {
           const approxPages = Math.ceil(minContentBottom / minPageBottom)
-          return { status: 'too_much_content', pages: approxPages }
+          const result = applyTooMuchContentFallback(approxPages, onComplete)
+          finalMeasureScale = result.appliedScale
+          return result
         }
       }
 

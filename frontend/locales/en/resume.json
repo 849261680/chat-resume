@@ -117,7 +117,7 @@
     "reject": "Reject",
     "fetchError": "Failed to load resume",
     "alreadyOnePage": "This resume already fits on one page",
-    "tooManyPages": "Too much content, about {pages} pages. Consider trimming content.",
+    "tooManyPages": "Compressed to the tightest spacing, but content is still about {pages} pages. Consider trimming content.",
     "fitSuccess": "Adjusted spacing from {oldScale}× to {newScale}× to fit one page",
     "exportSuccess": "PDF exported",
     "exportError": "PDF export failed",

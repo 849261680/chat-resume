@@ -117,7 +117,7 @@
     "reject": "拒绝",
     "fetchError": "获取简历失败",
     "alreadyOnePage": "当前简历已是一页，无需调整",
-    "tooManyPages": "内容过多（约 {pages} 页），建议删减内容",
+    "tooManyPages": "已压到最紧间距，但内容仍约 {pages} 页，建议删减内容",
     "fitSuccess": "已将间距从 {oldScale}× 调整为 {newScale}×，简历适配一页",
     "exportSuccess": "PDF导出成功",
     "exportError": "PDF导出失败",

@@ -157,6 +157,7 @@ def test_render_pdf_with_playwright_uses_expected_page_settings(tmp_path, monkey
     """用于验证 Playwright 渲染时会使用正确的页面参数和 PDF 选项。"""
     export_service = ExportService()
     captured: dict[str, object] = {}
+    wait_for_selectors: list[str] = []
     output_path = tmp_path / "resume.pdf"
 
     class FakePage:
@@ -168,7 +169,7 @@ def test_render_pdf_with_playwright_uses_expected_page_settings(tmp_path, monkey
 
         async def wait_for_selector(self, selector: str) -> None:
             """用于处理waitforselector。"""
-            captured["wait_for_selector"] = selector
+            wait_for_selectors.append(selector)
 
         async def emulate_media(self, media: str) -> None:
             """用于处理emulatemedia。"""
@@ -238,7 +239,10 @@ def test_render_pdf_with_playwright_uses_expected_page_settings(tmp_path, monkey
         "url": "https://frontend.example.com/resume/print?data=abc",
         "wait_until": "networkidle",
     }
-    assert captured["wait_for_selector"] == '[data-resume-print-ready="true"]'
+    assert wait_for_selectors == [
+        '[data-resume-print-ready="true"]',
+        "#resume-export-content .resume-page",
+    ]
     assert captured["media"] == "print"
     assert captured["pdf"] == {
         "path": str(output_path),
@@ -255,6 +259,7 @@ def test_render_pdf_with_playwright_injects_storage_payload(tmp_path, monkeypatc
     """用于验证大载荷渲染会在导航前写入 sessionStorage。"""
     export_service = ExportService()
     captured: dict[str, object] = {}
+    wait_for_selectors: list[str] = []
     output_path = tmp_path / "resume.pdf"
 
     class FakePage:
@@ -270,7 +275,7 @@ def test_render_pdf_with_playwright_injects_storage_payload(tmp_path, monkeypatc
 
         async def wait_for_selector(self, selector: str) -> None:
             """用于处理waitforselector。"""
-            captured["wait_for_selector"] = selector
+            wait_for_selectors.append(selector)
 
         async def emulate_media(self, media: str) -> None:
             """用于处理emulatemedia。"""
@@ -334,7 +339,10 @@ def test_render_pdf_with_playwright_injects_storage_payload(tmp_path, monkeypatc
     assert "sessionStorage.setItem" in str(captured["init_script"])
     assert "resume-print-test" in str(captured["init_script"])
     assert "encoded-payload" in str(captured["init_script"])
-    assert captured["wait_for_selector"] == '[data-resume-print-ready="true"]'
+    assert wait_for_selectors == [
+        '[data-resume-print-ready="true"]',
+        "#resume-export-content .resume-page",
+    ]
     assert captured["closed"] is True
 
 

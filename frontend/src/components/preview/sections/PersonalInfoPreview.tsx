@@ -189,10 +189,10 @@ export default function PersonalInfoPreview({ data, renderLines, templateStyle =
   if (isFormal) {
     const contactItems = [data.phone, data.email].filter(Boolean)
     const linkItems = [
-      data.github ? `GitHub: ${data.github}` : null,
-      data.linkedin ? `LinkedIn: ${data.linkedin}` : null,
-      data.website ? `${t('website')}: ${data.website}` : null,
-    ].filter(Boolean)
+      data.github ? { label: 'GitHub', url: data.github } : null,
+      data.linkedin ? { label: 'LinkedIn', url: data.linkedin } : null,
+      data.website ? { label: t('website'), url: data.website } : null,
+    ].filter((item): item is { label: string; url: string } => Boolean(item))
     const layout = getFormalPersonalInfoLayout(Boolean(photoUrl))
 
     return (
@@ -227,7 +227,14 @@ export default function PersonalInfoPreview({ data, renderLines, templateStyle =
               <div>{contactItems.join(' | ')}</div>
             )}
             {linkItems.length > 0 && (
-              <div>{linkItems.join(' | ')}</div>
+              <div>
+                {linkItems.map((item, index) => (
+                  <span key={item.label}>
+                    {index > 0 && ' | '}
+                    {item.label}: <a href={item.url} target="_blank" rel="noopener noreferrer">{item.url}</a>
+                  </span>
+                ))}
+              </div>
             )}
           </div>
         )}

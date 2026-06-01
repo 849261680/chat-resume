@@ -182,6 +182,8 @@ test.describe('简历模板样式', () => {
     await expect(page.getByRole('heading', { name: '彭世雄' })).toHaveCSS('text-align', 'left')
     await expect(pageSheet).toContainText('GitHub: https://github.com/849261680')
     await expect(pageSheet).toContainText('个人网站: https://psx1.vercel.app')
+    await expect(pageSheet.locator('a[href="https://github.com/849261680"]')).toHaveText('https://github.com/849261680')
+    await expect(pageSheet.locator('a[href="https://psx1.vercel.app"]')).toHaveText('https://psx1.vercel.app')
   })
 
   test('打印页复用导出载荷中的布局配置', async ({ page }) => {
@@ -264,7 +266,14 @@ test.describe('简历模板样式', () => {
     })
 
     await page.goto(`/resume/print?data=${payload}`)
+    await page.locator('.resume-page').first().waitFor({ state: 'attached' })
     await page.emulateMedia({ media: 'print' })
+    await page.waitForFunction(() => {
+      return Array.from(document.querySelectorAll('.resume-page')).some((element) => {
+        const style = window.getComputedStyle(element)
+        return style.display !== 'none' && style.visibility !== 'hidden'
+      })
+    })
 
     const printState = await page.evaluate(() => {
       return Array.from(document.querySelectorAll<HTMLElement>('.resume-page')).map((element) => {

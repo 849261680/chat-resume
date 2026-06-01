@@ -238,7 +238,7 @@ export default function PaginatedResumePreview({
   const paginationMeasurementContent = useMemo(() => (
     <div
       ref={contentRef}
-      className={`resume-template-${templateStyle} invisible absolute -top-[9999px] left-0 pointer-events-none print:hidden`}
+      className={`${isFullBleedTemplate ? 'resume-page ' : ''}resume-template-${templateStyle} invisible absolute -top-[9999px] left-0 pointer-events-none print:hidden`}
       style={{
         width: `${pageContentWidth}px`,
         boxSizing: 'border-box',

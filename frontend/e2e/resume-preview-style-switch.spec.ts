@@ -186,6 +186,11 @@ async function findVisiblePreviewText(page: Page, text: string) {
   }, text)
 }
 
+// 读取当前预览生成的纸张页数。
+async function getPreviewPageCount(page: Page) {
+  return page.locator('#resume-export-content .resume-page').count()
+}
+
 // 检查指定文本是否出现在当前浏览器视口内。
 async function findViewportVisiblePreviewText(page: Page, text: string) {
   return page.evaluate((targetText) => {
@@ -303,6 +308,7 @@ test('绿页眉样式不会裁掉页尾项目要点', async ({ page }) => {
 
   const result = await findVisiblePreviewText(page, '可观测性：实现 SSE 流式推送研究进度')
   const viewportResult = await findViewportVisiblePreviewText(page, '可观测性：实现 SSE 流式推送研究进度')
+  expect(await getPreviewPageCount(page)).toBeGreaterThan(1)
   expect(result.matchCount).toBeGreaterThan(0)
   expect(result.visible).toBe(true)
   expect(viewportResult.visible).toBe(true)

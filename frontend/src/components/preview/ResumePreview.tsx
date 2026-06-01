@@ -14,11 +14,12 @@ interface ResumePreviewProps {
   templateStyle?: ResumeTemplateStyle
   onSpacingScaleChange?: (scale: number) => void
   onTotalPagesChange?: (n: number) => void
+  onRenderReady?: (ready: boolean) => void
   smartFitTriggerRef?: React.MutableRefObject<any>
 }
 
 // 用于渲染 ResumePreview 组件。
-export default function ResumePreview({ content, moduleOrder, spacingScale, templateStyle = 'classic', onSpacingScaleChange, onTotalPagesChange, smartFitTriggerRef }: ResumePreviewProps) {
+export default function ResumePreview({ content, moduleOrder, spacingScale, templateStyle = 'classic', onSpacingScaleChange, onTotalPagesChange, onRenderReady, smartFitTriggerRef }: ResumePreviewProps) {
   // 加载打印样式
   useEffect(() => {
     // 动态加载打印样式
@@ -47,6 +48,7 @@ export default function ResumePreview({ content, moduleOrder, spacingScale, temp
         templateStyle={templateStyle}
         onSpacingScaleChange={onSpacingScaleChange}
         onTotalPagesChange={onTotalPagesChange}
+        onRenderReady={onRenderReady}
         smartFitTriggerRef={smartFitTriggerRef}
       />
     </div>

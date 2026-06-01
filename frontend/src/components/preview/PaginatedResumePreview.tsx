@@ -34,6 +34,7 @@ interface PaginatedResumePreviewProps {
   templateStyle?: ResumeTemplateStyle
   onSpacingScaleChange?: (scale: number) => void
   onTotalPagesChange?: (n: number) => void
+  onRenderReady?: (ready: boolean) => void
   smartFitTriggerRef?: React.MutableRefObject<(() => Promise<import('./hooks/useSmartFit').SmartFitResult>) | null>
   viewportPadding?: number
 }
@@ -46,6 +47,7 @@ export default function PaginatedResumePreview({
   templateStyle = 'classic',
   onSpacingScaleChange,
   onTotalPagesChange,
+  onRenderReady,
   smartFitTriggerRef,
   viewportPadding = 8
 }: PaginatedResumePreviewProps) {
@@ -126,6 +128,12 @@ export default function PaginatedResumePreview({
   React.useEffect(() => {
     onTotalPagesChange?.(totalPages)
   }, [totalPages, onTotalPagesChange])
+
+  // 通知打印页真实分页内容已经渲染，避免 Playwright 抢在测量完成前打印空白页。
+  React.useEffect(() => {
+    const hasRenderedPages = !isCalculating && pages.some(page => page.lines.length > 0)
+    onRenderReady?.(hasRenderedPages)
+  }, [isCalculating, pages, onRenderReady])
 
   // 计算合适的缩放比例
   React.useEffect(() => {

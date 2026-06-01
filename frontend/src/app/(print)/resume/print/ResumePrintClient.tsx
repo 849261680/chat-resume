@@ -6,57 +6,15 @@ import {
   buildModuleConfig,
   deserializeLayoutConfig,
 } from '@/lib/resumeLayoutConfig'
-import type { ResumeContent } from '@/types/resume'
 import type { ResumeTemplateStyle } from '@/types/resumeLayout'
 import { useEffect, useState } from 'react'
-
-interface PrintPayload {
-  content?: ResumeContent
-  layout_config?: Record<string, unknown> | null
-  template?: string
-}
+import { isResumePrintReady, readPrintPayload } from './printPayload'
+import type { PrintPayload } from './printPayload'
 
 interface ResumePrintClientProps {
   data?: string
   invalidPrintDataText: string
   payloadKey?: string
-}
-
-// 用于把 base64url 字符串解码成 UTF-8 JSON 字符串。
-function decodeBase64Url(data: string): string {
-  const normalized = data.replace(/-/g, '+').replace(/_/g, '/')
-  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=')
-  const binary = window.atob(padded)
-  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0))
-  return new TextDecoder().decode(bytes)
-}
-
-// 用于解码打印页载荷。
-function decodePayload(data?: string | null): PrintPayload | null {
-  if (!data) {
-    return null
-  }
-
-  try {
-    return JSON.parse(decodeBase64Url(data)) as PrintPayload
-  } catch {
-    return null
-  }
-}
-
-// 用于读取 URL 或 sessionStorage 中的打印页载荷。
-function readPrintPayload(data?: string, payloadKey?: string): PrintPayload | null {
-  if (data) {
-    return decodePayload(data)
-  }
-
-  if (!payloadKey) {
-    return null
-  }
-
-  const storedPayload = window.sessionStorage.getItem(payloadKey)
-  window.sessionStorage.removeItem(payloadKey)
-  return decodePayload(storedPayload)
 }
 
 // 用于标准化templatestyle。
@@ -72,13 +30,16 @@ export default function ResumePrintClient({
 }: ResumePrintClientProps) {
   const [payload, setPayload] = useState<PrintPayload | null>(null)
   const [isReady, setIsReady] = useState(false)
+  const [previewReady, setPreviewReady] = useState(false)
 
   useEffect(() => {
+    setPreviewReady(false)
     setPayload(readPrintPayload(data, payloadKey))
     setIsReady(true)
   }, [data, payloadKey])
 
   const content = payload?.content
+  const printReady = isResumePrintReady(payload, previewReady)
   const layoutConfig = deserializeLayoutConfig(payload?.layout_config)
   const templateStyle = normalizeTemplateStyle(
     payload?.template || layoutConfig.templateStyle,
@@ -96,7 +57,7 @@ export default function ResumePrintClient({
     return (
       <main
         className="bg-white flex items-center justify-center text-gray-500"
-        data-resume-print-ready="true"
+        data-resume-print-error="missing-content"
       >
         <p>{invalidPrintDataText}</p>
       </main>
@@ -104,12 +65,16 @@ export default function ResumePrintClient({
   }
 
   return (
-    <main className="bg-white" data-resume-print-ready="true">
+    <main
+      className="bg-white"
+      data-resume-print-ready={printReady ? 'true' : undefined}
+    >
       <ResumePreview
         content={content}
         moduleOrder={moduleOrder}
         spacingScale={layoutConfig.spacingScale}
         templateStyle={templateStyle}
+        onRenderReady={setPreviewReady}
       />
     </main>
   )

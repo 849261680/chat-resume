@@ -401,6 +401,57 @@ async def test_openrouter_stream_emits_early_tool_call_start():
 
 
 @pytest.mark.asyncio
+async def test_openrouter_stream_cuts_off_after_first_complete_tool_call(
+    caplog: pytest.LogCaptureFixture,
+):
+    """首个工具参数完整后应停止读取后续工具调用。"""
+    model, context, options, partial, queue = _make_openrouter_stream_args()
+    _FakeOpenRouterClient.lines = [
+        (
+            'data: {"choices":[{"delta":{"tool_calls":[{"index":0,'
+            '"id":"call_1","function":{"name":"update_bullet",'
+            '"arguments":"{\\"section\\":\\"work_experience\\"}"}}]}}]}'
+        ),
+        (
+            'data: {"choices":[{"delta":{"tool_calls":[{"index":1,'
+            '"id":"call_2","function":{"name":"update_bullet",'
+            '"arguments":"{\\"section\\":\\"projects\\"}"}}]},'
+            '"finish_reason":"tool_calls"}]}'
+        ),
+        "data: [DONE]",
+    ]
+    _FakeOpenRouterClient.delay_seconds = 0.0
+
+    with caplog.at_level(logging.INFO, logger="app.runtime.pi_agent_openrouter"), patch(
+        "app.runtime.pi_agent_openrouter.httpx.AsyncClient",
+        _FakeOpenRouterClient,
+    ):
+        await _pump_openrouter_stream(model, context, options, partial, queue)
+
+    events = []
+    while not queue.empty():
+        events.append(queue.get_nowait())
+    tool_ends = [
+        event for event in events if getattr(event, "type", "") == "toolcall_end"
+    ]
+    cutoff_record = next(
+        record
+        for record in caplog.records
+        if record.getMessage() == "openrouter.stream.single_tool_cutoff"
+    )
+    done_record = next(
+        record
+        for record in caplog.records
+        if record.getMessage() == "openrouter.stream.done"
+    )
+
+    assert partial.stop_reason == "toolUse"
+    assert [tool.tool_call.id for tool in tool_ends] == ["call_1"]
+    assert getattr(cutoff_record, "tool_name") == "update_bullet"
+    assert getattr(done_record, "tool_call_count") == 1
+
+
+@pytest.mark.asyncio
 async def test_openrouter_stream_does_not_concatenate_repeated_tool_id_or_name():
     """同一 index 的重复 id/name 只设置一次，arguments 才累加。"""
     model, context, options, partial, queue = _make_openrouter_stream_args()

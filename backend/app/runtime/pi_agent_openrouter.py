@@ -392,6 +392,19 @@ async def _consume_openrouter_response(
         )
         if not should_continue:
             return
+        cutoff_index = _first_complete_tool_call_index(tool_buffers, allowed_tool_names)
+        if cutoff_index is not None:
+            _cut_to_single_tool_buffer(tool_buffers, cutoff_index)
+            progress.finish_reason = "tool_calls"
+            _log_openrouter_stage(
+                "single_tool_cutoff",
+                started_at=started_at,
+                model=model.id,
+                tool_index=cutoff_index,
+                tool_name=str(tool_buffers[cutoff_index].get("name") or ""),
+                tool_count=len(tool_buffers),
+            )
+            return
 
 
 def _handle_openrouter_line(
@@ -500,6 +513,40 @@ def _record_chunk_application(
             tool_buffers=_tool_buffer_summary(tool_buffers),
             log_level=logging.DEBUG,
         )
+
+
+def _first_complete_tool_call_index(
+    tool_buffers: dict[int, dict[str, Any]],
+    allowed_tool_names: set[str],
+) -> int | None:
+    """返回第一个已完成参数解析的允许工具调用 index。"""
+    for index in sorted(tool_buffers):
+        if _complete_allowed_tool_buffer(tool_buffers[index], allowed_tool_names):
+            return index
+    return None
+
+
+def _complete_allowed_tool_buffer(
+    raw_call: dict[str, Any],
+    allowed_tool_names: set[str],
+) -> bool:
+    """判断工具 buffer 是否已有可执行的完整参数。"""
+    tool_name = str(raw_call.get("name") or "")
+    call_id = str(raw_call.get("id") or "")
+    raw_args = str(raw_call.get("args") or "")
+    if not call_id or not tool_name or tool_name not in allowed_tool_names:
+        return False
+    return _tool_args_json_status(raw_args) == "object"
+
+
+def _cut_to_single_tool_buffer(
+    tool_buffers: dict[int, dict[str, Any]],
+    keep_index: int,
+) -> None:
+    """只保留一个工具 buffer，避免同一 ReAct 轮继续执行后续工具。"""
+    kept = tool_buffers[keep_index]
+    tool_buffers.clear()
+    tool_buffers[keep_index] = kept
 
 
 def _openrouter_body(

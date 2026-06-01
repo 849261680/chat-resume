@@ -293,6 +293,48 @@ async def test_openrouter_stream_logs_latency_stages(caplog: pytest.LogCaptureFi
 
 
 @pytest.mark.asyncio
+async def test_openrouter_stream_logs_safe_pre_delta_summaries(
+    caplog: pytest.LogCaptureFixture,
+):
+    """首有效 delta 前应记录脱敏 SSE 结构，便于判断 70 秒卡在哪。"""
+    model, context, options, partial, queue = _make_openrouter_stream_args()
+    _FakeOpenRouterClient.lines = [
+        'data: {"choices":[{"delta":{}}]}',
+        'data: {"choices":[{"delta":{"role":"assistant"}}]}',
+        (
+            'data: {"choices":[{"delta":{"tool_calls":[{"index":0,'
+            '"function":{"arguments":"{\\"section\\""}}]}}]}'
+        ),
+        'data: {"choices":[{"delta":{"content":"好"}}]}',
+        "data: [DONE]",
+    ]
+    _FakeOpenRouterClient.delay_seconds = 0.0
+
+    with caplog.at_level(logging.INFO, logger="app.runtime.pi_agent_openrouter"), patch(
+        "app.runtime.pi_agent_openrouter.httpx.AsyncClient",
+        _FakeOpenRouterClient,
+    ):
+        await _pump_openrouter_stream(model, context, options, partial, queue)
+
+    records = [
+        record
+        for record in caplog.records
+        if record.getMessage() == "openrouter.stream.pre_delta_line"
+    ]
+    messages = "\n".join(record.getMessage() for record in records)
+
+    assert len(records) == 4
+    assert getattr(records[0], "delta_keys") == []
+    assert getattr(records[1], "delta_keys") == ["role"]
+    assert getattr(records[2], "tool_call_count") == 1
+    assert getattr(records[2], "tool_arg_delta_chars") == len('{"section"')
+    assert getattr(records[3], "content_chars") == 1
+    assert all(hasattr(record, "wait_ms") for record in records)
+    assert "section" not in messages
+    assert "好" not in messages
+
+
+@pytest.mark.asyncio
 async def test_openrouter_stream_logs_first_tool_delta(
     caplog: pytest.LogCaptureFixture,
 ):

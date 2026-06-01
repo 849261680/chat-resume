@@ -133,6 +133,8 @@ class _OpenRouterStreamProgress:
     first_text_seen: bool = False
     first_tool_seen: bool = False
     text_chars: int = 0
+    last_sse_line_at: float | None = None
+    pre_delta_line_count: int = 0
 
 
 @dataclass
@@ -378,6 +380,12 @@ async def _consume_openrouter_response(
             )
         except StopAsyncIteration:
             return
+        _log_pre_delta_line_if_needed(
+            line=line,
+            progress=progress,
+            started_at=started_at,
+            model=model,
+        )
         should_continue = _handle_openrouter_line(
             line=line,
             model=model,
@@ -405,6 +413,114 @@ async def _consume_openrouter_response(
                 tool_count=len(tool_buffers),
             )
             return
+
+
+def _log_pre_delta_line_if_needed(
+    *,
+    line: str,
+    progress: _OpenRouterStreamProgress,
+    started_at: float,
+    model: Model,
+) -> None:
+    """用于记录首个有效 delta 前的 SSE 行结构摘要。"""
+    if progress.first_delta_seen:
+        return
+    now = monotonic()
+    previous_at = progress.last_sse_line_at or started_at
+    progress.last_sse_line_at = now
+    progress.pre_delta_line_count += 1
+    _log_openrouter_stage(
+        "pre_delta_line",
+        started_at=started_at,
+        model=model.id,
+        line_count=progress.pre_delta_line_count,
+        wait_ms=round((now - previous_at) * 1000, 2),
+        **_pre_delta_line_summary(line),
+    )
+
+
+def _pre_delta_line_summary(line: str) -> dict[str, Any]:
+    """用于生成首有效 delta 前 SSE 行的脱敏摘要。"""
+    base: dict[str, Any] = {"line_chars": len(line)}
+    if not line:
+        return {**base, "line_kind": "blank"}
+    if not line.startswith("data: "):
+        return {**base, "line_kind": "non_data"}
+    data = line[6:].strip()
+    if not data:
+        return {**base, "line_kind": "empty_data", "data_chars": 0}
+    if data == "[DONE]":
+        return {**base, "line_kind": "done", "data_chars": len(data)}
+    return _pre_delta_data_summary(data, base)
+
+
+def _pre_delta_data_summary(data: str, base: dict[str, Any]) -> dict[str, Any]:
+    """用于解析 OpenRouter data 行并只保留结构与长度信息。"""
+    try:
+        chunk = json.loads(data)
+    except json.JSONDecodeError:
+        return {**base, "line_kind": "invalid_json", "data_chars": len(data)}
+    if not isinstance(chunk, dict):
+        return {**base, "line_kind": "non_object", "data_chars": len(data)}
+    choices = chunk.get("choices")
+    choice_count = len(choices) if isinstance(choices, list) else 0
+    choice = choices[0] if isinstance(choices, list) and choices else None
+    return {
+        **base,
+        "line_kind": "chunk",
+        "data_chars": len(data),
+        "choice_count": choice_count,
+        "usage_present": isinstance(chunk.get("usage"), dict),
+        **_pre_delta_choice_summary(choice),
+    }
+
+
+def _pre_delta_choice_summary(choice: Any) -> dict[str, Any]:
+    """用于提取单个 choice 的 delta 结构摘要。"""
+    if not isinstance(choice, dict):
+        return {
+            "delta_keys": [],
+            "finish_reason": "",
+            "content_chars": 0,
+            "tool_call_count": 0,
+            "tool_name_count": 0,
+            "tool_arg_delta_chars": 0,
+        }
+    delta = choice.get("delta")
+    delta_dict = delta if isinstance(delta, dict) else {}
+    return {
+        "delta_keys": sorted(str(key) for key in delta_dict),
+        "finish_reason": str(choice.get("finish_reason") or ""),
+        "content_chars": _text_delta_chars(delta_dict),
+        **_pre_delta_tool_summary(delta_dict),
+    }
+
+
+def _pre_delta_tool_summary(delta: dict[str, Any]) -> dict[str, int]:
+    """用于统计 tool_calls 的数量和参数长度，不记录参数内容。"""
+    tool_calls = delta.get("tool_calls")
+    if not isinstance(tool_calls, list):
+        return {
+            "tool_call_count": 0,
+            "tool_name_count": 0,
+            "tool_arg_delta_chars": 0,
+        }
+    tool_name_count = 0
+    arg_chars = 0
+    for raw_call in tool_calls:
+        if not isinstance(raw_call, dict):
+            continue
+        function = raw_call.get("function")
+        if not isinstance(function, dict):
+            continue
+        tool_name_count += int(isinstance(function.get("name"), str))
+        arguments = function.get("arguments")
+        arg_chars += len(arguments) if isinstance(arguments, str) else 0
+    return {
+        "tool_call_count": len(tool_calls),
+        "tool_name_count": tool_name_count,
+        "tool_arg_delta_chars": arg_chars,
+    }
 
 
 def _handle_openrouter_line(

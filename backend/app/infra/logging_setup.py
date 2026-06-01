@@ -268,6 +268,8 @@ def _openrouter_message_label(message: str, extra: dict[str, Any]) -> str:
         )
     if stage in {"first_sse_line", "first_text_delta", "first_tool_delta"}:
         return _openrouter_first_event_label(stage, client, elapsed, extra)
+    if stage == "pre_delta_line":
+        return _openrouter_pre_delta_label(client, elapsed, extra)
     if stage == "tool_call_start_emitted_early":
         return _compact_label(
             "openrouter tool_start",
@@ -322,6 +324,31 @@ def _openrouter_message_label(message: str, extra: dict[str, Any]) -> str:
             elapsed,
         )
     return _compact_label(f"openrouter {stage}", f"client={client}", elapsed)
+
+
+def _openrouter_pre_delta_label(
+    client: str,
+    elapsed: str | None,
+    extra: dict[str, Any],
+) -> str:
+    """用于压缩首有效 delta 前的 OpenRouter 行摘要。"""
+    delta_keys = extra.get("delta_keys")
+    delta_label = ",".join(delta_keys) if isinstance(delta_keys, list) else "-"
+    if not delta_label:
+        delta_label = "-"
+    return _compact_label(
+        "openrouter pre_delta",
+        f"client={client}",
+        f"n={extra.get('line_count', '-')}",
+        f"kind={extra.get('line_kind', '-')}",
+        _compact_ms(extra.get("wait_ms"), label="wait"),
+        f"delta={delta_label}",
+        f"text={extra.get('content_chars', '-')}",
+        f"tools={extra.get('tool_call_count', '-')}",
+        f"args={extra.get('tool_arg_delta_chars', '-')}",
+        f"finish={extra.get('finish_reason', '-')}",
+        elapsed,
+    )
 
 
 def _openrouter_first_event_label(

@@ -62,6 +62,6 @@ export function getEmeraldPersonalInfoLayout(hasPhoto: boolean): EmeraldPersonal
     nameBlockClassName: 'resume-emerald-name-block relative',
     textClassName: ['min-w-0', safePaddingClass].filter(Boolean).join(' '),
     contactClassName: safePaddingClass,
-    photoWrapClassName: hasPhoto ? 'absolute right-0 top-0' : '',
+    photoWrapClassName: hasPhoto ? 'absolute right-0 top-4' : '',
   }
 }

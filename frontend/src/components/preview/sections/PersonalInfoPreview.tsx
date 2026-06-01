@@ -115,7 +115,7 @@ export default function PersonalInfoPreview({ data, renderLines, templateStyle =
       <div className="resume-emerald-personal" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 28px)' }}>
         {shouldRenderLine(0) && (
           <div data-line-index={0} className="resume-emerald-name-block">
-            <div className="flex items-start justify-between gap-5">
+            <div className="flex items-start justify-between gap-6">
               <div className="min-w-0">
                 <h1 className="text-2xl font-bold">
                   {data.name || t('nameFallback')}
@@ -130,7 +130,7 @@ export default function PersonalInfoPreview({ data, renderLines, templateStyle =
                 <ResumePhoto
                   src={photoUrl}
                   alt={data.name || t('nameFallback')}
-                  className="h-20 w-16 shrink-0 rounded-md border border-white/40 bg-white/10"
+                  className="h-24 w-20 shrink-0 border border-white/40 bg-white/10"
                 />
               )}
             </div>

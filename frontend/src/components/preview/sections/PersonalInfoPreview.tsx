@@ -5,6 +5,7 @@ import type { PersonalInfo } from '@/types/resume'
 import type { ResumeTemplateStyle } from '@/types/resumeLayout'
 import { useTranslations } from 'next-intl'
 import { normalizeResumePhotoUrl } from '@/lib/resumePhoto'
+import { getFormalPersonalInfoLayout } from './personalInfoLayout'
 
 interface PersonalInfoPreviewProps {
   data: PersonalInfo
@@ -187,12 +188,13 @@ export default function PersonalInfoPreview({ data, renderLines, templateStyle =
       data.linkedin ? `LinkedIn: ${data.linkedin}` : null,
       data.website ? `${t('website')}: ${data.website}` : null,
     ].filter(Boolean)
+    const layout = getFormalPersonalInfoLayout(Boolean(photoUrl))
 
     return (
-      <div className="resume-formal-personal" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 22px)' }}>
+      <div className={layout.containerClassName} style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 22px)' }}>
         {shouldRenderLine(0) && (
-          <div data-line-index={0} className="flex items-start justify-between gap-6" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 12px)' }}>
-            <div className="min-w-0">
+          <div data-line-index={0} className={layout.headerClassName} style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 12px)' }}>
+            <div className={layout.textClassName}>
               <h1 className="text-2xl font-bold text-gray-900 mb-3">
                 {data.name || t('nameFallback')}
               </h1>
@@ -203,17 +205,19 @@ export default function PersonalInfoPreview({ data, renderLines, templateStyle =
               )}
             </div>
             {photoUrl && (
-              <ResumePhoto
-                src={photoUrl}
-                alt={data.name || t('nameFallback')}
-                className="h-[88px] w-[72px] shrink-0 border border-gray-300 bg-gray-50"
-              />
+              <div className={layout.photoWrapClassName}>
+                <ResumePhoto
+                  src={photoUrl}
+                  alt={data.name || t('nameFallback')}
+                  className="h-[88px] w-[72px] border border-gray-300 bg-gray-50"
+                />
+              </div>
             )}
           </div>
         )}
 
         {shouldRenderLine(1) && (
-          <div data-line-index={1} className="resume-formal-contact text-sm text-gray-900">
+          <div data-line-index={1} className={`resume-formal-contact text-sm text-gray-900 ${layout.contactClassName}`}>
             {contactItems.length > 0 && (
               <div>{contactItems.join(' | ')}</div>
             )}

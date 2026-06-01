@@ -356,6 +356,47 @@ test.describe('简历模板样式', () => {
     await expect(page.locator('#resume-export-content .resume-page')).toHaveCount(1)
   })
 
+  test('打印页忽略缺少文本的教育要点并完成导出就绪', async ({ page }) => {
+    const payload = encodePrintPayload({
+      template: 'emerald',
+      layout_config: {
+        moduleOrder: ['personal', 'education', 'work'],
+        visibleModules: ['personal', 'education', 'work'],
+        spacingScale: 0.55,
+        templateStyle: 'emerald',
+      },
+      content: {
+        personal_info: {
+          name: '导出异常样本',
+          email: 'export@test.example',
+        },
+        education: [
+          {
+            school: '东北大学（985）',
+            degree: '本科',
+            major: '信息安全',
+            highlights: [{ id: 'hl_missing_text' }],
+          },
+        ],
+        work_experience: [
+          {
+            company: '测试公司',
+            position: 'AI Agent开发工程师',
+            highlights: [{ text: '负责 Agent 导出链路稳定性。' }],
+          },
+        ],
+      },
+    })
+
+    await page.goto(`/resume/print?data=${payload}`)
+    await page.waitForSelector('[data-resume-print-ready="true"]', {
+      state: 'attached',
+      timeout: 5_000,
+    })
+    await expect(page.locator('#resume-export-content .resume-page')).toHaveCount(1)
+    await expect(page.locator('#resume-export-content li')).toHaveCount(1)
+  })
+
   test('单页打印页导出的 PDF 只有一页', async ({ page }) => {
     const payload = encodePrintPayload({
       template: 'emerald',

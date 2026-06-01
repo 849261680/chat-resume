@@ -5,7 +5,11 @@ import type { PersonalInfo } from '@/types/resume'
 import type { ResumeTemplateStyle } from '@/types/resumeLayout'
 import { useTranslations } from 'next-intl'
 import { normalizeResumePhotoUrl } from '@/lib/resumePhoto'
-import { getFormalPersonalInfoLayout } from './personalInfoLayout'
+import {
+  getCenteredPersonalInfoLayout,
+  getEmeraldPersonalInfoLayout,
+  getFormalPersonalInfoLayout,
+} from './personalInfoLayout'
 
 interface PersonalInfoPreviewProps {
   data: PersonalInfo
@@ -112,34 +116,35 @@ export default function PersonalInfoPreview({ data, renderLines, templateStyle =
   const isEmerald = templateStyle === 'emerald'
 
   if (isEmerald) {
+    const layout = getEmeraldPersonalInfoLayout(Boolean(photoUrl))
     return (
-      <div className="resume-emerald-personal" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 28px)' }}>
+      <div className={layout.containerClassName} style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 28px)' }}>
         {shouldRenderLine(0) && (
-          <div data-line-index={0} className="resume-emerald-name-block">
-            <div className="flex items-start justify-between gap-6">
-              <div className="min-w-0">
-                <h1 className="text-2xl font-bold">
-                  {data.name || t('nameFallback')}
-                </h1>
-                {data.position && (
-                  <p className="resume-emerald-position">
-                    {data.position}
-                  </p>
-                )}
-              </div>
-              {photoUrl && (
+          <div data-line-index={0} className={layout.nameBlockClassName}>
+            <div className={layout.textClassName}>
+              <h1 className="text-2xl font-bold">
+                {data.name || t('nameFallback')}
+              </h1>
+              {data.position && (
+                <p className="resume-emerald-position">
+                  {data.position}
+                </p>
+              )}
+            </div>
+            {photoUrl && (
+              <div className={layout.photoWrapClassName}>
                 <ResumePhoto
                   src={photoUrl}
                   alt={data.name || t('nameFallback')}
-                  className="h-[88px] w-[72px] shrink-0 border border-white/40 bg-white/10"
+                  className="h-[88px] w-[72px] border border-white/40 bg-white/10"
                 />
-              )}
-            </div>
+              </div>
+            )}
           </div>
         )}
 
         {shouldRenderLine(1) && (
-          <div data-line-index={1} className="resume-emerald-contact">
+          <div data-line-index={1} className={`resume-emerald-contact ${layout.contactClassName}`}>
             <div className="resume-emerald-contact-col">
               {data.email && (
                 <span className={itemClassName}><EmailIcon />{data.email}</span>
@@ -234,19 +239,20 @@ export default function PersonalInfoPreview({ data, renderLines, templateStyle =
     )
   }
 
+  const layout = getCenteredPersonalInfoLayout(Boolean(photoUrl))
   return (
-    <div style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 20px)' }}>
+    <div className={layout.containerClassName} style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 20px)' }}>
       {/* 姓名和职位 */}
       {shouldRenderLine(0) && (
         <div
           data-line-index={0}
-          className="relative text-center"
+          className={layout.headerClassName}
           style={{
+            ...layout.headerStyle,
             marginBottom: 'calc(var(--spacing-scale, 1) * 12px)',
-            minHeight: photoUrl ? 88 : undefined,
           }}
         >
-          <div className={photoUrl ? 'px-[72px]' : ''}>
+          <div className={layout.textClassName}>
             <h1 className="text-2xl font-bold text-gray-900 mb-1">
               {data.name || t('nameFallback')}
             </h1>
@@ -257,7 +263,7 @@ export default function PersonalInfoPreview({ data, renderLines, templateStyle =
             )}
           </div>
           {photoUrl && (
-            <div className="absolute right-0 top-0">
+            <div className={layout.photoWrapClassName}>
               <ResumePhoto
                 src={photoUrl}
                 alt={data.name || t('nameFallback')}
@@ -270,7 +276,7 @@ export default function PersonalInfoPreview({ data, renderLines, templateStyle =
 
       {/* 联系方式 */}
       {shouldRenderLine(1) && (
-        <div data-line-index={1} className="flex flex-wrap justify-center gap-4 text-xs text-gray-600 pb-3">
+        <div data-line-index={1} className={`flex flex-wrap justify-center gap-4 text-xs text-gray-600 pb-3 ${layout.contactClassName}`}>
           {data.email && (
             <span className={itemClassName}><EmailIcon />{data.email}</span>
           )}

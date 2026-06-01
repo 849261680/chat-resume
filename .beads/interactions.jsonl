@@ -201,3 +201,4 @@
 {"id":"int-07b2dc16","kind":"field_change","created_at":"2026-06-01T01:47:29.44788Z","actor":"宇宙熊Yzx","issue_id":"cr-f8q8","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Completed"}}
 {"id":"int-30dcdbcf","kind":"field_change","created_at":"2026-06-01T01:54:55.435371Z","actor":"宇宙熊Yzx","issue_id":"cr-dcdo","extra":{"field":"status","new_value":"closed","old_value":"open","reason":"Completed"}}
 {"id":"int-c1468cb5","kind":"field_change","created_at":"2026-06-01T01:57:40.332405Z","actor":"宇宙熊Yzx","issue_id":"cr-45cj","extra":{"field":"status","new_value":"closed","old_value":"open","reason":"Completed"}}
+{"id":"int-68afb468","kind":"field_change","created_at":"2026-06-01T01:59:30.273295Z","actor":"宇宙熊Yzx","issue_id":"cr-tmuo","extra":{"field":"status","new_value":"closed","old_value":"open","reason":"Completed"}}

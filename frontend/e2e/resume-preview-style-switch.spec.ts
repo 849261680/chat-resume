@@ -321,6 +321,16 @@ test('正式模板项目链接展示为一行', async ({ page }) => {
   expect(shape.hrefs).toContain('https://github.com/849261680/chat-resume')
 })
 
+test('经典模板项目描述带标签且不显示关键要点标题', async ({ page }) => {
+  await mockEditorApis(page, buildSmartFitResumeResponse())
+  await page.goto('/zh/resume/123/edit')
+
+  await expect(page.locator('#resume-export-content')).toBeVisible()
+  await expect(page.getByText('计算中...')).toHaveCount(0)
+  await expect(page.locator('#resume-export-content')).toContainText('项目描述：AI 驱动的求职辅导平台')
+  await expect(page.locator('#resume-export-content').getByText('关键要点:')).toHaveCount(0)
+})
+
 test('智能一页后不同模板的底部留白保持接近', async ({ page }) => {
   test.setTimeout(60_000)
   await mockEditorApis(page, buildSmartFitResumeResponse())

@@ -267,17 +267,26 @@ export default function PaginatedResumePreview({
     }
 
     const offset = pageIndex === 0 ? 0 : page.startOffset
+    const sliceHeight = pageIndex === 0 ? page.endOffset : page.height
 
     return (
       <div
-        className={`resume-template-${templateStyle} absolute left-0 top-0`}
+        className="absolute left-0 top-0 overflow-hidden"
         style={{
           width: `${pageContentWidth}px`,
-          transform: `translateY(-${offset}px)`,
-          ['--spacing-scale' as string]: String(spacingScale),
+          height: `${sliceHeight}px`,
         }}
       >
-        {renderVisibleModules()}
+        <div
+          className={`resume-template-${templateStyle}`}
+          style={{
+            width: `${pageContentWidth}px`,
+            transform: `translateY(-${offset}px)`,
+            ['--spacing-scale' as string]: String(spacingScale),
+          }}
+        >
+          {renderVisibleModules()}
+        </div>
       </div>
     )
   }

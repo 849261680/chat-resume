@@ -410,4 +410,76 @@ test.describe('简历模板样式', () => {
 
     expect(firstPageBottomGap).toBeLessThan(90)
   })
+
+  test('分页页尾不会露出下一页的长 bullet 尾行', async ({ page }) => {
+    const targetText = '实现 SSE 流式推送研究进度（planning → search_result → step_complete → deep_research_decision → report_complete），并建设 CostTracker 与 ResearchMetrics 记录 token、搜索次数、来源数量与耗时，使长任务研究过程可观测'
+    const fillerText = '负责 Agent 工具链建设，覆盖规划、调用、确认、回滚和结果同步。'
+    const payload = encodePrintPayload({
+      template: 'formal',
+      content: {
+        personal_info: {
+          name: '分页复现',
+          email: 'page@example.com',
+        },
+        education: [],
+        skills: [],
+        work_experience: [],
+        projects: [
+          {
+            name: 'Deep Research Agent',
+            role: '全栈工程师',
+            duration: '2026',
+            overview: '研究型 Agent 平台。',
+            highlights: [
+              ...Array.from({ length: 29 }, (_, index) => ({
+                text: `${fillerText} ${index}`,
+              })),
+              { text: targetText },
+            ],
+          },
+        ],
+      },
+    })
+
+    await page.goto(`/resume/print?data=${payload}`)
+    const visiblePages = page.locator('.resume-page:not(.invisible)')
+    await expect.poll(async () => visiblePages.count()).toBeGreaterThan(1)
+
+    const leakedTargetLineCount = await visiblePages.first().evaluate((pageElement, target) => {
+      const pageBox = pageElement.getBoundingClientRect()
+      const styles = window.getComputedStyle(pageElement)
+      const scaleY = pageBox.height / (pageElement as HTMLElement).offsetHeight
+      const contentTop = pageBox.top + (parseFloat(styles.paddingTop) || 0) * scaleY
+      const contentBottom = pageBox.bottom - (parseFloat(styles.paddingBottom) || 0) * scaleY
+      const walker = document.createTreeWalker(pageElement, NodeFilter.SHOW_TEXT)
+      const range = document.createRange()
+      let leakedLines = 0
+      let node = walker.nextNode()
+
+      while (node) {
+        if (!node.textContent?.includes(target)) {
+          node = walker.nextNode()
+          continue
+        }
+
+        range.selectNodeContents(node)
+        for (const rect of Array.from(range.getClientRects())) {
+          if (rect.bottom <= contentTop || rect.top >= contentBottom) continue
+
+          const visibleTop = Math.max(rect.top, contentTop)
+          const visibleBottom = Math.min(rect.bottom, contentBottom)
+          const probeElement = document.elementFromPoint(rect.left + 8, (visibleTop + visibleBottom) / 2)
+          if (probeElement?.textContent?.includes(target)) {
+            leakedLines += 1
+          }
+        }
+        node = walker.nextNode()
+      }
+
+      range.detach()
+      return leakedLines
+    }, targetText)
+
+    expect(leakedTargetLineCount).toBe(0)
+  })
 })

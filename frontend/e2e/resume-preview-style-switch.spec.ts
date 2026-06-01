@@ -84,6 +84,95 @@ function buildSmartFitResumeResponse() {
   }
 }
 
+// 构造 emerald 模板下容易触发页尾裁切的简历内容。
+function buildEmeraldClippingResumeResponse() {
+  const resume = buildResumeResponse()
+  return {
+    ...resume,
+    layout_config: {
+      density: 'custom',
+      moduleOrder: ['personal', 'summary', 'education', 'work', 'projects', 'skills'],
+      visibleModules: ['personal', 'education', 'work', 'projects'],
+      spacingScale: 0.65,
+      templateStyle: 'emerald',
+    },
+    content: {
+      ...resume.content,
+      personal_info: {
+        name: '彭世雄',
+        email: 'psx@test.example',
+        phone: '13800000000',
+        location: '北京',
+      },
+      education: [{
+        school: '测试大学',
+        degree: '本科',
+        major: '计算机科学与技术',
+        duration: '2020-2024',
+        highlights: [{ text: '主修数据结构、操作系统、计算机网络与软件工程。' }],
+      }],
+      work_experience: [{
+        company: '世优科技',
+        position: 'AI Agent 开发工程师',
+        duration: '2025/08-至今',
+        highlights: [
+          { text: '设计 SDR 场景 AI Agent，基于 ToolRegistry + CoreToolSchema 抽象销售外呼、客户画像与线索跟进工具。' },
+          { text: '建设 Prompt Chain 与 Few-shot 示例，约束通话处理的工具调用顺序与结构化输出格式。' },
+          { text: '接入 Redis 会话状态与任务队列，支持长任务恢复、失败重试与多轮上下文传递。' },
+          { text: '完善日志与错误分层，定位模型响应、工具调用和业务写入中的异常路径。' },
+        ],
+      }],
+      projects: [
+        {
+          name: 'Chat Resume - AI驱动的求职辅导平台',
+          overview: 'AI 求职辅导平台，集成 MCP 搜索与语音交互，实现简历诊断与模拟面试。',
+          github_url: 'https://github.com/849261680/chat-resume',
+          demo_url: 'https://chatresume.tech',
+          highlights: [
+            { text: 'Prompt Chain：设计 Prompt Chain 解析非结构化简历为 JSON，结合 JD 关键词匹配与用户记忆，实现简历诊断、岗位差距分析与模拟面试全流程。' },
+            { text: 'ReAct Agent：设计 ReAct Agent，基于简历 JSON + JD + 用户记忆自主决策工具调用，实现诊断→改写→diff 预览→确认→写回闭环。' },
+            { text: '安全机制：实现 Human-in-the-loop 确认门，写入型工具先 dry-run 生成结构化 diff，用户确认后才写入。' },
+            { text: '流式工程：建设 SSE 流式事件与 Session Store，将 Agent 文本、工具调用、diff 预览、确认结果序列化为事件并持久化。' },
+          ],
+        },
+        {
+          name: 'Deep Research Agent - 深度研究智能体',
+          overview: '基于 LangChain ReAct 的自主研究 Agent，实现 Planning → Tool Use 闭环，支持多轮调研并生成研究报告。',
+          github_url: 'https://github.com/849261680/research-gpt',
+          demo_url: 'https://rsgpt.vercel.app',
+          highlights: [
+            { text: '工作流编排：使用 LangGraph StateGraph 编排顶层工作流与子图递归深挖，实现 Planning → Tool Use → Evidence → Report 完整闭环。' },
+            { text: '递归深挖：设计递归深挖机制，每个子查询完成后基于压缩证据与校验结果判断证据缺口，自动生成后续查询继续搜索。' },
+            { text: '证据链校验：建设证据链校验机制，统一管理来源证据，生成报告后自动抽取 claims 并校验引用有效性。' },
+            { text: '可观测性：实现 SSE 流式推送研究进度，建设 CostTracker 与 ResearchMetrics 记录 token、搜索次数、来源数量与耗时，使长任务研究过程可观测。' },
+          ],
+        },
+      ],
+    },
+  }
+}
+
+// 检查指定文本是否真正出现在预览页可视边界内。
+async function findVisiblePreviewText(page: Page, text: string) {
+  return page.evaluate((targetText) => {
+    const pages = Array.from(document.querySelectorAll('#resume-export-content .resume-page'))
+    const elements = Array.from(document.querySelectorAll('#resume-export-content .resume-page li, #resume-export-content .resume-page p'))
+      .filter((element) => element.textContent?.includes(targetText))
+
+    return {
+      pageCount: pages.length,
+      matchCount: elements.length,
+      visible: elements.some((element) => {
+        const rect = element.getBoundingClientRect()
+        const pageElement = element.closest('.resume-page')
+        const pageRect = pageElement?.getBoundingClientRect()
+        if (!pageRect) return false
+        return rect.top >= pageRect.top && rect.bottom <= pageRect.bottom
+      }),
+    }
+  }, text)
+}
+
 // 读取首个预览页最后一行到底部的未缩放留白。
 async function measureFirstPageBottomGap(page: Page) {
   return page.evaluate(() => {
@@ -170,4 +259,16 @@ test('智能一页后不同模板的底部留白保持接近', async ({ page }) 
   }
 
   expect(Math.max(...gaps) - Math.min(...gaps)).toBeLessThanOrEqual(32)
+})
+
+test('绿页眉样式不会裁掉页尾项目要点', async ({ page }) => {
+  await mockEditorApis(page, buildEmeraldClippingResumeResponse())
+  await page.goto('/zh/resume/123/edit')
+
+  await expect(page.locator('#resume-export-content')).toBeVisible()
+  await expect(page.getByText('计算中...')).toHaveCount(0)
+
+  const result = await findVisiblePreviewText(page, '可观测性：实现 SSE 流式推送研究进度')
+  expect(result.matchCount).toBeGreaterThan(0)
+  expect(result.visible).toBe(true)
 })

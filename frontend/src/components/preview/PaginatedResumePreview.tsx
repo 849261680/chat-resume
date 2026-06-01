@@ -2,7 +2,7 @@
 // 用于提供 components/preview/PaginatedResumePreview.tsx 模块。
 
 import React, { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useLineBasedPagination, measureRenderableLines, A4_HEIGHT, A4_WIDTH, PAGE_PADDING, SAFETY_MARGIN } from './hooks/useLineBasedPagination'
+import { useLineBasedPagination, measureRenderableLines, A4_HEIGHT, A4_WIDTH, PAGE_PADDING } from './hooks/useLineBasedPagination'
 import { useSmartFit } from './hooks/useSmartFit'
 import ResumePage from './ResumePage'
 import PersonalInfoPreview from './sections/PersonalInfoPreview'
@@ -91,14 +91,12 @@ export default function PaginatedResumePreview({
   }, [moduleOrderKey])
   const isFullBleedTemplate = templateStyle === 'emerald'
   const pageContentWidth = isFullBleedTemplate ? A4_WIDTH : PAGE_CONTENT_WIDTH
-  const pageContentHeight = isFullBleedTemplate ? A4_HEIGHT - SAFETY_MARGIN : undefined
 
 
   const { pages, totalPages, isCalculating } = useLineBasedPagination({
     containerRef,
     contentRef,
     spacingScale,
-    pageHeight: pageContentHeight
   })
 
   const handleSmartFitComplete = useCallback((newScale: number) => {

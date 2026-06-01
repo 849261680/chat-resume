@@ -26,7 +26,7 @@ interface UseSmartFitOptions {
 
 // 对于给定的 scale，计算页面内最后一行允许到达的视觉底线。
 function effectivePageBottom(scale: number) {
-  return A4_HEIGHT - PAGE_PADDING * scale - SAFETY_MARGIN
+  return A4_HEIGHT - PAGE_PADDING * 2 * scale - SAFETY_MARGIN
 }
 
 // 将试算结果落到可控步长，避免布局滑块出现过细的小数。

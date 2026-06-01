@@ -42,12 +42,21 @@ const DemoIcon = () => (
   </span>
 )
 
+// 用于生成项目链接的固定展示顺序。
+function getProjectLinkItems(project: Project) {
+  return [
+    project.demo_url ? { label: 'Demo', url: project.demo_url } : null,
+    project.github_url ? { label: 'GitHub', url: project.github_url } : null,
+  ].filter((item): item is { label: string; url: string } => Boolean(item))
+}
+
 // 单个项目项组件
 function ProjectItem({ project, lineIndex, templateStyle = 'classic' }: { project: Project; lineIndex: number; templateStyle?: ResumeTemplateStyle }) {
   const t = useTranslations('resume.preview')
   const highlights = project.highlights && project.highlights.length > 0
     ? project.highlights.map(item => item.text)
     : []
+  const linkItems = getProjectLinkItems(project)
   const isFormal = templateStyle === 'formal'
   const isEmerald = templateStyle === 'emerald'
 
@@ -62,18 +71,14 @@ function ProjectItem({ project, lineIndex, templateStyle = 'classic' }: { projec
           {project.duration && <span className="resume-emerald-subtle shrink-0 font-normal">{project.duration}</span>}
         </div>
 
-        {(project.github_url || project.demo_url) && (
+        {linkItems.length > 0 && (
           <div className="resume-emerald-links text-sm" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 6px)' }}>
-            {project.demo_url && (
-              <span>
-                Demo: <a href={project.demo_url} target="_blank" rel="noopener noreferrer">{project.demo_url}</a>
+            {linkItems.map((item, index) => (
+              <span key={item.label}>
+                {index > 0 && <span className="resume-emerald-subtle"> | </span>}
+                {item.label}: <a href={item.url} target="_blank" rel="noopener noreferrer">{item.url}</a>
               </span>
-            )}
-            {project.github_url && (
-              <span>
-                GitHub: <a href={project.github_url} target="_blank" rel="noopener noreferrer">{project.github_url}</a>
-              </span>
-            )}
+            ))}
           </div>
         )}
 
@@ -102,11 +107,15 @@ function ProjectItem({ project, lineIndex, templateStyle = 'classic' }: { projec
           {project.duration && <span className="shrink-0 font-normal">{project.duration}</span>}
         </div>
 
-        {(project.demo_url || project.github_url) && (
-          <ul className="list-disc text-sm text-gray-900" style={{ lineHeight: '1.72', paddingLeft: 18, marginBottom: 'calc(var(--spacing-scale, 1) * 6px)' }}>
-            {project.demo_url && <li>Demo: {project.demo_url}</li>}
-            {project.github_url && <li>GitHub: {project.github_url}</li>}
-          </ul>
+        {linkItems.length > 0 && (
+          <p className="text-sm text-gray-900" style={{ lineHeight: '1.72', marginBottom: 'calc(var(--spacing-scale, 1) * 6px)' }}>
+            {linkItems.map((item, index) => (
+              <span key={item.label}>
+                {index > 0 && ' | '}
+                {item.label}: {item.url}
+              </span>
+            ))}
+          </p>
         )}
 
         {project.overview && (

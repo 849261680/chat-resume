@@ -84,6 +84,33 @@ function buildSmartFitResumeResponse() {
   }
 }
 
+// 构造带项目链接的正式模板简历，用于验证链接行展示。
+function buildFormalProjectLinksResumeResponse() {
+  const resume = buildResumeResponse()
+  return {
+    ...resume,
+    layout_config: {
+      density: 'normal',
+      moduleOrder: ['personal', 'summary', 'education', 'work', 'projects', 'skills'],
+      visibleModules: ['personal', 'education', 'work', 'projects'],
+      spacingScale: 1,
+      templateStyle: 'formal',
+    },
+    content: {
+      ...resume.content,
+      projects: [{
+        name: 'Chat Resume - AI驱动的求职辅导平台',
+        overview: 'AI 求职辅导平台，集成 MCP 搜索与语音交互，实现简历诊断与模拟面试。',
+        github_url: 'https://github.com/849261680/chat-resume',
+        demo_url: 'https://chatresume.tech',
+        highlights: [
+          { text: 'Prompt Chain：设计 Prompt Chain 解析非结构化简历为 JSON' },
+        ],
+      }],
+    },
+  }
+}
+
 // 构造 emerald 模板下容易触发页尾裁切的简历内容。
 function buildEmeraldClippingResumeResponse() {
   const resume = buildResumeResponse()
@@ -207,6 +234,22 @@ async function hasBoldPreviewLeadLabel(page: Page, label: string) {
   }, label)
 }
 
+// 检查正式模板项目链接是否为单行而不是列表。
+async function getFormalProjectLinkShape(page: Page) {
+  return page.evaluate(() => {
+    const linkText = 'Demo: https://chatresume.tech | GitHub: https://github.com/849261680/chat-resume'
+    const paragraphs = Array.from(document.querySelectorAll('#resume-export-content p'))
+    const listItems = Array.from(document.querySelectorAll('#resume-export-content li'))
+    return {
+      hasOneLineText: paragraphs.some((element) => element.textContent === linkText),
+      listItemCount: listItems.filter((element) =>
+        element.textContent?.startsWith('Demo:') ||
+        element.textContent?.startsWith('GitHub:')
+      ).length,
+    }
+  })
+}
+
 // 读取首个预览页最后一行到底部的未缩放留白。
 async function measureFirstPageBottomGap(page: Page) {
   return page.evaluate(() => {
@@ -260,6 +303,18 @@ test('绿页眉样式卡片展示绿色页眉缩略预览', async ({ page }) => 
   await page.getByRole('button', { name: '简历设置' }).click()
   const emeraldOption = page.getByRole('button', { name: '绿页眉' })
   await expect(emeraldOption.locator('[data-testid="template-preview-header"]')).toHaveCSS('background-color', 'rgb(5, 150, 105)')
+})
+
+test('正式模板项目链接展示为一行', async ({ page }) => {
+  await mockEditorApis(page, buildFormalProjectLinksResumeResponse())
+  await page.goto('/zh/resume/123/edit')
+
+  await expect(page.locator('#resume-export-content')).toBeVisible()
+  await expect(page.getByText('计算中...')).toHaveCount(0)
+
+  const shape = await getFormalProjectLinkShape(page)
+  expect(shape.hasOneLineText).toBe(true)
+  expect(shape.listItemCount).toBe(0)
 })
 
 test('智能一页后不同模板的底部留白保持接近', async ({ page }) => {

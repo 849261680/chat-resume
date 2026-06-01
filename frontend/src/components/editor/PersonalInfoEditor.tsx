@@ -83,7 +83,7 @@ export default function PersonalInfoEditor({ data, onChange }: PersonalInfoEdito
             {t('photo')}
           </label>
           <div className="flex items-start gap-3">
-            <div className="h-16 w-12 shrink-0 overflow-hidden rounded-md border border-gray-200 bg-gray-50">
+            <div className="h-[72px] w-14 shrink-0 overflow-hidden rounded-md border border-gray-200 bg-gray-50">
               {photoPreviewUrl ? (
                 <img
                   src={photoPreviewUrl}

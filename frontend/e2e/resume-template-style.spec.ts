@@ -509,7 +509,7 @@ test.describe('简历模板样式', () => {
         height: (image as HTMLImageElement).offsetHeight,
       }))
 
-      expect(avatarSize).toEqual({ width: 64, height: 80 })
+      expect(avatarSize).toEqual({ width: 72, height: 88 })
     }
   })
 })

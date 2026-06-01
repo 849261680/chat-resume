@@ -26,6 +26,15 @@ const SECTION_ID_MAP: Record<ResumeModule, string> = {
 }
 const PAGE_CONTENT_WIDTH = A4_WIDTH - PAGE_PADDING * 2
 
+// 用于按预览容器的宽高共同计算 A4 页面缩放比例。
+function calculatePreviewScale(container: HTMLElement, viewportPadding: number) {
+  const availableWidth = container.clientWidth - viewportPadding * 2
+  const availableHeight = container.clientHeight - viewportPadding * 2
+  const widthScale = availableWidth / A4_WIDTH
+  const heightScale = availableHeight > 0 ? availableHeight / A4_HEIGHT : widthScale
+  return Math.min(3.0, Math.max(0.3, Math.min(widthScale, heightScale)))
+}
+
 
 interface PaginatedResumePreviewProps {
   content: ResumeContent
@@ -139,19 +148,7 @@ export default function PaginatedResumePreview({
     const calculateScale = () => {
       if (!containerRef.current) return
 
-      const container = containerRef.current
-      const containerWidth = container.clientWidth
-      const containerHeight = container.clientHeight
-      const padding = viewportPadding
-
-      const availableWidth = containerWidth - padding * 2
-      const availableHeight = containerHeight - padding * 2
-      const widthScale = availableWidth / A4_WIDTH
-      const heightScale = availableHeight > 0 ? availableHeight / A4_HEIGHT : widthScale
-      const rawScale = Math.min(widthScale, heightScale)
-      const calculatedScale = Math.min(3.0, Math.max(0.3, rawScale))
-
-      setScale(calculatedScale)
+      setScale(calculatePreviewScale(containerRef.current, viewportPadding))
     }
 
     calculateScale()
@@ -170,6 +167,18 @@ export default function PaginatedResumePreview({
       resizeObserver.disconnect()
     }
   }, [viewportPadding])
+
+  // 分页完成后再次校准缩放，避免数据后加载时沿用旧页面比例。
+  React.useEffect(() => {
+    if (isCalculating || !containerRef.current) return
+
+    const animationFrame = requestAnimationFrame(() => {
+      if (containerRef.current) {
+        setScale(calculatePreviewScale(containerRef.current, viewportPadding))
+      }
+    })
+    return () => cancelAnimationFrame(animationFrame)
+  }, [isCalculating, pages.length, totalPages, viewportPadding])
 
   // 根据模块类型渲染组件
   const renderSection = (sectionId: string, children: ReactNode): JSX.Element => (

@@ -146,12 +146,17 @@
   "forms": {
     "personal": {
       "name": "姓名",
+      "photo": "照片",
+      "photoUpload": "上传照片",
+      "photoRemove": "移除照片",
+      "photoUrl": "照片地址",
       "email": "邮箱",
       "phone": "手机号",
       "position": "期望职位",
       "website": "个人网站",
       "address": "居住地址",
       "namePlaceholder": "请输入您的姓名",
+      "photoUrlPlaceholder": "https://example.com/avatar.jpg",
       "emailPlaceholder": "your@email.com",
       "positionPlaceholder": "软件工程师",
       "githubPlaceholder": "https://github.com/yourusername",

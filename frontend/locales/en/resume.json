@@ -146,12 +146,17 @@
   "forms": {
     "personal": {
       "name": "Name",
+      "photo": "Photo",
+      "photoUpload": "Upload photo",
+      "photoRemove": "Remove photo",
+      "photoUrl": "Photo URL",
       "email": "Email",
       "phone": "Phone",
       "position": "Target role",
       "website": "Website",
       "address": "Location",
       "namePlaceholder": "Enter your name",
+      "photoUrlPlaceholder": "https://example.com/avatar.jpg",
       "emailPlaceholder": "your@email.com",
       "positionPlaceholder": "Software Engineer",
       "githubPlaceholder": "https://github.com/yourusername",

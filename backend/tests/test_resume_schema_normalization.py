@@ -186,6 +186,25 @@ class ResumeSchemaNormalizationTests(unittest.TestCase):
             },
         )
 
+    def test_personal_info_photo_url_is_preserved_for_frontend(self):
+        """用于验证个人照片地址会保留给前端编辑器和预览。"""
+        content = dump_resume_content_for_frontend(
+            {
+                "personal_info": {
+                    "name": "彭世雄",
+                    "photo_url": "data:image/png;base64,avatar",
+                }
+            }
+        )
+
+        self.assertEqual(
+            content["personal_info"],
+            {
+                "name": "彭世雄",
+                "photo_url": "data:image/png;base64,avatar",
+            },
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

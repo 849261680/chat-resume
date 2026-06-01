@@ -4,6 +4,7 @@
 import type { PersonalInfo } from '@/types/resume'
 import type { ResumeTemplateStyle } from '@/types/resumeLayout'
 import { useTranslations } from 'next-intl'
+import { normalizeResumePhotoUrl } from '@/lib/resumePhoto'
 
 interface PersonalInfoPreviewProps {
   data: PersonalInfo
@@ -80,10 +81,23 @@ const WebsiteIcon = () => (
   </span>
 )
 
+// 用于渲染简历个人照片。
+function ResumePhoto({ alt, className, src }: { alt: string; className: string; src: string }) {
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className={className}
+      style={{ objectFit: 'cover' }}
+    />
+  )
+}
+
 // 用于渲染 PersonalInfoPreview 组件。
 export default function PersonalInfoPreview({ data, renderLines, templateStyle = 'classic' }: PersonalInfoPreviewProps) {
   const t = useTranslations('resume.preview')
-  if (!data || (!data.name && !data.email && !data.phone)) {
+  const photoUrl = normalizeResumePhotoUrl(data?.photo_url)
+  if (!data || (!data.name && !data.email && !data.phone && !photoUrl)) {
     return null
   }
 
@@ -101,14 +115,25 @@ export default function PersonalInfoPreview({ data, renderLines, templateStyle =
       <div className="resume-emerald-personal" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 28px)' }}>
         {shouldRenderLine(0) && (
           <div data-line-index={0} className="resume-emerald-name-block">
-            <h1 className="text-2xl font-bold">
-              {data.name || t('nameFallback')}
-            </h1>
-            {data.position && (
-              <p className="resume-emerald-position">
-                {data.position}
-              </p>
-            )}
+            <div className="flex items-start justify-between gap-5">
+              <div className="min-w-0">
+                <h1 className="text-2xl font-bold">
+                  {data.name || t('nameFallback')}
+                </h1>
+                {data.position && (
+                  <p className="resume-emerald-position">
+                    {data.position}
+                  </p>
+                )}
+              </div>
+              {photoUrl && (
+                <ResumePhoto
+                  src={photoUrl}
+                  alt={data.name || t('nameFallback')}
+                  className="h-20 w-16 shrink-0 rounded-md border border-white/40 bg-white/10"
+                />
+              )}
+            </div>
           </div>
         )}
 
@@ -166,14 +191,23 @@ export default function PersonalInfoPreview({ data, renderLines, templateStyle =
     return (
       <div className="resume-formal-personal" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 22px)' }}>
         {shouldRenderLine(0) && (
-          <div data-line-index={0} style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 12px)' }}>
-            <h1 className="text-2xl font-bold text-gray-900 mb-3">
-              {data.name || t('nameFallback')}
-            </h1>
-            {data.position && (
-              <p className="text-base text-gray-900 font-semibold">
-                {t('targetIntent')}: {data.position}
-              </p>
+          <div data-line-index={0} className="flex items-start justify-between gap-6" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 12px)' }}>
+            <div className="min-w-0">
+              <h1 className="text-2xl font-bold text-gray-900 mb-3">
+                {data.name || t('nameFallback')}
+              </h1>
+              {data.position && (
+                <p className="text-base text-gray-900 font-semibold">
+                  {t('targetIntent')}: {data.position}
+                </p>
+              )}
+            </div>
+            {photoUrl && (
+              <ResumePhoto
+                src={photoUrl}
+                alt={data.name || t('nameFallback')}
+                className="h-24 w-20 shrink-0 border border-gray-300 bg-gray-50"
+              />
             )}
           </div>
         )}
@@ -201,6 +235,13 @@ export default function PersonalInfoPreview({ data, renderLines, templateStyle =
       {/* 姓名和职位 */}
       {shouldRenderLine(0) && (
         <div data-line-index={0} className="text-center" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 16px)' }}>
+          {photoUrl && (
+            <ResumePhoto
+              src={photoUrl}
+              alt={data.name || t('nameFallback')}
+              className="mx-auto mb-3 h-24 w-20 rounded-md border border-gray-200 bg-gray-50"
+            />
+          )}
           <h1 className="text-2xl font-bold text-gray-900 mb-1">
             {data.name || t('nameFallback')}
           </h1>

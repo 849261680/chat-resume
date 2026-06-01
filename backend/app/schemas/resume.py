@@ -77,6 +77,7 @@ class JobApplication(ResumeBaseModel):
 
 class PersonalInfo(ResumeBaseModel):
     name: str = ""
+    photo_url: str = ""
     email: str = ""
     phone: str = ""
     position: str = ""

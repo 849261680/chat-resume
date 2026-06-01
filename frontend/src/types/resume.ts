@@ -27,6 +27,7 @@ export interface JobApplication {
 
 export interface PersonalInfo {
   name?: string
+  photo_url?: string
   email?: string
   phone?: string
   position?: string

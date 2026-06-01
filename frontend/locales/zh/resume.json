@@ -114,7 +114,7 @@
     "messagePlaceholder": "输入消息...",
     "pasteSelectionToChat": "添加至对话框",
     "acceptChange": "确认修改",
-    "retryWithFeedback": "按反馈重试",
+    "retryWithFeedback": "重写修改",
     "toolFeedbackPlaceholder": "输入你希望 Agent 重新生成时参考的反馈...",
     "reject": "拒绝",
     "fetchError": "获取简历失败",

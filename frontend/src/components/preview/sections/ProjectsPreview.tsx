@@ -112,7 +112,7 @@ function ProjectItem({ project, lineIndex, templateStyle = 'classic' }: { projec
             {linkItems.map((item, index) => (
               <span key={item.label}>
                 {index > 0 && ' | '}
-                {item.label}: {item.url}
+                {item.label}: <a href={item.url} target="_blank" rel="noopener noreferrer">{item.url}</a>
               </span>
             ))}
           </p>

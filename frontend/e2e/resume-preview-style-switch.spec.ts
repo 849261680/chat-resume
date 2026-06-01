@@ -240,12 +240,14 @@ async function getFormalProjectLinkShape(page: Page) {
     const linkText = 'Demo: https://chatresume.tech | GitHub: https://github.com/849261680/chat-resume'
     const paragraphs = Array.from(document.querySelectorAll('#resume-export-content p'))
     const listItems = Array.from(document.querySelectorAll('#resume-export-content li'))
+    const anchors = Array.from(document.querySelectorAll('#resume-export-content p a'))
     return {
       hasOneLineText: paragraphs.some((element) => element.textContent === linkText),
       listItemCount: listItems.filter((element) =>
         element.textContent?.startsWith('Demo:') ||
         element.textContent?.startsWith('GitHub:')
       ).length,
+      hrefs: anchors.map((element) => (element as HTMLAnchorElement).href),
     }
   })
 }
@@ -315,6 +317,8 @@ test('正式模板项目链接展示为一行', async ({ page }) => {
   const shape = await getFormalProjectLinkShape(page)
   expect(shape.hasOneLineText).toBe(true)
   expect(shape.listItemCount).toBe(0)
+  expect(shape.hrefs).toContain('https://chatresume.tech/')
+  expect(shape.hrefs).toContain('https://github.com/849261680/chat-resume')
 })
 
 test('智能一页后不同模板的底部留白保持接近', async ({ page }) => {

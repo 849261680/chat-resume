@@ -177,7 +177,9 @@ def test_openrouter_body_disables_reasoning_explicitly():
 
     body = _openrouter_body(model, context, options)
 
-    assert body["reasoning"] == {"effort": "none"}
+    assert body["reasoning"] == {"effort": "none", "exclude": True}
+    assert body["reasoning_effort"] == "none"
+    assert body["include_reasoning"] is False
     assert body["parallel_tool_calls"] is False
 
 

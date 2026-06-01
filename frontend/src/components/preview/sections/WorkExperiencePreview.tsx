@@ -4,6 +4,7 @@
 import type { WorkExperience } from '@/types/resume'
 import type { ResumeTemplateStyle } from '@/types/resumeLayout'
 import { useTranslations } from 'next-intl'
+import BulletLeadText from './BulletLeadText'
 
 interface WorkExperiencePreviewProps {
   data: WorkExperience[]
@@ -34,7 +35,7 @@ function WorkExperienceItem({ work, lineIndex, templateStyle = 'classic' }: { wo
         {highlights.length > 0 && (
           <ul className="resume-emerald-list text-sm">
             {highlights.map((line, itemIndex) => (
-              <li key={itemIndex} style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 6px)' }}>{line}</li>
+              <li key={itemIndex} style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 6px)' }}><BulletLeadText text={line} /></li>
             ))}
           </ul>
         )}
@@ -53,7 +54,7 @@ function WorkExperienceItem({ work, lineIndex, templateStyle = 'classic' }: { wo
         {highlights.length > 0 && (
           <ul className="list-disc text-sm text-gray-900" style={{ lineHeight: '1.72', paddingLeft: 18 }}>
             {highlights.map((line, itemIndex) => (
-              <li key={itemIndex} style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 6px)' }}>{line}</li>
+              <li key={itemIndex} style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 6px)' }}><BulletLeadText text={line} /></li>
             ))}
           </ul>
         )}
@@ -94,7 +95,7 @@ function WorkExperienceItem({ work, lineIndex, templateStyle = 'classic' }: { wo
         >
           <ul className="list-disc list-inside">
             {highlights.map((line, itemIndex) => (
-              <li key={itemIndex} style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 2px)' }}>{line}</li>
+              <li key={itemIndex} style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 2px)' }}><BulletLeadText text={line} /></li>
             ))}
           </ul>
         </div>

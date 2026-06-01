@@ -199,6 +199,14 @@ async function getFirstPreviewPageWidth(page: Page) {
   })
 }
 
+// 检查要点前缀是否被语义化加粗。
+async function hasBoldPreviewLeadLabel(page: Page, label: string) {
+  return page.evaluate((targetLabel) => {
+    const strongElements = Array.from(document.querySelectorAll('#resume-export-content strong'))
+    return strongElements.some((element) => element.textContent === targetLabel)
+  }, label)
+}
+
 // 读取首个预览页最后一行到底部的未缩放留白。
 async function measureFirstPageBottomGap(page: Page) {
   return page.evaluate(() => {
@@ -300,4 +308,5 @@ test('绿页眉样式不会裁掉页尾项目要点', async ({ page }) => {
   expect(await getPreviewPageCount(page)).toBeGreaterThan(1)
   expect(result.matchCount).toBeGreaterThan(0)
   expect(result.visible).toBe(true)
+  expect(await hasBoldPreviewLeadLabel(page, 'Prompt Chain：')).toBe(true)
 })

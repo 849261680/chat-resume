@@ -4,6 +4,7 @@
 import type { Project } from '@/types/resume'
 import type { ResumeTemplateStyle } from '@/types/resumeLayout'
 import { useTranslations } from 'next-intl'
+import BulletLeadText from './BulletLeadText'
 
 interface ProjectsPreviewProps {
   data: Project[]
@@ -85,7 +86,7 @@ function ProjectItem({ project, lineIndex, templateStyle = 'classic' }: { projec
         {highlights.length > 0 && (
           <ul className="resume-emerald-list text-sm">
             {highlights.map((achievement, achIndex) => (
-              <li key={achIndex} style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 6px)' }}>{achievement}</li>
+              <li key={achIndex} style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 6px)' }}><BulletLeadText text={achievement} /></li>
             ))}
           </ul>
         )}
@@ -117,7 +118,7 @@ function ProjectItem({ project, lineIndex, templateStyle = 'classic' }: { projec
         {highlights.length > 0 && (
           <ul className="list-disc text-sm text-gray-900" style={{ lineHeight: '1.72', paddingLeft: 18 }}>
             {highlights.map((achievement, achIndex) => (
-              <li key={achIndex} style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 6px)' }}>{achievement}</li>
+              <li key={achIndex} style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 6px)' }}><BulletLeadText text={achievement} /></li>
             ))}
           </ul>
         )}
@@ -194,7 +195,7 @@ function ProjectItem({ project, lineIndex, templateStyle = 'classic' }: { projec
             }}
           >
             {highlights.map((achievement, achIndex) => (
-              <li key={achIndex} style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 2px)' }}>{achievement}</li>
+              <li key={achIndex} style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 2px)' }}><BulletLeadText text={achievement} /></li>
             ))}
           </ul>
         </div>

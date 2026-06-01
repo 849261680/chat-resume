@@ -141,10 +141,14 @@ export default function PaginatedResumePreview({
 
       const container = containerRef.current
       const containerWidth = container.clientWidth
+      const containerHeight = container.clientHeight
       const padding = viewportPadding
 
       const availableWidth = containerWidth - padding * 2
-      const rawScale = availableWidth / A4_WIDTH
+      const availableHeight = containerHeight - padding * 2
+      const widthScale = availableWidth / A4_WIDTH
+      const heightScale = availableHeight > 0 ? availableHeight / A4_HEIGHT : widthScale
+      const rawScale = Math.min(widthScale, heightScale)
       const calculatedScale = Math.min(3.0, Math.max(0.3, rawScale))
 
       setScale(calculatedScale)

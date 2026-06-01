@@ -191,23 +191,12 @@ async function getPreviewPageCount(page: Page) {
   return page.locator('#resume-export-content .resume-page').count()
 }
 
-// 检查指定文本是否出现在当前浏览器视口内。
-async function findViewportVisiblePreviewText(page: Page, text: string) {
-  return page.evaluate((targetText) => {
-    const elements = Array.from(document.querySelectorAll('#resume-export-content .resume-page li, #resume-export-content .resume-page p'))
-      .filter((element) => element.textContent?.includes(targetText))
-
-    return {
-      matchCount: elements.length,
-      visible: elements.some((element) => {
-        const rect = element.getBoundingClientRect()
-        return rect.top >= 0 &&
-          rect.left >= 0 &&
-          rect.bottom <= window.innerHeight &&
-          rect.right <= window.innerWidth
-      }),
-    }
-  }, text)
+// 读取首个预览页当前屏幕宽度。
+async function getFirstPreviewPageWidth(page: Page) {
+  return page.evaluate(() => {
+    const pageElement = document.querySelector('#resume-export-content .resume-page')
+    return pageElement?.getBoundingClientRect().width || 0
+  })
 }
 
 // 读取首个预览页最后一行到底部的未缩放留白。
@@ -307,9 +296,8 @@ test('绿页眉样式不会裁掉页尾项目要点', async ({ page }) => {
   await expect(page.getByText('计算中...')).toHaveCount(0)
 
   const result = await findVisiblePreviewText(page, '可观测性：实现 SSE 流式推送研究进度')
-  const viewportResult = await findViewportVisiblePreviewText(page, '可观测性：实现 SSE 流式推送研究进度')
+  expect(await getFirstPreviewPageWidth(page)).toBeGreaterThan(600)
   expect(await getPreviewPageCount(page)).toBeGreaterThan(1)
   expect(result.matchCount).toBeGreaterThan(0)
   expect(result.visible).toBe(true)
-  expect(viewportResult.visible).toBe(true)
 })

@@ -26,13 +26,11 @@ const SECTION_ID_MAP: Record<ResumeModule, string> = {
 }
 const PAGE_CONTENT_WIDTH = A4_WIDTH - PAGE_PADDING * 2
 
-// 用于按预览容器的宽高共同计算 A4 页面缩放比例。
+// 用于按预览容器宽度计算 A4 页面缩放比例。
 function calculatePreviewScale(container: HTMLElement, viewportPadding: number) {
   const availableWidth = container.clientWidth - viewportPadding * 2
-  const availableHeight = container.clientHeight - viewportPadding * 2
   const widthScale = availableWidth / A4_WIDTH
-  const heightScale = availableHeight > 0 ? availableHeight / A4_HEIGHT : widthScale
-  return Math.min(3.0, Math.max(0.3, Math.min(widthScale, heightScale)))
+  return Math.min(3.0, Math.max(0.3, widthScale))
 }
 
 

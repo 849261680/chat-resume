@@ -436,15 +436,14 @@ export default function ResumeEditPage() {
 
   // 用于把反馈作为拒绝原因交回 Agent，触发重新生成修改。
   const retryToolWithFeedback = useCallback((callId: string) => {
-    const feedback = toolFeedbackDrafts[callId]?.trim()
-    if (!feedback) return
+    const feedback = toolFeedbackDrafts[callId]?.trim() || t('rewriteFeedbackFallback')
     void confirmTool(callId, false, 'resume_edit_feedback_retry_button', feedback)
     setToolFeedbackDrafts((drafts) => {
       const next = { ...drafts }
       delete next[callId]
       return next
     })
-  }, [confirmTool, toolFeedbackDrafts])
+  }, [confirmTool, t, toolFeedbackDrafts])
 
   useEffect(() => {
     if (!mounted || isLoading || !isAuthenticated || hasValidResumeId) return
@@ -1338,7 +1337,7 @@ export default function ResumeEditPage() {
                                     {t('reject')}
                                   </button>
                                   <button
-                                    disabled={!isActivePending || !feedbackDraft.trim()}
+                                    disabled={!isActivePending}
                                     onClick={() => retryToolWithFeedback(event.callId)}
                                     className="flex-1 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                                     style={{

@@ -115,6 +115,7 @@
     "pasteSelectionToChat": "Add to Chat",
     "acceptChange": "Accept change",
     "retryWithFeedback": "Retry with feedback",
+    "rewriteFeedbackFallback": "Please rewrite this edit.",
     "toolFeedbackPlaceholder": "Add feedback for the agent to regenerate this edit...",
     "reject": "Reject",
     "fetchError": "Failed to load resume",

@@ -1530,6 +1530,33 @@ test.describe('编辑页工作流', () => {
     })
   })
 
+  test('Resume Agent 可以不填反馈直接重写待确认修改', async ({ page }) => {
+    const resume = buildResumeResponse(127)
+
+    await installEditorApiMock(page, resume)
+    await installResumeAgentMock(page)
+    await page.goto(`/resume/${resume.id}/edit`)
+    await page.waitForLoadState('networkidle')
+
+    const input = page.getByPlaceholder('输入消息...')
+    await input.fill('请帮我优化项目经历')
+    await input.press('Enter')
+
+    await expect(page.getByPlaceholder('输入你希望 Agent 重新生成时参考的反馈...')).toBeVisible()
+    await expect(page.getByRole('button', { name: '重写修改' })).toBeEnabled()
+    await page.getByRole('button', { name: '重写修改' }).click()
+
+    await expect(page.getByText('已按反馈重新生成修改。')).toBeVisible()
+    const confirmCalls = await readResumeAgentConfirmCalls(page)
+    expect(confirmCalls).toHaveLength(1)
+    expect(confirmCalls[0]).toMatchObject({
+      session_id: 'resume_session_e2e',
+      call_id: 'call_e2e',
+      confirmed: false,
+      feedback: '请重写修改这处内容。',
+    })
+  })
+
   test('Resume Agent 待确认 diff 空闲后不会自动拒绝', async ({ page }) => {
     const resume = buildResumeResponse(124)
 

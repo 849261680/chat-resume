@@ -99,7 +99,10 @@ test.describe('简历模板样式', () => {
     await expect(header).toBeVisible()
     await expect(header).toHaveCSS('background-color', 'rgb(5, 150, 105)')
     await expect(header).toContainText('psx849261680@gmail.com')
-    await expect(header).toContainText('个人网站')
+    await expect(header).toContainText('https://github.com/849261680')
+    await expect(header).toContainText('https://psx1.vercel.app')
+    await expect(header.locator('a[href="https://github.com/849261680"]')).toHaveText('https://github.com/849261680')
+    await expect(header.locator('a[href="https://psx1.vercel.app"]')).toHaveText('https://psx1.vercel.app')
 
     await expect.poll(async () => {
       const pageBox = await pageSheet.evaluate((element) => element.getBoundingClientRect().toJSON())

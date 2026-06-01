@@ -152,7 +152,7 @@ export default function PersonalInfoPreview({ data, renderLines, templateStyle =
               {data.github && (
                 <span className={itemClassName}>
                   <GithubIcon />
-                  <a href={data.github} target="_blank" rel="noopener noreferrer">GitHub</a>
+                  <a href={data.github} target="_blank" rel="noopener noreferrer">{data.github}</a>
                 </span>
               )}
               {data.address && (
@@ -166,13 +166,13 @@ export default function PersonalInfoPreview({ data, renderLines, templateStyle =
               {data.website && (
                 <span className={itemClassName}>
                   <WebsiteIcon />
-                  <a href={data.website} target="_blank" rel="noopener noreferrer">{t('website')}</a>
+                  <a href={data.website} target="_blank" rel="noopener noreferrer">{data.website}</a>
                 </span>
               )}
               {data.linkedin && (
                 <span className={itemClassName}>
                   <LinkedinIcon />
-                  <a href={data.linkedin} target="_blank" rel="noopener noreferrer">LinkedIn</a>
+                  <a href={data.linkedin} target="_blank" rel="noopener noreferrer">{data.linkedin}</a>
                 </span>
               )}
             </div>

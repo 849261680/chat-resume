@@ -45,26 +45,37 @@ class ExportService:
         """使用前端打印页导出与预览一致的简历 PDF。"""
         filename = f"resume_{uuid.uuid4().hex}.pdf"
         filepath = os.path.join(self.export_dir, filename)
-        print_url = self._build_frontend_print_url(
+        encoded_payload = self._build_frontend_print_payload(
             resume_content,
             template,
             layout_config,
         )
+        print_url = self._build_frontend_print_url(encoded_payload)
+        storage_key: str | None = None
+        storage_payload: str | None = None
         if len(print_url) > MAX_FRONTEND_PRINT_URL_CHARS:
-            logger.error(
-                "pdf_export.frontend_print_url_too_large",
+            storage_key = f"resume-print-{uuid.uuid4().hex}"
+            storage_payload = encoded_payload
+            print_url = self._build_frontend_storage_print_url(storage_key)
+            logger.info(
+                "pdf_export.frontend_print_storage_payload",
                 extra={
                     "template": template,
                     "print_url_length": len(print_url),
                     "max_print_url_length": MAX_FRONTEND_PRINT_URL_CHARS,
                 },
             )
-            raise ValueError(
-                "Resume PDF export payload is too large for the print page URL"
-            )
 
         try:
-            await self._render_pdf_with_playwright(print_url, filepath)
+            if storage_key and storage_payload:
+                await self._render_pdf_with_playwright(
+                    print_url,
+                    filepath,
+                    storage_key=storage_key,
+                    storage_payload=storage_payload,
+                )
+            else:
+                await self._render_pdf_with_playwright(print_url, filepath)
         except PlaywrightTimeoutError:
             logger.exception(
                 "pdf_export.frontend_print_timeout",
@@ -205,14 +216,28 @@ class ExportService:
 
         return filepath
 
-    async def _render_pdf_with_playwright(self, print_url: str, filepath: str) -> None:
+    async def _render_pdf_with_playwright(
+        self,
+        print_url: str,
+        filepath: str,
+        storage_key: str | None = None,
+        storage_payload: str | None = None,
+    ) -> None:
         """使用 Playwright 打开前端打印页并输出 PDF。"""
 
         async with async_playwright() as playwright:
             browser = await playwright.chromium.launch(headless=True)
             try:
                 page = await browser.new_page(viewport={"width": 1280, "height": 1810})
+                if storage_key and storage_payload:
+                    await page.add_init_script(
+                        "window.sessionStorage.setItem("
+                        f"{json.dumps(storage_key)},"
+                        f"{json.dumps(storage_payload)}"
+                        ");"
+                    )
                 await page.goto(print_url, wait_until="networkidle")
+                await page.wait_for_selector('[data-resume-print-ready="true"]')
                 await page.emulate_media(media="print")
                 await page.pdf(
                     path=filepath,
@@ -224,25 +249,34 @@ class ExportService:
             finally:
                 await browser.close()
 
-    def _build_frontend_print_url(
+    def _build_frontend_print_payload(
         self,
         resume_content: Dict[str, Any],
         template: str,
         layout_config: Dict[str, Any] | None = None,
     ) -> str:
-        """构建前端打印页地址。"""
+        """构建前端打印页载荷。"""
 
         payload = {
             "content": resume_content,
             "template": template,
             "layout_config": layout_config,
         }
-        encoded = base64.urlsafe_b64encode(
+        return base64.urlsafe_b64encode(
             json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode(
                 "utf-8"
             )
         ).decode("utf-8")
-        return f"{settings.FRONTEND_URL.rstrip('/')}/resume/print?data={quote(encoded)}"
+
+    def _build_frontend_print_url(self, encoded_payload: str) -> str:
+        """构建携带小载荷的前端打印页地址。"""
+
+        return f"{settings.FRONTEND_URL.rstrip('/')}/resume/print?data={quote(encoded_payload)}"
+
+    def _build_frontend_storage_print_url(self, storage_key: str) -> str:
+        """构建通过浏览器存储读取大载荷的前端打印页地址。"""
+
+        return f"{settings.FRONTEND_URL.rstrip('/')}/resume/print?payloadKey={quote(storage_key)}"
 
     def _build_html_content(self, resume_content: Dict[str, Any]) -> str:
         """构建基础HTML导出内容。"""

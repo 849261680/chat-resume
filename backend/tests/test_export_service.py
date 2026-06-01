@@ -110,10 +110,11 @@ def test_build_frontend_print_url_preserves_template_and_chinese_payload(monkeyp
     monkeypatch.setattr(settings, "FRONTEND_URL", "https://frontend.example.com")
     export_service = ExportService()
 
-    print_url = export_service._build_frontend_print_url(
+    encoded_payload = export_service._build_frontend_print_payload(
         _sample_resume_content(),
         template="compact",
     )
+    print_url = export_service._build_frontend_print_url(encoded_payload)
     parsed = urlparse(print_url)
     payload = _decode_print_payload(print_url)
 
@@ -140,11 +141,12 @@ def test_build_frontend_print_url_preserves_layout_config(monkeypatch):
         "templateStyle": "emerald",
     }
 
-    print_url = export_service._build_frontend_print_url(
+    encoded_payload = export_service._build_frontend_print_payload(
         _sample_resume_content(),
         template="emerald",
         layout_config=layout_config,
     )
+    print_url = export_service._build_frontend_print_url(encoded_payload)
     payload = _decode_print_payload(print_url)
 
     assert payload["template"] == "emerald"
@@ -163,6 +165,10 @@ def test_render_pdf_with_playwright_uses_expected_page_settings(tmp_path, monkey
         async def goto(self, url: str, wait_until: str) -> None:
             """用于处理goto。"""
             captured["goto"] = {"url": url, "wait_until": wait_until}
+
+        async def wait_for_selector(self, selector: str) -> None:
+            """用于处理waitforselector。"""
+            captured["wait_for_selector"] = selector
 
         async def emulate_media(self, media: str) -> None:
             """用于处理emulatemedia。"""
@@ -232,6 +238,7 @@ def test_render_pdf_with_playwright_uses_expected_page_settings(tmp_path, monkey
         "url": "https://frontend.example.com/resume/print?data=abc",
         "wait_until": "networkidle",
     }
+    assert captured["wait_for_selector"] == '[data-resume-print-ready="true"]'
     assert captured["media"] == "print"
     assert captured["pdf"] == {
         "path": str(output_path),
@@ -242,6 +249,93 @@ def test_render_pdf_with_playwright_uses_expected_page_settings(tmp_path, monkey
     }
     assert captured["closed"] is True
     assert output_path.read_bytes().startswith(b"%PDF")
+
+
+def test_render_pdf_with_playwright_injects_storage_payload(tmp_path, monkeypatch):
+    """用于验证大载荷渲染会在导航前写入 sessionStorage。"""
+    export_service = ExportService()
+    captured: dict[str, object] = {}
+    output_path = tmp_path / "resume.pdf"
+
+    class FakePage:
+        """用于记录页面脚本注入和导出参数。"""
+
+        async def add_init_script(self, script: str) -> None:
+            """用于处理addinitscript。"""
+            captured["init_script"] = script
+
+        async def goto(self, url: str, wait_until: str) -> None:
+            """用于处理goto。"""
+            captured["goto"] = {"url": url, "wait_until": wait_until}
+
+        async def wait_for_selector(self, selector: str) -> None:
+            """用于处理waitforselector。"""
+            captured["wait_for_selector"] = selector
+
+        async def emulate_media(self, media: str) -> None:
+            """用于处理emulatemedia。"""
+            captured["media"] = media
+
+        async def pdf(self, **kwargs) -> None:
+            """用于处理pdf。"""
+            Path(kwargs["path"]).write_bytes(b"%PDF-fake")
+
+    class FakeBrowser:
+        """用于模拟浏览器实例并暴露页面对象。"""
+
+        async def new_page(self, **kwargs):
+            """用于处理newpage。"""
+            del kwargs
+            return FakePage()
+
+        async def close(self) -> None:
+            """用于处理close。"""
+            captured["closed"] = True
+
+    class FakeChromium:
+        """用于记录浏览器启动参数。"""
+
+        async def launch(self, headless: bool):
+            """用于处理launch。"""
+            del headless
+            return FakeBrowser()
+
+    class FakePlaywright:
+        """用于暴露假的 chromium 客户端。"""
+
+        chromium = FakeChromium()
+
+    class FakePlaywrightContext:
+        """用于模拟 async_playwright 上下文管理器。"""
+
+        async def __aenter__(self):
+            """用于处理aenter。"""
+            return FakePlaywright()
+
+        async def __aexit__(self, exc_type, exc, tb):
+            """用于处理aexit。"""
+            return False
+
+    monkeypatch.setattr(
+        export_service_module,
+        "async_playwright",
+        lambda: FakePlaywrightContext(),
+    )
+
+    asyncio.run(
+        export_service._render_pdf_with_playwright(
+            "https://frontend.example.com/resume/print?payloadKey=resume-print-test",
+            str(output_path),
+            storage_key="resume-print-test",
+            storage_payload="encoded-payload",
+        )
+    )
+
+    assert "sessionStorage.setItem" in str(captured["init_script"])
+    assert "resume-print-test" in str(captured["init_script"])
+    assert "encoded-payload" in str(captured["init_script"])
+    assert captured["wait_for_selector"] == '[data-resume-print-ready="true"]'
+    assert captured["closed"] is True
 
 
 def test_export_to_pdf_surfaces_playwright_failure(tmp_path, monkeypatch):
@@ -295,12 +389,13 @@ def test_export_to_pdf_surfaces_print_page_timeout(
         raise AssertionError("打印页超时时不应返回服务端兜底 PDF")
 
 
-def test_export_to_pdf_rejects_oversized_print_url(
+def test_export_to_pdf_uses_storage_payload_for_oversized_print_url(
     tmp_path,
     monkeypatch,
 ):
-    """用于验证超长打印页地址不会静默生成不同样式的 PDF。"""
+    """用于验证超长打印页载荷会走浏览器存储而不是 URL 查询串。"""
     monkeypatch.setattr(settings, "UPLOAD_DIR", str(tmp_path))
+    monkeypatch.setattr(settings, "FRONTEND_URL", "https://frontend.example.com")
     export_service = ExportService()
     large_content = _sample_resume_content()
     large_content["projects"] = [
@@ -309,23 +404,38 @@ def test_export_to_pdf_rejects_oversized_print_url(
             "summary": "负责复杂系统。" * 5000,
         }
     ]
-    async def _fail_frontend_render(self, print_url: str, filepath: str) -> None:
-        """用于确保超长 URL 不再进入前端打印页渲染。"""
-        del self, print_url, filepath
-        raise AssertionError("超长 URL 不应进入前端打印页渲染")
+    captured: dict[str, str | None] = {}
+
+    async def _capture_frontend_render(
+        self,
+        print_url: str,
+        filepath: str,
+        storage_key: str | None = None,
+        storage_payload: str | None = None,
+    ) -> None:
+        """用于捕获超长载荷导出时传给 Playwright 的参数。"""
+        del self
+        captured["print_url"] = print_url
+        captured["storage_key"] = storage_key
+        captured["storage_payload"] = storage_payload
+        Path(filepath).write_bytes(b"%PDF-large")
 
     monkeypatch.setattr(
         ExportService,
         "_render_pdf_with_playwright",
-        _fail_frontend_render,
+        _capture_frontend_render,
     )
 
-    try:
-        asyncio.run(export_service.export_to_pdf(large_content))
-    except ValueError as exc:
-        assert "too large" in str(exc)
-    else:
-        raise AssertionError("超长打印页地址不应返回服务端兜底 PDF")
+    filepath = asyncio.run(export_service.export_to_pdf(large_content))
+    parsed = urlparse(str(captured["print_url"]))
+    query = parse_qs(parsed.query)
+
+    assert Path(filepath).read_bytes().startswith(b"%PDF")
+    assert len(str(captured["print_url"])) <= export_service_module.MAX_FRONTEND_PRINT_URL_CHARS
+    assert "payloadKey" in query
+    assert "data" not in query
+    assert query["payloadKey"][0] == captured["storage_key"]
+    assert captured["storage_payload"]
 
 
 def test_get_file_url_returns_signed_download_path(tmp_path, monkeypatch):

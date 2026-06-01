@@ -345,6 +345,20 @@ test('经典模板工作经历文字使用深色', async ({ page }) => {
   await expect(page.locator('#resume-export-content').getByText('负责简历编辑器、实时预览和导出链路', { exact: false })).toHaveCSS('color', 'rgb(17, 24, 39)')
 })
 
+test('经典模板教育经历文字使用深色', async ({ page }) => {
+  await mockEditorApis(page, buildEmeraldClippingResumeResponse())
+  await page.goto('/zh/resume/123/edit')
+
+  await page.getByRole('button', { name: '简历设置' }).click()
+  await page.getByRole('button', { name: '经典' }).click()
+  await page.mouse.click(20, 20)
+  await expect(page.locator('#resume-export-content')).toBeVisible()
+  await expect(page.getByText('计算中...')).toHaveCount(0)
+  await expect(page.locator('#resume-export-content').getByText('信息安全 · 本科')).toHaveCSS('color', 'rgb(17, 24, 39)')
+  await expect(page.locator('#resume-export-content').getByText('2020-2024')).toHaveCSS('color', 'rgb(17, 24, 39)')
+  await expect(page.locator('#resume-export-content').getByText('主要课程：计算机组成原理', { exact: false })).toHaveCSS('color', 'rgb(17, 24, 39)')
+})
+
 test('智能一页后不同模板的底部留白保持接近', async ({ page }) => {
   test.setTimeout(60_000)
   await mockEditorApis(page, buildSmartFitResumeResponse())

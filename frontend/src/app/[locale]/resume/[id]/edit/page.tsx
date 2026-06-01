@@ -1290,20 +1290,24 @@ export default function ResumeEditPage() {
                                   )}
                                 </div>
                                 {/* diff 内容区 */}
-                                <DiffGroupCards
-                                  diffSummary={event.diffSummary}
-                                  diffItems={event.diffItems}
-                                  isConfirmed={true}
-                                />
-                                <div className="px-4 py-3 bg-white border-t border-gray-100">
-                                  <textarea
-                                    value={feedbackDraft}
-                                    disabled={!isActivePending}
-                                    rows={2}
-                                    placeholder={t('toolFeedbackPlaceholder')}
-                                    onChange={(changeEvent) => updateToolFeedbackDraft(event.callId, changeEvent.target.value)}
-                                    className="w-full resize-none rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs leading-5 text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-blue-500 focus:bg-white disabled:cursor-not-allowed disabled:opacity-50"
-                                  />
+                                <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_260px]">
+                                  <div className="min-w-0">
+                                    <DiffGroupCards
+                                      diffSummary={event.diffSummary}
+                                      diffItems={event.diffItems}
+                                      isConfirmed={true}
+                                    />
+                                  </div>
+                                  <div className="border-t border-gray-100 bg-gray-50/60 px-4 py-3 md:border-l md:border-t-0">
+                                    <textarea
+                                      value={feedbackDraft}
+                                      disabled={!isActivePending}
+                                      rows={5}
+                                      placeholder={t('toolFeedbackPlaceholder')}
+                                      onChange={(changeEvent) => updateToolFeedbackDraft(event.callId, changeEvent.target.value)}
+                                      className="h-full min-h-24 w-full resize-none rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs leading-5 text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+                                    />
+                                  </div>
                                 </div>
                                 {/* 操作按钮 */}
                                 <div className="px-4 py-3 bg-white border-t border-gray-200 flex gap-2">

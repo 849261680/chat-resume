@@ -1319,19 +1319,6 @@ export default function ResumeEditPage() {
                                     {t('acceptChange')}
                                   </button>
                                   <button
-                                    disabled={!isActivePending || !feedbackDraft.trim()}
-                                    onClick={() => retryToolWithFeedback(event.callId)}
-                                    className="flex-1 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-                                    style={{
-                                      borderRadius: '56px',
-                                      border: '1px solid rgba(0,82,255,0.22)',
-                                      backgroundColor: '#eef4ff',
-                                      color: '#0052ff',
-                                    }}
-                                  >
-                                    {t('retryWithFeedback')}
-                                  </button>
-                                  <button
                                     disabled={!isActivePending}
                                     onClick={() => confirmTool(event.callId, false, 'resume_edit_reject_button')}
                                     className="flex-1 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50"
@@ -1343,6 +1330,19 @@ export default function ResumeEditPage() {
                                     }}
                                   >
                                     {t('reject')}
+                                  </button>
+                                  <button
+                                    disabled={!isActivePending || !feedbackDraft.trim()}
+                                    onClick={() => retryToolWithFeedback(event.callId)}
+                                    className="flex-1 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                                    style={{
+                                      borderRadius: '56px',
+                                      border: '1px solid rgba(0,82,255,0.22)',
+                                      backgroundColor: '#eef4ff',
+                                      color: '#0052ff',
+                                    }}
+                                  >
+                                    {t('retryWithFeedback')}
                                   </button>
                                 </div>
                               </div>

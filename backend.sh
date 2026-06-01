@@ -35,6 +35,38 @@ if ! command -v uv &> /dev/null; then
     exit 1
 fi
 
+configure_macos_proxy() {
+    # 用于让本地后端继承 macOS 系统 HTTPS 代理，修复 Google OAuth 直连超时。
+    if [ -n "${HTTPS_PROXY:-}" ] || [ "$(uname -s)" != "Darwin" ]; then
+        return
+    fi
+
+    if ! command -v networksetup &> /dev/null; then
+        return
+    fi
+
+    local service="${MACOS_PROXY_SERVICE:-Wi-Fi}"
+    local proxy_info
+    proxy_info="$(networksetup -getsecurewebproxy "${service}" 2>/dev/null || true)"
+    if ! printf '%s\n' "${proxy_info}" | grep -q '^Enabled: Yes'; then
+        return
+    fi
+
+    local host
+    local port
+    host="$(printf '%s\n' "${proxy_info}" | awk '/^Server: / {print $2}')"
+    port="$(printf '%s\n' "${proxy_info}" | awk '/^Port: / {print $2}')"
+    if [ -z "${host}" ] || [ -z "${port}" ]; then
+        return
+    fi
+
+    export HTTP_PROXY="${HTTP_PROXY:-http://${host}:${port}}"
+    export HTTPS_PROXY="${HTTPS_PROXY:-http://${host}:${port}}"
+    export ALL_PROXY="${ALL_PROXY:-http://${host}:${port}}"
+    export NO_PROXY="${NO_PROXY:-localhost,127.0.0.1,*.local}"
+    echo "🌐 已启用本地代理: ${HTTPS_PROXY}"
+}
+
 stop_port() {
     local port="$1"
     local pids
@@ -68,6 +100,8 @@ stop_port() {
         fi
     fi
 }
+
+configure_macos_proxy
 
 # 创建并同步虚拟环境
 echo "📦 使用 uv 同步依赖..."

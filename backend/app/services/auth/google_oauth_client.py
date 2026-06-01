@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import logging
 from urllib.parse import urlencode
 
 import httpx
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -120,6 +123,10 @@ class GoogleOAuthClient:
             )
             response.raise_for_status()
         except httpx.HTTPError as exc:
+            logger.warning(
+                "google oauth token exchange failed: %s",
+                exc.__class__.__name__,
+            )
             raise GoogleOAuthAuthenticationError("google_exchange_failed") from exc
         payload = response.json()
         access_token = self._required_string(payload, "access_token")
@@ -141,6 +148,10 @@ class GoogleOAuthClient:
             )
             response.raise_for_status()
         except httpx.HTTPError as exc:
+            logger.warning(
+                "google oauth userinfo fetch failed: %s",
+                exc.__class__.__name__,
+            )
             raise GoogleOAuthAuthenticationError("google_exchange_failed") from exc
         payload = response.json()
         sub = self._required_string(payload, "sub")

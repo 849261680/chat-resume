@@ -40,6 +40,6 @@ test('getEmeraldPersonalInfoLayout keeps an emerald photo out of document flow',
 
   assert.match(layout.photoWrapClassName, /\babsolute\b/)
   assert.match(layout.photoWrapClassName, /\bright-10\b/)
-  assert.match(layout.textClassName, /(^|\s)pr-\[96px\](\s|$)/)
-  assert.match(layout.contactClassName, /(^|\s)pr-\[96px\](\s|$)/)
+  assert.match(layout.textClassName, /(^|\s)pr-\[136px\](\s|$)/)
+  assert.match(layout.contactClassName, /(^|\s)pr-\[136px\](\s|$)/)
 })

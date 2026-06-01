@@ -28,6 +28,7 @@ export interface EmeraldPersonalInfoLayout {
 
 const PHOTO_SAFE_PADDING_CLASS = 'pr-[96px]'
 const PHOTO_SAFE_X_PADDING_CLASS = 'px-[96px]'
+const EMERALD_PHOTO_SAFE_PADDING_CLASS = 'pr-[136px]'
 
 // Returns formal template classes that keep the profile photo out of document flow.
 export function getFormalPersonalInfoLayout(hasPhoto: boolean): FormalPersonalInfoLayout {
@@ -56,7 +57,7 @@ export function getCenteredPersonalInfoLayout(hasPhoto: boolean): CenteredPerson
 
 // Returns emerald template classes that keep the profile photo out of document flow.
 export function getEmeraldPersonalInfoLayout(hasPhoto: boolean): EmeraldPersonalInfoLayout {
-  const safePaddingClass = hasPhoto ? PHOTO_SAFE_PADDING_CLASS : ''
+  const safePaddingClass = hasPhoto ? EMERALD_PHOTO_SAFE_PADDING_CLASS : ''
   return {
     containerClassName: 'resume-emerald-personal relative',
     nameBlockClassName: 'resume-emerald-name-block relative',

@@ -130,7 +130,7 @@ export default function PersonalInfoPreview({ data, renderLines, templateStyle =
                 <ResumePhoto
                   src={photoUrl}
                   alt={data.name || t('nameFallback')}
-                  className="h-24 w-20 shrink-0 border border-white/40 bg-white/10"
+                  className="h-20 w-16 shrink-0 border border-white/40 bg-white/10"
                 />
               )}
             </div>
@@ -206,7 +206,7 @@ export default function PersonalInfoPreview({ data, renderLines, templateStyle =
               <ResumePhoto
                 src={photoUrl}
                 alt={data.name || t('nameFallback')}
-                className="h-24 w-20 shrink-0 border border-gray-300 bg-gray-50"
+                className="h-20 w-16 shrink-0 border border-gray-300 bg-gray-50"
               />
             )}
           </div>
@@ -239,10 +239,10 @@ export default function PersonalInfoPreview({ data, renderLines, templateStyle =
           className="relative text-center"
           style={{
             marginBottom: 'calc(var(--spacing-scale, 1) * 12px)',
-            minHeight: photoUrl ? 96 : undefined,
+            minHeight: photoUrl ? 80 : undefined,
           }}
         >
-          <div className={photoUrl ? 'px-20' : ''}>
+          <div className={photoUrl ? 'px-16' : ''}>
             <h1 className="text-2xl font-bold text-gray-900 mb-1">
               {data.name || t('nameFallback')}
             </h1>
@@ -257,7 +257,7 @@ export default function PersonalInfoPreview({ data, renderLines, templateStyle =
               <ResumePhoto
                 src={photoUrl}
                 alt={data.name || t('nameFallback')}
-                className="h-24 w-20 border border-gray-300 bg-gray-50"
+                className="h-20 w-16 border border-gray-300 bg-gray-50"
               />
             </div>
           )}

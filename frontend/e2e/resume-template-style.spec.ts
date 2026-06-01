@@ -482,4 +482,34 @@ test.describe('简历模板样式', () => {
 
     expect(leakedTargetLineCount).toBe(0)
   })
+
+  test('所有简历模板头像使用更小尺寸', async ({ page }) => {
+    const photoUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII='
+    for (const template of ['classic', 'formal', 'emerald']) {
+      const payload = encodePrintPayload({
+        template,
+        content: {
+          personal_info: {
+            name: '头像尺寸',
+            email: 'photo@example.com',
+            photo_url: photoUrl,
+          },
+          education: [],
+          skills: [],
+          work_experience: [],
+          projects: [],
+        },
+      })
+
+      await page.goto(`/resume/print?data=${payload}`)
+      const avatar = page.locator('#resume-export-content .resume-page img[alt="头像尺寸"]')
+      await expect(avatar).toBeVisible()
+      const avatarSize = await avatar.evaluate((image) => ({
+        width: (image as HTMLImageElement).offsetWidth,
+        height: (image as HTMLImageElement).offsetHeight,
+      }))
+
+      expect(avatarSize).toEqual({ width: 64, height: 80 })
+    }
+  })
 })

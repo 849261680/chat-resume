@@ -203,3 +203,4 @@
 {"id":"int-c1468cb5","kind":"field_change","created_at":"2026-06-01T01:57:40.332405Z","actor":"宇宙熊Yzx","issue_id":"cr-45cj","extra":{"field":"status","new_value":"closed","old_value":"open","reason":"Completed"}}
 {"id":"int-68afb468","kind":"field_change","created_at":"2026-06-01T01:59:30.273295Z","actor":"宇宙熊Yzx","issue_id":"cr-tmuo","extra":{"field":"status","new_value":"closed","old_value":"open","reason":"Completed"}}
 {"id":"int-c2be64ff","kind":"field_change","created_at":"2026-06-01T02:15:24.90929Z","actor":"宇宙熊Yzx","issue_id":"cr-oi46","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Fixed resume preview pagination clipping and added regression test"}}
+{"id":"int-910e8ce3","kind":"field_change","created_at":"2026-06-01T02:23:49.126423Z","actor":"宇宙熊Yzx","issue_id":"cr-v8xa","extra":{"field":"status","new_value":"closed","old_value":"open","reason":"Shrank resume avatar sizes across templates and editor preview"}}

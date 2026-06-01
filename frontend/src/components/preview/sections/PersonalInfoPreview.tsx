@@ -234,21 +234,32 @@ export default function PersonalInfoPreview({ data, renderLines, templateStyle =
     <div style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 20px)' }}>
       {/* 姓名和职位 */}
       {shouldRenderLine(0) && (
-        <div data-line-index={0} className="text-center" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 16px)' }}>
+        <div
+          data-line-index={0}
+          className="relative text-center"
+          style={{
+            marginBottom: 'calc(var(--spacing-scale, 1) * 12px)',
+            minHeight: photoUrl ? 80 : undefined,
+          }}
+        >
+          <div className={photoUrl ? 'px-20' : ''}>
+            <h1 className="text-2xl font-bold text-gray-900 mb-1">
+              {data.name || t('nameFallback')}
+            </h1>
+            {data.position && (
+              <p className="text-lg text-gray-600 font-medium">
+                {data.position}
+              </p>
+            )}
+          </div>
           {photoUrl && (
-            <ResumePhoto
-              src={photoUrl}
-              alt={data.name || t('nameFallback')}
-              className="mx-auto mb-3 h-24 w-20 rounded-md border border-gray-200 bg-gray-50"
-            />
-          )}
-          <h1 className="text-2xl font-bold text-gray-900 mb-1">
-            {data.name || t('nameFallback')}
-          </h1>
-          {data.position && (
-            <p className="text-lg text-gray-600 font-medium">
-              {data.position}
-            </p>
+            <div className="absolute right-0 top-0">
+              <ResumePhoto
+                src={photoUrl}
+                alt={data.name || t('nameFallback')}
+                className="h-20 w-16 rounded-md border border-gray-200 bg-gray-50"
+              />
+            </div>
           )}
         </div>
       )}

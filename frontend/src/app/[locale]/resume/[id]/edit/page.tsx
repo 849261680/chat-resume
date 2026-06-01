@@ -1290,64 +1290,60 @@ export default function ResumeEditPage() {
                                   )}
                                 </div>
                                 {/* diff 内容区 */}
-                                <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_260px]">
-                                  <div className="min-w-0">
-                                    <DiffGroupCards
-                                      diffSummary={event.diffSummary}
-                                      diffItems={event.diffItems}
-                                      isConfirmed={true}
-                                    />
-                                  </div>
-                                  <div className="flex flex-col gap-3 border-t border-gray-100 bg-gray-50/60 px-4 py-3 md:border-l md:border-t-0">
-                                    <textarea
-                                      value={feedbackDraft}
-                                      disabled={!isActivePending}
-                                      rows={5}
-                                      placeholder={t('toolFeedbackPlaceholder')}
-                                      onChange={(changeEvent) => updateToolFeedbackDraft(event.callId, changeEvent.target.value)}
-                                      className="min-h-24 w-full flex-1 resize-none rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs leading-5 text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
-                                    />
-                                    {/* 操作按钮 */}
-                                    <div className="flex flex-col gap-2">
-                                      <button
-                                        disabled={!isActivePending}
-                                        onClick={() => confirmTool(event.callId, true, 'resume_edit_accept_button')}
-                                        className="w-full py-1.5 text-xs font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-                                        style={{
-                                          borderRadius: '56px',
-                                          backgroundColor: isActivePending ? '#0052ff' : '#94a3b8',
-                                        }}
-                                      >
-                                        {t('acceptChange')}
-                                      </button>
-                                      <button
-                                        disabled={!isActivePending || !feedbackDraft.trim()}
-                                        onClick={() => retryToolWithFeedback(event.callId)}
-                                        className="w-full py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-                                        style={{
-                                          borderRadius: '56px',
-                                          border: '1px solid rgba(0,82,255,0.22)',
-                                          backgroundColor: '#eef4ff',
-                                          color: '#0052ff',
-                                        }}
-                                      >
-                                        {t('retryWithFeedback')}
-                                      </button>
-                                      <button
-                                        disabled={!isActivePending}
-                                        onClick={() => confirmTool(event.callId, false, 'resume_edit_reject_button')}
-                                        className="w-full py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-                                        style={{
-                                          borderRadius: '56px',
-                                          border: '1px solid rgba(91,97,110,0.2)',
-                                          backgroundColor: '#ffffff',
-                                          color: '#0a0b0d',
-                                        }}
-                                      >
-                                        {t('reject')}
-                                      </button>
-                                    </div>
-                                  </div>
+                                <DiffGroupCards
+                                  diffSummary={event.diffSummary}
+                                  diffItems={event.diffItems}
+                                  isConfirmed={true}
+                                />
+                                <div className="px-4 py-3 bg-white border-t border-gray-100">
+                                  <textarea
+                                    value={feedbackDraft}
+                                    disabled={!isActivePending}
+                                    rows={2}
+                                    placeholder={t('toolFeedbackPlaceholder')}
+                                    onChange={(changeEvent) => updateToolFeedbackDraft(event.callId, changeEvent.target.value)}
+                                    className="w-full resize-none rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs leading-5 text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-blue-500 focus:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+                                  />
+                                </div>
+                                {/* 操作按钮 */}
+                                <div className="px-4 py-3 bg-white border-t border-gray-200 flex gap-2">
+                                  <button
+                                    disabled={!isActivePending}
+                                    onClick={() => confirmTool(event.callId, true, 'resume_edit_accept_button')}
+                                    className="flex-1 py-1.5 text-xs font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                                    style={{
+                                      borderRadius: '56px',
+                                      backgroundColor: isActivePending ? '#0052ff' : '#94a3b8',
+                                    }}
+                                  >
+                                    {t('acceptChange')}
+                                  </button>
+                                  <button
+                                    disabled={!isActivePending || !feedbackDraft.trim()}
+                                    onClick={() => retryToolWithFeedback(event.callId)}
+                                    className="flex-1 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                                    style={{
+                                      borderRadius: '56px',
+                                      border: '1px solid rgba(0,82,255,0.22)',
+                                      backgroundColor: '#eef4ff',
+                                      color: '#0052ff',
+                                    }}
+                                  >
+                                    {t('retryWithFeedback')}
+                                  </button>
+                                  <button
+                                    disabled={!isActivePending}
+                                    onClick={() => confirmTool(event.callId, false, 'resume_edit_reject_button')}
+                                    className="flex-1 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                                    style={{
+                                      borderRadius: '56px',
+                                      border: '1px solid rgba(91,97,110,0.2)',
+                                      backgroundColor: '#ffffff',
+                                      color: '#0a0b0d',
+                                    }}
+                                  >
+                                    {t('reject')}
+                                  </button>
                                 </div>
                               </div>
                             )

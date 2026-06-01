@@ -329,6 +329,9 @@ test('经典模板项目描述带标签且不显示关键要点标题', async ({
   await expect(page.getByText('计算中...')).toHaveCount(0)
   await expect(page.locator('#resume-export-content')).toContainText('项目描述：AI 驱动的求职辅导平台')
   await expect(page.locator('#resume-export-content').getByText('关键要点:')).toHaveCount(0)
+  await expect(page.locator('#resume-export-content').getByText('项目描述：AI 驱动的求职辅导平台', { exact: false })).toHaveCSS('color', 'rgb(17, 24, 39)')
+  await expect(page.locator('#resume-export-content').getByText('项目描述：')).toHaveCSS('color', 'rgb(17, 24, 39)')
+  await expect(page.locator('#resume-export-content').getByText('实现流式对话、差异审阅和一键采纳', { exact: false })).toHaveCSS('color', 'rgb(17, 24, 39)')
 })
 
 test('智能一页后不同模板的底部留白保持接近', async ({ page }) => {

@@ -183,20 +183,20 @@ function ProjectItem({ project, lineIndex, templateStyle = 'classic' }: { projec
 
       {project.overview && (
         <p
-          className="text-sm text-gray-600"
+          className="text-sm text-gray-900"
           style={{
             marginBottom: 'calc(var(--spacing-scale, 1) * 8px)',
             lineHeight: 'calc(1.35 + var(--spacing-scale, 1) * 0.25)'
           }}
         >
-          <span className="font-semibold text-gray-700">{t('projectDescription')}</span>{project.overview}
+          <span className="font-semibold text-gray-900">{t('projectDescription')}</span>{project.overview}
         </p>
       )}
 
       {highlights.length > 0 && (
         <div style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 8px)' }}>
           <ul
-            className="list-disc list-inside text-sm text-gray-600"
+            className="list-disc list-inside text-sm text-gray-900"
             style={{
               lineHeight: 'calc(1.35 + var(--spacing-scale, 1) * 0.25)'
             }}

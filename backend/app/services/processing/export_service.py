@@ -237,9 +237,15 @@ class ExportService:
                         ");"
                     )
                 await page.goto(print_url, wait_until="networkidle")
-                await page.wait_for_selector('[data-resume-print-ready="true"]')
+                await page.wait_for_selector('[data-resume-print-ready="true"]', state="attached")
                 await page.wait_for_selector("#resume-export-content .resume-page")
                 await page.emulate_media(media="print")
+                await page.evaluate(
+                    "() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))"
+                )
+                await page.wait_for_selector('[data-resume-print-ready="true"]', state="attached")
+                await page.wait_for_selector("#resume-export-content .resume-page")
+                await page.wait_for_selector("text=正在计算分页", state="detached")
                 await page.pdf(
                     path=filepath,
                     format="A4",

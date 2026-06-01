@@ -157,7 +157,7 @@ def test_render_pdf_with_playwright_uses_expected_page_settings(tmp_path, monkey
     """用于验证 Playwright 渲染时会使用正确的页面参数和 PDF 选项。"""
     export_service = ExportService()
     captured: dict[str, object] = {}
-    wait_for_selectors: list[str] = []
+    render_events: list[object] = []
     output_path = tmp_path / "resume.pdf"
 
     class FakePage:
@@ -167,17 +167,23 @@ def test_render_pdf_with_playwright_uses_expected_page_settings(tmp_path, monkey
             """用于处理goto。"""
             captured["goto"] = {"url": url, "wait_until": wait_until}
 
-        async def wait_for_selector(self, selector: str) -> None:
+        async def wait_for_selector(self, selector: str, **kwargs) -> None:
             """用于处理waitforselector。"""
-            wait_for_selectors.append(selector)
+            render_events.append(("wait_for_selector", selector, kwargs))
+
+        async def evaluate(self, script: str) -> None:
+            """用于处理evaluate。"""
+            render_events.append(("evaluate", script))
 
         async def emulate_media(self, media: str) -> None:
             """用于处理emulatemedia。"""
             captured["media"] = media
+            render_events.append(("emulate_media", media))
 
         async def pdf(self, **kwargs) -> None:
             """用于处理pdf。"""
             captured["pdf"] = kwargs
+            render_events.append(("pdf", kwargs))
             Path(kwargs["path"]).write_bytes(b"%PDF-fake")
 
     class FakeBrowser:
@@ -239,9 +245,21 @@ def test_render_pdf_with_playwright_uses_expected_page_settings(tmp_path, monkey
         "url": "https://frontend.example.com/resume/print?data=abc",
         "wait_until": "networkidle",
     }
-    assert wait_for_selectors == [
-        '[data-resume-print-ready="true"]',
-        "#resume-export-content .resume-page",
+    assert render_events == [
+        ("wait_for_selector", '[data-resume-print-ready="true"]', {"state": "attached"}),
+        ("wait_for_selector", "#resume-export-content .resume-page", {}),
+        ("emulate_media", "print"),
+        ("evaluate", "() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))"),
+        ("wait_for_selector", '[data-resume-print-ready="true"]', {"state": "attached"}),
+        ("wait_for_selector", "#resume-export-content .resume-page", {}),
+        ("wait_for_selector", "text=正在计算分页", {"state": "detached"}),
+        ("pdf", {
+            "path": str(output_path),
+            "format": "A4",
+            "prefer_css_page_size": True,
+            "print_background": True,
+            "margin": {"top": "0", "right": "0", "bottom": "0", "left": "0"},
+        }),
     ]
     assert captured["media"] == "print"
     assert captured["pdf"] == {
@@ -259,7 +277,7 @@ def test_render_pdf_with_playwright_injects_storage_payload(tmp_path, monkeypatc
     """用于验证大载荷渲染会在导航前写入 sessionStorage。"""
     export_service = ExportService()
     captured: dict[str, object] = {}
-    wait_for_selectors: list[str] = []
+    render_events: list[object] = []
     output_path = tmp_path / "resume.pdf"
 
     class FakePage:
@@ -273,16 +291,22 @@ def test_render_pdf_with_playwright_injects_storage_payload(tmp_path, monkeypatc
             """用于处理goto。"""
             captured["goto"] = {"url": url, "wait_until": wait_until}
 
-        async def wait_for_selector(self, selector: str) -> None:
+        async def wait_for_selector(self, selector: str, **kwargs) -> None:
             """用于处理waitforselector。"""
-            wait_for_selectors.append(selector)
+            render_events.append(("wait_for_selector", selector, kwargs))
+
+        async def evaluate(self, script: str) -> None:
+            """用于处理evaluate。"""
+            render_events.append(("evaluate", script))
 
         async def emulate_media(self, media: str) -> None:
             """用于处理emulatemedia。"""
             captured["media"] = media
+            render_events.append(("emulate_media", media))
 
         async def pdf(self, **kwargs) -> None:
             """用于处理pdf。"""
+            render_events.append(("pdf", kwargs))
             Path(kwargs["path"]).write_bytes(b"%PDF-fake")
 
     class FakeBrowser:
@@ -339,9 +363,21 @@ def test_render_pdf_with_playwright_injects_storage_payload(tmp_path, monkeypatc
     assert "sessionStorage.setItem" in str(captured["init_script"])
     assert "resume-print-test" in str(captured["init_script"])
     assert "encoded-payload" in str(captured["init_script"])
-    assert wait_for_selectors == [
-        '[data-resume-print-ready="true"]',
-        "#resume-export-content .resume-page",
+    assert render_events == [
+        ("wait_for_selector", '[data-resume-print-ready="true"]', {"state": "attached"}),
+        ("wait_for_selector", "#resume-export-content .resume-page", {}),
+        ("emulate_media", "print"),
+        ("evaluate", "() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))"),
+        ("wait_for_selector", '[data-resume-print-ready="true"]', {"state": "attached"}),
+        ("wait_for_selector", "#resume-export-content .resume-page", {}),
+        ("wait_for_selector", "text=正在计算分页", {"state": "detached"}),
+        ("pdf", {
+            "path": str(output_path),
+            "format": "A4",
+            "prefer_css_page_size": True,
+            "print_background": True,
+            "margin": {"top": "0", "right": "0", "bottom": "0", "left": "0"},
+        }),
     ]
     assert captured["closed"] is True
 

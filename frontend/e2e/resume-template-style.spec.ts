@@ -301,6 +301,61 @@ test.describe('简历模板样式', () => {
     expect(printablePages[0].breakAfter).not.toBe('page')
   })
 
+  test('打印页切换 print media 后仍会重新标记分页就绪', async ({ page }) => {
+    const payload = encodePrintPayload({
+      template: 'classic',
+      layout_config: {
+        density: 'custom',
+        moduleOrder: ['personal', 'summary', 'education', 'work', 'projects', 'skills'],
+        visibleModules: ['personal', 'education', 'work', 'projects', 'skills'],
+        spacingScale: 2,
+        templateStyle: 'classic',
+      },
+      content: {
+        personal_info: {
+          name: '导出验证',
+          email: 'export@test.example',
+          phone: '13800000000',
+        },
+        summary: { text: '用于验证切换 print media 后不会截到分页计算状态。' },
+        education: [
+          {
+            school: '测试大学',
+            degree: '本科',
+            major: '计算机',
+            duration: '2019-2023',
+          },
+        ],
+        work_experience: [
+          {
+            company: '测试公司',
+            position: '工程师',
+            duration: '2024-至今',
+            highlights: [{ text: '负责导出链路稳定性修复。' }],
+          },
+        ],
+        projects: [
+          {
+            name: 'Chat Resume',
+            overview: 'AI 求职辅导平台。',
+            highlights: [{ text: '修复打印页导出等待分页稳定。' }],
+          },
+        ],
+        skills: [{ category: '技术栈', items: ['Next.js', 'FastAPI'] }],
+      },
+    })
+
+    await page.goto(`/resume/print?data=${payload}`)
+    await page.waitForSelector('[data-resume-print-ready="true"]', { state: 'attached' })
+    await page.waitForSelector('#resume-export-content .resume-page')
+    await page.emulateMedia({ media: 'print' })
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+
+    await page.waitForSelector('[data-resume-print-ready="true"]', { state: 'attached' })
+    await expect(page.getByText('正在计算分页')).toHaveCount(0)
+    await expect(page.locator('#resume-export-content .resume-page')).toHaveCount(1)
+  })
+
   test('单页打印页导出的 PDF 只有一页', async ({ page }) => {
     const payload = encodePrintPayload({
       template: 'emerald',

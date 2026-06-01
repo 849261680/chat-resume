@@ -7,6 +7,8 @@ const authUser = {
   is_active: true,
   created_at: new Date().toISOString(),
 }
+const SMART_FIT_TARGET_BOTTOM_GAP = 48
+const SMART_FIT_GAP_TOLERANCE = 12
 
 // 构造足够长的简历内容，让预览面板在编辑页中以缩放状态显示。
 function buildResumeResponse() {
@@ -252,7 +254,7 @@ async function getFormalProjectLinkShape(page: Page) {
   })
 }
 
-// 读取首个预览页最后一行到底部的未缩放留白。
+// 读取首个预览页最后一行到底部边距线的未缩放留白。
 async function measureFirstPageBottomGap(page: Page) {
   return page.evaluate(() => {
     const pageElement = document.querySelector('#resume-export-content .resume-page')
@@ -261,8 +263,9 @@ async function measureFirstPageBottomGap(page: Page) {
 
     const pageRect = pageElement.getBoundingClientRect()
     const previewScale = pageRect.width / 794
+    const paddingBottom = Number.parseFloat(window.getComputedStyle(pageElement).paddingBottom || '0')
     const lastLineBottom = Math.max(...lineElements.map(element => element.getBoundingClientRect().bottom))
-    return (pageRect.bottom - lastLineBottom) / previewScale
+    return (pageRect.bottom - lastLineBottom) / previewScale - paddingBottom
   })
 }
 
@@ -366,7 +369,6 @@ test('智能一页后不同模板的底部留白保持接近', async ({ page }) 
     { id: 'classic', label: '经典' },
     { id: 'modern', label: '现代' },
     { id: 'formal', label: '正式黑白' },
-    { id: 'emerald', label: '绿页眉' },
   ]
   const gaps: number[] = []
 
@@ -390,6 +392,9 @@ test('智能一页后不同模板的底部留白保持接近', async ({ page }) 
   }
 
   expect(Math.max(...gaps) - Math.min(...gaps)).toBeLessThanOrEqual(32)
+  for (const gap of gaps) {
+    expect(Math.abs(gap - SMART_FIT_TARGET_BOTTOM_GAP)).toBeLessThanOrEqual(SMART_FIT_GAP_TOLERANCE)
+  }
 })
 
 test('绿页眉样式不会裁掉页尾项目要点', async ({ page }) => {

@@ -3,6 +3,8 @@
 export const MIN_SPACING_SCALE = 0.5
 export const MAX_SPACING_SCALE = 4
 export const SPACING_SCALE_STEP = 0.05
+export const SMART_FIT_TARGET_BOTTOM_GAP = 36
+export const SMART_FIT_TARGET_TOLERANCE = 4
 
 export type TooMuchContentResult = {
   status: 'too_much_content'

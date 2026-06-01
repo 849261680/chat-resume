@@ -251,7 +251,6 @@ export default function PaginatedResumePreview({
   // 智能一页试算专用页面；保留真实页面盒模型，但不裁剪溢出内容，避免误判为一页。
   const smartFitMeasurementContent = useMemo(() => (
     <div
-      ref={smartFitPageRef}
       className={`resume-page resume-template-${templateStyle} invisible absolute -top-[9999px] left-0 pointer-events-none bg-white border border-gray-200 print:hidden`}
       style={{
         width: `${A4_WIDTH}px`,
@@ -266,6 +265,7 @@ export default function PaginatedResumePreview({
     >
       <div className="relative z-10 h-full">
         <div
+          ref={smartFitPageRef}
           className={`resume-template-${templateStyle} absolute left-0 top-0`}
           style={{ width: `${pageContentWidth}px` }}
         >

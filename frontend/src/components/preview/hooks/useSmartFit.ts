@@ -2,7 +2,14 @@
 // 用于提供 useSmartFit.ts 对应的前端状态逻辑。
 
 import { useCallback, useRef, useState } from 'react'
-import { applyTooMuchContentFallback, MAX_SPACING_SCALE, MIN_SPACING_SCALE, SPACING_SCALE_STEP } from './smartFitCore'
+import {
+  applyTooMuchContentFallback,
+  MAX_SPACING_SCALE,
+  MIN_SPACING_SCALE,
+  SMART_FIT_TARGET_BOTTOM_GAP,
+  SMART_FIT_TARGET_TOLERANCE,
+  SPACING_SCALE_STEP,
+} from './smartFitCore'
 import { A4_HEIGHT, PAGE_PADDING, SAFETY_MARGIN } from './useLineBasedPagination'
 import type { RenderableLine } from './useLineBasedPagination'
 import type { TooMuchContentResult } from './smartFitCore'
@@ -29,9 +36,19 @@ function effectivePageBottom(scale: number) {
   return A4_HEIGHT - PAGE_PADDING * 2 * scale - SAFETY_MARGIN
 }
 
+// 目标是让最后一行到底部边距线保留固定距离。
+function targetPageBottom(scale: number) {
+  return A4_HEIGHT - PAGE_PADDING * 2 * scale - SMART_FIT_TARGET_BOTTOM_GAP
+}
+
 // 将试算结果落到可控步长，避免布局滑块出现过细的小数。
 function roundToSpacingStep(scale: number) {
   return Math.round(scale / SPACING_SCALE_STEP) * SPACING_SCALE_STEP
+}
+
+// 向下对齐到可控步长，避免取整后把最后一行推过目标底线。
+function floorToSpacingStep(scale: number) {
+  return Math.floor(scale / SPACING_SCALE_STEP) * SPACING_SCALE_STEP
 }
 
 // 用于封装智能适配相关状态和行为。
@@ -74,17 +91,52 @@ export function useSmartFit({
       let bestScale = currentFits ? currentScale : MIN_SPACING_SCALE
 
       if (currentFits) {
-        if (currentScale >= MAX_SPACING_SCALE) {
+        const targetBottom = targetPageBottom(currentScale)
+        if (Math.abs(currentContentBottom - targetBottom) <= SMART_FIT_TARGET_TOLERANCE) {
           return { status: 'already_fits' }
         }
-        const maxContentBottom = await measureContentBottom(MAX_SPACING_SCALE)
+
+        const minContentBottom = await measureContentBottom(MIN_SPACING_SCALE)
+        const minTargetBottom = targetPageBottom(MIN_SPACING_SCALE)
         if (abortRef.current) return { status: 'failed' }
-        if (maxContentBottom <= effectivePageBottom(MAX_SPACING_SCALE)) {
-          bestScale = MAX_SPACING_SCALE
-          onComplete(bestScale)
-          finalMeasureScale = bestScale
-          return { status: 'success', oldScale: currentScale, newScale: bestScale }
+        if (minContentBottom > minTargetBottom) {
+          bestScale = MIN_SPACING_SCALE
         }
+
+        const maxContentBottom = await measureContentBottom(MAX_SPACING_SCALE)
+        const maxTargetBottom = targetPageBottom(MAX_SPACING_SCALE)
+        if (abortRef.current) return { status: 'failed' }
+        if (maxContentBottom <= maxTargetBottom) {
+          bestScale = MAX_SPACING_SCALE
+        } else if (minContentBottom <= minTargetBottom) {
+          lo = MIN_SPACING_SCALE
+          hi = MAX_SPACING_SCALE
+          bestScale = MIN_SPACING_SCALE
+
+          for (let i = 0; i < 8; i++) {
+            if (abortRef.current) return { status: 'failed' }
+            const mid = (lo + hi) / 2
+            const h = await measureContentBottom(mid)
+            if (h <= targetPageBottom(mid)) {
+              bestScale = mid
+              lo = mid
+            } else {
+              hi = mid
+            }
+          }
+        }
+
+        bestScale = floorToSpacingStep(bestScale)
+        bestScale = Math.max(MIN_SPACING_SCALE, Math.min(MAX_SPACING_SCALE, bestScale))
+
+        if (Math.abs(bestScale - currentScale) < SPACING_SCALE_STEP / 2) {
+          finalMeasureScale = currentScale
+          return { status: 'already_fits' }
+        }
+
+        onComplete(bestScale)
+        finalMeasureScale = bestScale
+        return { status: 'success', oldScale: currentScale, newScale: bestScale }
       } else {
         // 检查最小 scale 能否放下；仍放不下时不再尝试布局密度调整。
         const minContentBottom = await measureContentBottom(MIN_SPACING_SCALE)

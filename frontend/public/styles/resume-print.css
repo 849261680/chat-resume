@@ -104,6 +104,15 @@
     border-color: #000 !important;
   }
 
+  /* 头像边框必须跟预览保持一致，避免通用 border 打印优化把它压成黑色。 */
+  .resume-photo {
+    border-color: #d1d5db !important;
+  }
+
+  .resume-template-emerald .resume-photo {
+    border-color: rgba(255, 255, 255, 0.4) !important;
+  }
+
   /* 阴影移除 */
   .shadow,
   .shadow-sm,

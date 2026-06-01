@@ -136,7 +136,7 @@ export default function PersonalInfoPreview({ data, renderLines, templateStyle =
                 <ResumePhoto
                   src={photoUrl}
                   alt={data.name || t('nameFallback')}
-                  className="h-[88px] w-[72px] border border-white/40 bg-white/10"
+                  className="resume-photo h-[88px] w-[72px] border border-white/40 bg-white/10"
                 />
               </div>
             )}
@@ -214,7 +214,7 @@ export default function PersonalInfoPreview({ data, renderLines, templateStyle =
                 <ResumePhoto
                   src={photoUrl}
                   alt={data.name || t('nameFallback')}
-                  className="h-[88px] w-[72px] border border-gray-300 bg-gray-50"
+                  className="resume-photo h-[88px] w-[72px] border border-gray-300 bg-gray-50"
                 />
               </div>
             )}
@@ -267,7 +267,7 @@ export default function PersonalInfoPreview({ data, renderLines, templateStyle =
               <ResumePhoto
                 src={photoUrl}
                 alt={data.name || t('nameFallback')}
-                className="h-[88px] w-[72px] border border-gray-300 bg-gray-50"
+                className="resume-photo h-[88px] w-[72px] border border-gray-300 bg-gray-50"
               />
             </div>
           )}

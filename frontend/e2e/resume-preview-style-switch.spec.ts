@@ -334,6 +334,17 @@ test('经典模板项目描述带标签且不显示关键要点标题', async ({
   await expect(page.locator('#resume-export-content').getByText('实现流式对话、差异审阅和一键采纳', { exact: false })).toHaveCSS('color', 'rgb(17, 24, 39)')
 })
 
+test('经典模板工作经历文字使用深色', async ({ page }) => {
+  await mockEditorApis(page, buildSmartFitResumeResponse())
+  await page.goto('/zh/resume/123/edit')
+
+  await expect(page.locator('#resume-export-content')).toBeVisible()
+  await expect(page.getByText('计算中...')).toHaveCount(0)
+  await expect(page.locator('#resume-export-content').getByText('前端工程师')).toHaveCSS('color', 'rgb(17, 24, 39)')
+  await expect(page.locator('#resume-export-content').getByText('2022-至今')).toHaveCSS('color', 'rgb(17, 24, 39)')
+  await expect(page.locator('#resume-export-content').getByText('负责简历编辑器、实时预览和导出链路', { exact: false })).toHaveCSS('color', 'rgb(17, 24, 39)')
+})
+
 test('智能一页后不同模板的底部留白保持接近', async ({ page }) => {
   test.setTimeout(60_000)
   await mockEditorApis(page, buildSmartFitResumeResponse())

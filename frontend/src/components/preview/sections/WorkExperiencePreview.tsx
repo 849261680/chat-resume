@@ -74,20 +74,20 @@ function WorkExperienceItem({ work, lineIndex, templateStyle = 'classic' }: { wo
           {work.position && (
             <>
               <span className="w-px h-4 bg-gray-300" />
-              <span className="text-sm text-gray-700 font-medium">
+              <span className="text-sm text-gray-900 font-medium">
                 {work.position}
               </span>
             </>
           )}
         </div>
-        <div className="text-sm text-gray-600 ml-4 whitespace-nowrap">
+        <div className="text-sm text-gray-900 ml-4 whitespace-nowrap">
           {work.duration}
         </div>
       </div>
 
       {highlights.length > 0 && (
         <div
-          className="text-sm text-gray-600"
+          className="text-sm text-gray-900"
           style={{
             marginTop: 'calc(var(--spacing-scale, 1) * 8px)',
             lineHeight: 'calc(1.35 + var(--spacing-scale, 1) * 0.25)'

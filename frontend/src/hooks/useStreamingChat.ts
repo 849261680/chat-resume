@@ -1,5 +1,5 @@
 // 用于提供 hooks/useStreamingChat.ts 模块。
-import { useState, useRef } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { API_BASE_URL, apiUrl } from '@/lib/httpClient'
 import { useTranslations } from 'next-intl'
 
@@ -77,6 +77,18 @@ export type StreamEvent =
       diffSummary: string
       diffItems?: DiffItem[]
     }
+
+type PendingConfirmationResponse = {
+  session_id?: string | null
+  status?: string
+  pending_action?: {
+    call_id?: string
+    tool_name?: string
+    tool_id?: string
+    diff_summary?: string
+    diff_items?: DiffItem[]
+  } | null
+}
 
 export interface ChatMessage {
   id: string
@@ -333,8 +345,6 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
   // 用 ref 跟踪当前 sessionId，以便在异步回调中读取最新值
   const sessionIdRef = useRef<string | null>(null)
   const lastEventIdRef = useRef<string | null>(null)
-  // tool_pending 超时计时器：key=callId, value=timerId
-  const pendingToolTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
   const pendingToolTimingsRef = useRef<Record<string, PendingToolTiming>>({})
   const confirmingToolCallsRef = useRef<Set<string>>(new Set())
   const sseEventSequenceRef = useRef(0)
@@ -349,10 +359,8 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
     agentType = 'resume'
   } = options
 
-  // 用于清理待确认工具的本地计时器。
+  // 用于清理待确认工具的本地交互状态。
   const clearPendingToolState = () => {
-    Object.values(pendingToolTimersRef.current).forEach(clearTimeout)
-    pendingToolTimersRef.current = {}
     pendingToolTimingsRef.current = {}
     confirmingToolCallsRef.current.clear()
   }
@@ -710,27 +718,9 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                       elapsedSinceAppendedMs: elapsedMsSince(timing.appendedAt),
                     })
                   })
-
-                  // 5 分钟无操作自动标记为 rejected，避免永久卡在确认按钮
-                  pendingToolTimersRef.current[callId] = setTimeout(() => {
-                    eventsBuffer = eventsBuffer.map(e =>
-                      e.type === 'tool_pending' && e.callId === callId
-                        ? {
-                            type: 'tool_rejected' as const,
-                            callId: e.callId,
-                            toolName: e.toolName,
-                            toolId: e.toolId,
-                            diffSummary: e.diffSummary,
-                            diffItems: e.diffItems,
-                          }
-                        : e
-                    )
-                    setStreamEvents([...eventsBuffer])
-                    delete pendingToolTimersRef.current[callId]
-                  }, 5 * 60 * 1000)
                 }
 
-                // tool_confirmed / tool_rejected: 清除超时计时器，更新对应的 pending 事件状态
+                // tool_confirmed / tool_rejected: 更新对应的 pending 事件状态
                 if ((data.tool_confirmed || data.tool_rejected) && data.call_id) {
                   const callId = data.call_id as string
                   debugStreamLog('[useStreamingChat] tool decision handling start', {
@@ -739,10 +729,6 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                     rejected: Boolean(data.tool_rejected),
                     eventsBefore: summarizeToolEvents(eventsBuffer),
                   })
-                  if (pendingToolTimersRef.current[callId]) {
-                    clearTimeout(pendingToolTimersRef.current[callId])
-                    delete pendingToolTimersRef.current[callId]
-                  }
                   delete pendingToolTimingsRef.current[callId]
                   const newType: 'tool_confirmed' | 'tool_rejected' = data.tool_confirmed
                     ? 'tool_confirmed'
@@ -858,6 +844,34 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
     sessionIdRef.current = null
   }
 
+  // 用于从后端恢复持久化的待确认工具 diff。
+  const restorePendingConfirmation = useCallback(async () => {
+    if (isStreamingLockRef.current) return
+    const apiBaseUrl = options.apiBaseUrl || API_BASE_URL
+    const response = await fetch(
+      apiUrl(`/api/ai/chat/pending-confirmation?resume_id=${resumeId}`, apiBaseUrl),
+      { credentials: 'include' },
+    )
+    if (!response.ok) return
+    const body = await response.json().catch(() => null) as PendingConfirmationResponse | null
+    const action = body?.pending_action
+    if (!body?.session_id || !action?.call_id) return
+    sessionIdRef.current = body.session_id
+    setSessionId(body.session_id)
+    isStreamingLockRef.current = true
+    setIsStreaming(true)
+    setStreamEvents([
+      {
+        type: 'tool_pending',
+        callId: action.call_id,
+        toolName: action.tool_name || '',
+        toolId: action.tool_id,
+        diffSummary: action.diff_summary || '',
+        diffItems: normalizeDiffItems(action.diff_items),
+      },
+    ])
+  }, [options.apiBaseUrl, resumeId])
+
   // 用于处理confirm工具。
   const confirmTool = async (
     callId: string,
@@ -964,6 +978,12 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
     })
     if (body?.resumable === true) {
       await resumePausedSession(sid)
+      setStreamEvents([])
+      setIsStreaming(false)
+      setCurrentStreamingMessage('')
+      setSessionId(null)
+      sessionIdRef.current = null
+      isStreamingLockRef.current = false
     }
   }
 
@@ -996,5 +1016,6 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
     sendStreamingMessage,
     stopStreaming,
     confirmTool,
+    restorePendingConfirmation,
   }
 }

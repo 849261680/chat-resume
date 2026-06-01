@@ -54,7 +54,10 @@ from app.agents.resume.session import (  # noqa: E402
     ResumeAgentSession,
     maybe_compact_resume_context,
 )
-from app.runtime.tool_confirmation import ToolConfirmationPolicy  # noqa: E402
+from app.runtime.tool_confirmation import (  # noqa: E402
+    ToolConfirmationPolicy,
+    wait_for_tool_confirmation,
+)
 
 RESUME_EDIT_TOOL_NAMES = {
     "update_summary",
@@ -90,6 +93,24 @@ def test_agent_definition_default_tool_profile_is_not_resume_specific():
 def _new_test_stream_state() -> dict[str, Any]:
     """用于创建测试里的 Resume Agent stream state。"""
     return ResumeRunLifecycle.new_stream_state()
+
+
+@pytest.mark.asyncio
+async def test_tool_confirmation_wait_does_not_auto_reject_idle_checkpoint():
+    """用于验证待确认 checkpoint 空闲时不会自动拒绝。"""
+    queue: asyncio.Queue[object] = asyncio.Queue()
+
+    assert (
+        inspect.signature(wait_for_tool_confirmation)
+        .parameters["timeout_seconds"]
+        .default
+        is None
+    )
+    with pytest.raises(asyncio.TimeoutError):
+        await asyncio.wait_for(
+            wait_for_tool_confirmation(queue, timeout_seconds=None),
+            timeout=0.01,
+        )
 
 
 def _build_test_turn_inputs(

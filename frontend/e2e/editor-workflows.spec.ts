@@ -62,7 +62,12 @@ function buildResumeResponse(id: number) {
 async function installEditorApiMock(
   page: Page,
   resume = buildResumeResponse(123),
-  chatMessages: Array<{ id: number; role: 'user' | 'assistant'; content: string; stream_events?: unknown[] | null }> = []
+  chatMessages: Array<{ id: number; role: 'user' | 'assistant'; content: string; stream_events?: unknown[] | null }> = [],
+  pendingConfirmation: Record<string, unknown> = {
+    session_id: null,
+    status: 'idle',
+    pending_action: null,
+  }
 ) {
   const user = {
     id: 1,
@@ -111,6 +116,13 @@ async function installEditorApiMock(
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify(chatMessages),
+    })
+  })
+  await page.route('**/api/ai/chat/pending-confirmation**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(pendingConfirmation),
     })
   })
   await page.route(`**/api/resumes/${resume.id}/layout`, async (route) => {
@@ -1492,10 +1504,11 @@ test.describe('编辑页工作流', () => {
   })
 
   test('Resume Agent 可以提交反馈重新生成待确认修改', async ({ page }) => {
-    const resumeId = await createResumeFromDashboard(page, uniqueEmail('agentfeedback'))
+    const resume = buildResumeResponse(126)
 
+    await installEditorApiMock(page, resume)
     await installResumeAgentMock(page)
-    await page.goto(`/resume/${resumeId}/edit`)
+    await page.goto(`/resume/${resume.id}/edit`)
     await page.waitForLoadState('networkidle')
 
     const input = page.getByPlaceholder('输入消息...')
@@ -1514,6 +1527,71 @@ test.describe('编辑页工作流', () => {
       call_id: 'call_e2e',
       confirmed: false,
       feedback: '补充量化结果，不要只写高并发',
+    })
+  })
+
+  test('Resume Agent 待确认 diff 空闲后不会自动拒绝', async ({ page }) => {
+    const resume = buildResumeResponse(124)
+
+    await page.addInitScript(() => {
+      const originalSetTimeout = window.setTimeout
+      window.setTimeout = ((handler: TimerHandler, timeout?: number, ...args: unknown[]) => {
+        const normalizedTimeout = timeout === 5 * 60 * 1000 ? 1000 : timeout
+        return originalSetTimeout(handler, normalizedTimeout, ...args)
+      }) as typeof window.setTimeout
+    })
+    await installEditorApiMock(page, resume)
+    await installResumeAgentMock(page)
+    await page.goto(`/resume/${resume.id}/edit`)
+    await page.waitForLoadState('networkidle')
+
+    const input = page.getByPlaceholder('输入消息...')
+    await input.fill('请帮我优化项目经历')
+    await input.press('Enter')
+
+    await expect(page.getByPlaceholder('输入你希望 Agent 重新生成时参考的反馈...')).toBeVisible()
+    await page.waitForTimeout(1200)
+
+    await expect(page.getByPlaceholder('输入你希望 Agent 重新生成时参考的反馈...')).toBeVisible()
+    await expect(page.getByRole('button', { name: '确认修改' })).toBeEnabled()
+    await expect(page.getByRole('button', { name: '拒绝' })).toBeEnabled()
+  })
+
+  test('Resume Agent 可以在刷新后恢复待确认 diff', async ({ page }) => {
+    const resume = buildResumeResponse(125)
+
+    await installEditorApiMock(page, resume, [], {
+      session_id: 'resume_session_restored',
+      status: 'waiting_confirmation',
+      pending_action: {
+        type: 'tool_confirmation',
+        call_id: 'call_restored',
+        tool_name: '优化项目经历',
+        tool_id: 'update_bullet',
+        diff_summary: '改前 A 改后 B',
+        diff_items: [
+          {
+            before: '旧要点',
+            after: '新要点',
+            reason: '更贴合 JD',
+          },
+        ],
+      },
+    })
+    await installResumeAgentMock(page)
+    await page.goto(`/resume/${resume.id}/edit`)
+    await page.waitForLoadState('networkidle')
+
+    await expect(page.getByText('旧要点')).toBeVisible()
+    await expect(page.getByText('新要点')).toBeVisible()
+    await expect(page.getByPlaceholder('输入你希望 Agent 重新生成时参考的反馈...')).toBeVisible()
+    await page.getByRole('button', { name: '拒绝' }).click()
+
+    const confirmCalls = await readResumeAgentConfirmCalls(page)
+    expect(confirmCalls[0]).toMatchObject({
+      session_id: 'resume_session_restored',
+      call_id: 'call_restored',
+      confirmed: false,
     })
   })
 })

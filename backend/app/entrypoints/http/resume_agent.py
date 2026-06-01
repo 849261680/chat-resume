@@ -105,6 +105,45 @@ class ResumeSessionRequest(BaseModel):
     session_id: str
 
 
+def build_pending_confirmation_response(
+    store: AgentSessionStore,
+    *,
+    user_id: int,
+    resume_id: int,
+) -> dict:
+    """用于构造当前简历待确认工具 diff 响应。"""
+    session = store.get_latest_waiting_confirmation_session(
+        user_id=user_id,
+        resume_id=resume_id,
+    )
+    if not session:
+        return {
+            "session_id": None,
+            "status": "idle",
+            "pending_action": None,
+        }
+    event = store.get_latest_event(session.id, event_type="tool_call_previewed")
+    payload = event.payload if event and isinstance(event.payload, dict) else {}
+    return {
+        "session_id": session.id,
+        "status": session.status,
+        "pending_action": {
+            "type": "tool_confirmation",
+            "call_id": str(payload.get("call_id") or ""),
+            "tool_name": str(
+                payload.get("tool_display_name")
+                or payload.get("tool_name")
+                or ""
+            ),
+            "tool_id": str(payload.get("tool_id") or payload.get("tool_name") or ""),
+            "diff_summary": str(payload.get("diff_summary") or ""),
+            "diff_items": payload.get("diff_items")
+            if isinstance(payload.get("diff_items"), list)
+            else [],
+        },
+    }
+
+
 @router.post("/chat/stream")
 async def chat_with_resume_stream(
     request: Request,
@@ -251,6 +290,21 @@ async def chat_with_resume_stream(
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Headers": "*",
         },
+    )
+
+
+@router.get("/chat/pending-confirmation")
+async def get_pending_confirmation(
+    resume_id: int,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """用于读取指定简历当前待确认的 Agent 工具 diff。"""
+    store = AgentSessionStore(db)
+    return build_pending_confirmation_response(
+        store,
+        user_id=current_user["id"],
+        resume_id=resume_id,
     )
 
 

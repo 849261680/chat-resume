@@ -4195,6 +4195,67 @@ class TestAgentConfirmation:
         finally:
             db.close()
 
+    def test_pending_confirmation_returns_waiting_diff_for_resume(self):
+        """用于验证可按简历读取待确认 diff checkpoint。"""
+        session_id = "pending_confirmation_session"
+        db = _TestingSession()
+        try:
+            store = AgentSessionStore(db)
+            store.create_session(
+                session_id=session_id,
+                user_id=self.user_id,
+                resume_id=self.resume_id,
+                task_type="resume_optimization",
+            )
+            store.update_status(
+                session_id, "waiting_confirmation", current_step="call_pending"
+            )
+            store.append_event(
+                session_id=session_id,
+                event_type="tool_call_previewed",
+                source="resume_agent",
+                payload={
+                    "call_id": "call_pending",
+                    "tool_name": "优化要点",
+                    "tool_id": "update_bullet",
+                    "diff_summary": "改前 A 改后 B",
+                    "diff_items": [
+                        {
+                            "before": "旧要点",
+                            "after": "新要点",
+                            "reason": "更贴合 JD",
+                        }
+                    ],
+                },
+            )
+        finally:
+            db.close()
+
+        resp = self.client.get(
+            f"/api/ai/chat/pending-confirmation?resume_id={self.resume_id}",
+            headers=self.headers,
+        )
+
+        assert resp.status_code == 200
+        assert resp.json() == {
+            "session_id": session_id,
+            "status": "waiting_confirmation",
+            "pending_action": {
+                "type": "tool_confirmation",
+                "call_id": "call_pending",
+                "tool_name": "优化要点",
+                "tool_id": "update_bullet",
+                "diff_summary": "改前 A 改后 B",
+                "diff_items": [
+                    {
+                        "before": "旧要点",
+                        "after": "新要点",
+                        "reason": "更贴合 JD",
+                    }
+                ],
+            },
+        }
+
     def test_confirm_tool_uses_active_queue_when_present(self):
         """用于验证confirmtoolusesactivequeuewhenpresent。"""
         session_id = "active_session"

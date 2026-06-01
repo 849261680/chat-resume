@@ -134,6 +134,24 @@ class AgentSessionStore:
             query = query.filter(AgentEvent.event_type == event_type)
         return query.order_by(AgentEvent.sequence.desc()).first()
 
+    def get_latest_waiting_confirmation_session(
+        self,
+        *,
+        user_id: int,
+        resume_id: int,
+    ) -> AgentSession | None:
+        """用于读取指定简历最新的待确认 Agent session。"""
+        return (
+            self.db.query(AgentSession)
+            .filter(
+                AgentSession.user_id == user_id,
+                AgentSession.resume_id == resume_id,
+                AgentSession.status == "waiting_confirmation",
+            )
+            .order_by(AgentSession.updated_at.desc(), AgentSession.created_at.desc())
+            .first()
+        )
+
     def get_timed_out_paused_sessions(self, timeout_seconds: int) -> list[str]:
         """返回所有超过 timeout_seconds 仍处于 paused 状态的 session_id 列表。"""
         cutoff = datetime.now(timezone.utc) - timedelta(seconds=timeout_seconds)

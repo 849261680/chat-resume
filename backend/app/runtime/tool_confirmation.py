@@ -98,9 +98,9 @@ def parse_confirmation_queue_item(value: object) -> ToolConfirmationResult:
 async def wait_for_tool_confirmation(
     confirmation_queue: asyncio.Queue,
     *,
-    timeout_seconds: int = 300,
+    timeout_seconds: float | None = None,
 ) -> ToolConfirmationResult:
-    """用于等待用户确认，超时按拒绝处理。"""
+    """用于等待用户确认，默认作为持久 checkpoint 不自动拒绝。"""
     try:
         return parse_confirmation_queue_item(
             await asyncio.wait_for(confirmation_queue.get(), timeout=timeout_seconds)

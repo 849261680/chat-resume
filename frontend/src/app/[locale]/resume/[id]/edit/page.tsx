@@ -408,6 +408,7 @@ export default function ResumeEditPage() {
     isStreaming,
     streamEvents,
     confirmTool,
+    restorePendingConfirmation,
     stopStreaming,
     handleMessagesScroll,
     handleClearMessages,
@@ -466,6 +467,11 @@ export default function ResumeEditPage() {
       void fetchResume()
     }
   }, [fetchResume, mounted, isAuthenticated])
+
+  useEffect(() => {
+    if (!mounted || !isAuthenticated || !hasValidResumeId || isStreaming) return
+    void restorePendingConfirmation()
+  }, [hasValidResumeId, isAuthenticated, isStreaming, mounted, restorePendingConfirmation])
 
   useEffect(() => {
     if (!isFirstRun || !resume || firstRunTriggeredRef.current) return

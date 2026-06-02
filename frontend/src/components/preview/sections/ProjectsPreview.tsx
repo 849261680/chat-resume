@@ -120,7 +120,7 @@ function ProjectItem({
         )}
 
         {project.overview && (
-          <p className="text-sm" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 6px)', lineHeight: '1.64' }}>
+          <p className="text-sm" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 6px)', lineHeight: 'var(--resume-emerald-line-height)' }}>
             <span className="font-semibold">{descriptionLabel || t('projectDescription')}</span>{project.overview}
           </p>
         )}

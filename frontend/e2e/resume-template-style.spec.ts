@@ -620,4 +620,49 @@ test.describe('简历模板样式', () => {
       expect(avatarSize).toEqual({ width: 72, height: 88 })
     }
   })
+
+  test('Emerald 正文行高随 spacingScale 压缩：低密度下长 bullet 高度减少', async ({ page }) => {
+    const longBullet = '负责设计并实现 MoYi AI 的核心 Agent 执行链路，覆盖任务规划、工具调用、记忆管理与多轮对话，'
+      + '并基于 RAG 检索增强构建企业知识库问答，结合成本追踪与可观测指标，使长任务研究过程稳定可控且持续可优化。'
+
+    const buildPayload = (spacingScale: number) => encodePrintPayload({
+      template: 'emerald',
+      layout_config: {
+        moduleOrder: ['personal', 'work'],
+        visibleModules: ['personal', 'work'],
+        spacingScale,
+        templateStyle: 'emerald',
+      },
+      content: {
+        personal_info: { name: '行高样本', email: 'line-height@example.com' },
+        education: [],
+        skills: [],
+        projects: [],
+        work_experience: [
+          {
+            company: '世优科技',
+            position: 'AI Agent开发工程师',
+            duration: '2025',
+            highlights: [{ text: longBullet }],
+          },
+        ],
+      },
+    })
+
+    // 渲染指定 spacingScale，返回长 bullet 的渲染高度（已换行成多行）。
+    const measureBulletHeight = async (spacingScale: number) => {
+      await page.goto(`/resume/print?data=${buildPayload(spacingScale)}`)
+      const bullet = page.locator('.resume-page.resume-template-emerald:not(.invisible) .resume-emerald-list li').first()
+      await expect(bullet).toBeVisible()
+      return bullet.evaluate((element) => element.getBoundingClientRect().height)
+    }
+
+    const looseHeight = await measureBulletHeight(1)
+    const tightHeight = await measureBulletHeight(0.5)
+
+    // 长 bullet 必须换行才能体现行高差异
+    expect(looseHeight).toBeGreaterThan(40)
+    // 低 spacingScale 下行距压缩，整体高度应明显减少
+    expect(tightHeight).toBeLessThan(looseHeight)
+  })
 })

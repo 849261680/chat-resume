@@ -37,7 +37,7 @@ export default function SummaryPreview({ data, renderLines, templateStyle = 'cla
         <p
           data-line-index={1}
           className={isFormal || isEmerald ? 'text-sm text-gray-900' : 'text-sm text-gray-700'}
-          style={{ lineHeight: isEmerald ? '1.64' : '1.72', margin: 0 }}
+          style={{ lineHeight: isEmerald ? 'var(--resume-emerald-line-height)' : '1.72', margin: 0 }}
         >
           {text}
         </p>

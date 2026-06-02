@@ -97,11 +97,11 @@ function ProjectItem({
         <div className="flex items-baseline justify-between gap-4 text-sm font-semibold" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 8px)' }}>
           <div className="min-w-0 flex flex-wrap items-baseline gap-x-1">
             <span style={{ color: '#047857' }}>{project.name}</span>
-            {project.role && <span> - {project.role}</span>}
+            {project.role && <span style={{ color: '#111827' }}> - {project.role}</span>}
             {inlineLink && (
-              <span>
+              <span style={{ color: '#111827' }}>
                 {' | '}
-                {inlineLink.label}: <a href={inlineLink.url} target="_blank" rel="noopener noreferrer">{inlineLink.url}</a>
+                {inlineLink.label}: <a href={inlineLink.url} target="_blank" rel="noopener noreferrer" style={{ color: '#111827' }}>{inlineLink.url}</a>
               </span>
             )}
           </div>

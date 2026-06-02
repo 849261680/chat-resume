@@ -16,7 +16,6 @@ interface SummaryPreviewProps {
 export default function SummaryPreview({ data, renderLines, templateStyle = 'classic' }: SummaryPreviewProps) {
   const t = useTranslations('resume.layout.modules')
   const text = data?.text?.trim()
-  if (!text) return null
 
   const shouldRenderLine = (lineIndex: number) => !renderLines || renderLines.includes(lineIndex)
   const isEmerald = templateStyle === 'emerald'
@@ -33,7 +32,7 @@ export default function SummaryPreview({ data, renderLines, templateStyle = 'cla
           {isEmerald ? <span className="resume-emerald-heading-label">{t('summary')}</span> : t('summary')}
         </h2>
       )}
-      {shouldRenderLine(1) && (
+      {text && shouldRenderLine(1) && (
         <p
           data-line-index={1}
           className={isFormal || isEmerald ? 'text-sm text-gray-900' : 'text-sm text-gray-700'}

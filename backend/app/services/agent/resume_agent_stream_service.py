@@ -140,6 +140,13 @@ class ResumeAgentStreamService:
                     latest_resume_content=latest_resume_content,
                     original_resume=original_resume,
                 )
+                self._sync_visibility_if_changed(
+                    resume_service,
+                    resume=resume,
+                    resume_id=request.resume_id,
+                    request_visible=request.visible_modules,
+                    latest_resume_content=latest_resume_content,
+                )
                 logger.debug("Resume agent stream completed")
                 yield self._record_stream_event(
                     store,
@@ -295,6 +302,11 @@ class ResumeAgentStreamService:
         return ResumeAgentStreamService._dump_resume_content(resume)
 
     @staticmethod
+    def _strip_visibility_meta(content: dict[str, Any]) -> dict[str, Any]:
+        """用于剥离仅作传输用途的 _visible_modules，避免污染持久化内容。"""
+        return {k: v for k, v in content.items() if k != "_visible_modules"}
+
+    @staticmethod
     def _persist_resume_if_changed(
         resume_service: ResumeService,
         *,
@@ -303,9 +315,31 @@ class ResumeAgentStreamService:
         original_resume: dict[str, Any],
     ) -> None:
         """用于只在内容确实变化时落库存储结构化简历。"""
-        if latest_resume_content is None or latest_resume_content == original_resume:
+        if latest_resume_content is None:
             return
-        resume_service.update(resume_id, {"content": latest_resume_content})
+        content = ResumeAgentStreamService._strip_visibility_meta(latest_resume_content)
+        if content == ResumeAgentStreamService._strip_visibility_meta(original_resume):
+            return
+        resume_service.update(resume_id, {"content": content})
+
+    @staticmethod
+    def _sync_visibility_if_changed(
+        resume_service: ResumeService,
+        *,
+        resume: Any,
+        resume_id: int,
+        request_visible: list[str],
+        latest_resume_content: dict[str, Any] | None,
+    ) -> None:
+        """用于把 Agent 改动的可见模块同步到 layout_config.visibleModules。"""
+        if not isinstance(latest_resume_content, dict):
+            return
+        new_visible = latest_resume_content.get("_visible_modules")
+        if not isinstance(new_visible, list) or new_visible == request_visible:
+            return
+        existing = resume.layout_config if isinstance(resume.layout_config, dict) else {}
+        merged = {**existing, "visibleModules": list(new_visible)}
+        resume_service.update(resume_id, {"layout_config": merged})
 
     @staticmethod
     def _record_stream_event(

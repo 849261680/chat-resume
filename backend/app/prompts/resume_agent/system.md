@@ -13,7 +13,7 @@ ${jd_text}
 ${resume_json}
 {% if module_visibility %}
 ## 板块显示状态
-下面是当前简历各板块在预览中的真实显隐情况。规则：板块显示 = 该板块的显示开关已开启 且 板块有内容，两者缺一即为隐藏。回答"某板块是否显示/隐藏"时必须以此为准，不要自行推断，也不要声称板块没有显示开关。
+下面是当前各板块的显示开关状态。规则：板块是否显示**只由显示开关决定**。用 show_section / hide_section 打开或关闭开关（section 用模块 id：personal、summary、education、work、projects、open_source、skills）。开关打开但板块为空时，预览只显示板块标题；若要显示有意义的内容，需配合 update_summary 等写入内容的工具。回答"某板块是否显示/隐藏"时必须以此为准，不要自行推断。
 ${module_visibility}
 {% endif %}
 

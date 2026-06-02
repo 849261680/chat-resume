@@ -665,4 +665,43 @@ test.describe('简历模板样式', () => {
     // 低 spacingScale 下行距压缩，整体高度应明显减少
     expect(tightHeight).toBeLessThan(looseHeight)
   })
+
+  test('板块显隐只由 visibleModules 开关控制，空内容显示标题', async ({ page }) => {
+    const moduleOrder = ['personal', 'summary', 'education', 'work', 'projects', 'open_source', 'skills']
+    const buildPayload = (visibleModules: string[], summaryText: string) => encodePrintPayload({
+      template: 'classic',
+      layout_config: {
+        density: 'custom',
+        moduleOrder,
+        visibleModules,
+        spacingScale: 1,
+        templateStyle: 'classic',
+      },
+      content: {
+        personal_info: { name: '显隐样本', email: 'visibility@example.com' },
+        summary: { text: summaryText },
+        education: [],
+        work_experience: [],
+        projects: [],
+        skills: [],
+      },
+    })
+
+    const visiblePage = () => page.locator('.resume-page.resume-template-classic:not(.invisible)').first()
+    const summaryHeading = () => visiblePage().getByText('个人简介', { exact: true }).first()
+
+    // 开关开 + 有内容 → 标题与内容都显示
+    await page.goto(`/resume/print?data=${buildPayload(moduleOrder, '资深 AI Agent 工程师')}`)
+    await expect(summaryHeading()).toBeVisible()
+    await expect(visiblePage().getByText('资深 AI Agent 工程师').first()).toBeVisible()
+
+    // 开关关 + 有内容 → 即便有内容也不显示（开关是唯一真相）
+    await page.goto(`/resume/print?data=${buildPayload(moduleOrder.filter((m) => m !== 'summary'), '资深 AI Agent 工程师')}`)
+    await expect(visiblePage()).toBeVisible()
+    await expect(visiblePage().getByText('个人简介', { exact: true })).toHaveCount(0)
+
+    // 开关开 + 空内容 → 只显示板块标题
+    await page.goto(`/resume/print?data=${buildPayload(moduleOrder, '')}`)
+    await expect(summaryHeading()).toBeVisible()
+  })
 })

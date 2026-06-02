@@ -41,9 +41,9 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
         "function": {
             "name": "hide_section",
             "description": (
-                "将一个简历板块从简历中隐藏。section 只能是 education、"
-                "work_experience、projects、skills、languages、custom_sections。"
-                "板块内容会被保留，后续可通过 show_section 恢复显示。"
+                "关闭某个简历板块的显示开关，使其在预览中隐藏。section 是模块 id："
+                "personal、summary、education、work、projects、open_source、skills。"
+                "板块内容会被保留，后续可通过 show_section 重新显示。"
                 "仅在用户明确要求隐藏某个板块时使用。"
             ),
             "parameters": {
@@ -52,12 +52,13 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
                     "section": {
                         "type": "string",
                         "enum": [
+                            "personal",
+                            "summary",
                             "education",
-                            "work_experience",
+                            "work",
                             "projects",
+                            "open_source",
                             "skills",
-                            "languages",
-                            "custom_sections",
                         ],
                     },
                     "reason": {
@@ -74,10 +75,10 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
         "function": {
             "name": "show_section",
             "description": (
-                "将一个已隐藏的简历板块重新显示到简历中。section 只能是 education、"
-                "work_experience、projects、skills、languages、custom_sections。"
-                "如果板块之前被隐藏过，会恢复原有内容；否则创建空板块。"
-                "仅在用户明确要求显示某个板块时使用。"
+                "打开某个简历板块的显示开关，使其在预览中显示。section 是模块 id："
+                "personal、summary、education、work、projects、open_source、skills。"
+                "板块内容为空时只会显示板块标题；如需有意义的内容，请配合 update_summary "
+                "等写入内容的工具。仅在用户明确要求显示某个板块时使用。"
             ),
             "parameters": {
                 "type": "object",
@@ -85,12 +86,13 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
                     "section": {
                         "type": "string",
                         "enum": [
+                            "personal",
+                            "summary",
                             "education",
-                            "work_experience",
+                            "work",
                             "projects",
+                            "open_source",
                             "skills",
-                            "languages",
-                            "custom_sections",
                         ],
                     },
                     "reason": {

@@ -14,6 +14,7 @@ def strip_redundant_fields(resume_content: dict[str, Any]) -> dict[str, Any]:
     """用于移除当前提示词阶段不需要的冗余字段。"""
     content = dump_resume_content_for_frontend(copy.deepcopy(resume_content))
     content.pop("summary", None)
+    content.pop("_visible_modules", None)
     for section in ("work_experience", "projects"):
         items = content.get(section)
         if isinstance(items, list):
@@ -23,59 +24,28 @@ def strip_redundant_fields(resume_content: dict[str, Any]) -> dict[str, Any]:
     return content
 
 
-# 模块 id → 给用户看的中文板块名
+# 模块 id → 给用户看的中文板块名（与 resume_item_tool 的模块集合一致）
 _MODULE_LABELS = {
     "personal": "个人信息",
     "summary": "个人简介",
     "education": "教育经历",
     "work": "工作经历",
     "projects": "项目经历",
+    "open_source": "开源贡献",
     "skills": "技能",
 }
-
-# 模块 id → 简历内容里对应的列表字段名
-_MODULE_LIST_FIELDS = {
-    "education": "education",
-    "work": "work_experience",
-    "projects": "projects",
-    "skills": "skills",
-}
-
-
-def _module_has_content(resume_content: dict[str, Any], module: str) -> bool:
-    """用于按前端规则判断某板块是否有可渲染内容。"""
-    if module == "personal":
-        return bool(resume_content.get("personal_info"))
-    if module == "summary":
-        summary = resume_content.get("summary")
-        text = summary.get("text") if isinstance(summary, dict) else None
-        return bool(text and str(text).strip())
-    items = resume_content.get(_MODULE_LIST_FIELDS.get(module, module))
-    return isinstance(items, list) and len(items) > 0
-
-
-def _visibility_text(toggle_on: bool, has_content: bool) -> str:
-    """用于把"显示开关"和"内容是否非空"两道门翻译成显隐结论。"""
-    if toggle_on and has_content:
-        return "显示"
-    if not toggle_on and not has_content:
-        return "隐藏（开关关闭且无内容）"
-    if not toggle_on:
-        return "隐藏（开关关闭）"
-    return "隐藏（无内容）"
 
 
 def build_module_visibility(
     resume_content: dict[str, Any],
     visible_modules: list[str] | None,
 ) -> str:
-    """用于生成各板块在预览中的真实显隐说明；缺少开关信息时返回空串。"""
+    """用于生成各板块的显示开关状态；缺少开关信息时返回空串。"""
     if not isinstance(resume_content, dict) or not visible_modules:
         return ""
     toggles = set(visible_modules)
     lines = [
-        f"- {label}({module}): "
-        f"{_visibility_text(module in toggles, _module_has_content(resume_content, module))}"
+        f"- {label}({module}): {'显示' if module in toggles else '隐藏'}"
         for module, label in _MODULE_LABELS.items()
     ]
     return "\n".join(lines)
@@ -89,6 +59,13 @@ def build_resume_prompt_context(context: dict[str, Any]) -> dict[str, Any]:
         if isinstance(resume_content, dict)
         else {}
     )
+    # 优先用内容里被 show/hide 改写过的最新可见模块，否则退回请求传入的基线
+    live_visible = (
+        resume_content.get("_visible_modules")
+        if isinstance(resume_content, dict)
+        else None
+    )
+    visible_modules = live_visible if isinstance(live_visible, list) else context.get("visible_modules")
     prompt_resume = maybe_compact_resume_context(
         resume_content=strip_redundant_fields(resume_content),
         confirmed_diff_items=context.get("confirmed_diff_items"),
@@ -105,7 +82,7 @@ def build_resume_prompt_context(context: dict[str, Any]) -> dict[str, Any]:
         ),
         "module_visibility": build_module_visibility(
             resume_content if isinstance(resume_content, dict) else {},
-            context.get("visible_modules"),
+            visible_modules,
         ),
     }
 

@@ -1010,7 +1010,8 @@ async def test_resume_tool_preview_allows_hidden_section_additions():
     stage = ResumeToolExecutionStage()
     resume: dict[str, Any] = {
         "projects": [{"id": "proj_1", "name": "Chat Resume"}],
-        "_hidden_sections": {"skills": [{"id": "skill_1", "category": "AI", "items": ["Agent"]}]},
+        "skills": [{"id": "skill_1", "category": "AI", "items": ["Agent"]}],
+        "_visible_modules": ["projects"],
     }
     confirmation_queue: asyncio.Queue[bool] = asyncio.Queue()
     confirmation_queue.put_nowait(True)
@@ -1050,8 +1051,8 @@ async def test_resume_tool_preview_allows_hidden_section_additions():
     assert any(event.get("tool_pending") for event in events)
     assert not any(event.get("tool_call_failed") for event in events)
     assert executed_tools[0]["success"] is True
+    assert "skills" in resume["_visible_modules"]
     assert resume["skills"][0] == {"id": "skill_1", "category": "AI", "items": ["Agent"]}
-    assert "_hidden_sections" not in resume
 
 
 @pytest.mark.asyncio

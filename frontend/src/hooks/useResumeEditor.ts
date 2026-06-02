@@ -228,13 +228,27 @@ export function useResumeEditor({ resumeId, isAuthenticated }: UseResumeEditorOp
    */
   const applyAgentResumeContent = useCallback((content: Resume['content']) => {
     setAutoSaveStatus('idle')
+    // Agent 通过 _visible_modules 同步板块显隐：更新 layoutConfig 并剥离该 meta 字段
+    const rawContent = content as Record<string, unknown>
+    let cleanContent = content
+    const visibleMeta = rawContent?._visible_modules
+    if (Array.isArray(visibleMeta)) {
+      const { _visible_modules: _omit, ...rest } = rawContent
+      cleanContent = rest as Resume['content']
+      const nextVisible = new Set(visibleMeta.map(String)) as typeof layoutConfig.visibleModules
+      const current = layoutConfig.visibleModules
+      const changed = nextVisible.size !== current.size || Array.from(nextVisible).some((m) => !current.has(m))
+      if (changed) {
+        handleLayoutConfigChange({ ...layoutConfig, visibleModules: nextVisible })
+      }
+    }
     setResume((previousResume) => {
       if (!previousResume) return previousResume
-      const updatedResume = { ...previousResume, content }
+      const updatedResume = { ...previousResume, content: cleanContent }
       syncResumeSnapshot(updatedResume, { saved: true })
       return updatedResume
     })
-  }, [setAutoSaveStatus, syncResumeSnapshot])
+  }, [setAutoSaveStatus, syncResumeSnapshot, layoutConfig, handleLayoutConfigChange])
 
   const moduleOrder = useMemo<ModuleConfig[]>(
     () => buildModuleConfig(layoutConfig.moduleOrder, layoutConfig.visibleModules),

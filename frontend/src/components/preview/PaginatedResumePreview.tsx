@@ -200,9 +200,8 @@ export default function PaginatedResumePreview({
           ? renderSection(sectionId, <PersonalInfoPreview data={content.personal_info} renderLines={renderLines} templateStyle={templateStyle} />)
           : null
       case 'summary':
-        return content.summary?.text
-          ? renderSection(sectionId, <SummaryPreview data={content.summary} renderLines={renderLines} templateStyle={templateStyle} />)
-          : null
+        // 显隐只由开关（visibleModules）控制：开关已开则渲染，空内容时只显示标题
+        return renderSection(sectionId, <SummaryPreview data={content.summary} renderLines={renderLines} templateStyle={templateStyle} />)
       case 'education':
         return content.education && content.education.length > 0
           ? renderSection(sectionId, <EducationPreview data={content.education} renderLines={renderLines} templateStyle={templateStyle} />)

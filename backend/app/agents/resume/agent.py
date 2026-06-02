@@ -191,6 +191,9 @@ class ResumeAgent:
         visible_modules: Optional[List[str]] = None,
     ) -> AsyncGenerator[ResumeStreamEvent, None]:
         """用于执行一次带工具确认能力的流式简历优化请求。"""
+        # 把当前可见模块作为基线写入 content meta，供 show/hide_section 工具读取与改写
+        if visible_modules is not None and isinstance(resume_content, dict):
+            resume_content.setdefault("_visible_modules", list(visible_modules))
         context: dict[str, Any] = {
             "resume_content": resume_content,
             "allowed_sections": allowed_sections,

@@ -885,11 +885,12 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertEqual(json.loads(diff_item["after"])["items"], long_items)
         self.assertNotIn("…", diff_item["after"])
 
-    def test_show_section_shows_hidden_section(self):
-        """用于验证show_section将隐藏板块显示到简历中。"""
+    def test_show_section_turns_on_hidden_module(self):
+        """用于验证show_section打开关闭的板块开关，不改动内容。"""
+        skills_data = [{"id": "skill_1", "category": "AI", "items": ["Agent"]}]
         resume_content: dict[str, Any] = {
-            "projects": [],
-            "_hidden_sections": {"skills": [{"id": "skill_1", "category": "AI", "items": ["Agent"]}]},
+            "skills": skills_data,
+            "_visible_modules": ["personal", "summary", "projects"],
         }
         executor = ResumeToolExecutor()
 
@@ -903,28 +904,30 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         )
 
         self.assertTrue(result["result"]["success"])
-        self.assertIn("skills", resume_content)
-        self.assertEqual(resume_content["skills"][0]["category"], "AI")
-        self.assertNotIn("_hidden_sections", resume_content)
+        self.assertIn("skills", resume_content["_visible_modules"])
+        self.assertEqual(resume_content["skills"], skills_data)
         self.assertIn("技能专长", result["result"]["message"])
 
-    def test_show_section_creates_empty_section(self):
-        """用于验证show_section在没有隐藏内容时创建空板块。"""
-        resume_content: dict[str, Any] = {"projects": []}
+    def test_show_section_only_toggles_visibility_for_empty_section(self):
+        """用于验证show_section对空板块只打开开关、不创建内容。"""
+        resume_content: dict[str, Any] = {
+            "summary": {"text": ""},
+            "_visible_modules": ["personal", "projects"],
+        }
         executor = ResumeToolExecutor()
 
         result = executor.execute(
             tool_name="show_section",
             tool_input={
-                "section": "skills",
-                "reason": "添加技能板块",
+                "section": "summary",
+                "reason": "显示个人简介",
             },
             context={"resume_content": resume_content},
         )
 
         self.assertTrue(result["result"]["success"])
-        self.assertIn("skills", resume_content)
-        self.assertEqual(resume_content["skills"], [])
+        self.assertIn("summary", resume_content["_visible_modules"])
+        self.assertEqual(resume_content["summary"], {"text": ""})
 
     def test_show_section_rejects_already_visible_section(self):
         """用于验证show_section拒绝已显示的板块。"""
@@ -939,13 +942,16 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
 
         self.assertFalse(result["result"]["success"])
 
-    def test_hide_section_hides_section_and_preserves_content(self):
-        """用于验证hide_section隐藏板块并保留内容。"""
+    def test_hide_section_turns_off_module_and_preserves_content(self):
+        """用于验证hide_section关闭板块开关并保留内容。"""
         skills_data = [
             {"id": "skill_1", "category": "旧技能", "items": ["jQuery"]},
             {"id": "skill_2", "category": "后端", "items": ["Python"]},
         ]
-        resume_content: dict[str, Any] = {"skills": skills_data}
+        resume_content: dict[str, Any] = {
+            "skills": skills_data,
+            "_visible_modules": ["skills", "projects"],
+        }
         executor = ResumeToolExecutor()
 
         result = executor.execute(
@@ -958,13 +964,16 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         )
 
         self.assertTrue(result["result"]["success"])
-        self.assertNotIn("skills", resume_content)
-        self.assertEqual(resume_content["_hidden_sections"]["skills"], skills_data)
+        self.assertNotIn("skills", resume_content["_visible_modules"])
+        self.assertEqual(resume_content["skills"], skills_data)
         self.assertIn("隐藏", result["result"]["message"])
 
     def test_hide_section_rejects_already_hidden_section(self):
-        """用于验证hide_section拒绝不在简历中的板块。"""
-        resume_content: dict[str, Any] = {"projects": []}
+        """用于验证hide_section拒绝当前未显示的板块。"""
+        resume_content: dict[str, Any] = {
+            "projects": [],
+            "_visible_modules": ["projects"],
+        }
         executor = ResumeToolExecutor()
 
         result = executor.execute(

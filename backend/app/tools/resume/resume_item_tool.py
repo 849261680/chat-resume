@@ -1,40 +1,59 @@
-"""用于控制简历板块的显示和隐藏，不修改板块内部内容。"""
+"""用于控制简历板块的显示和隐藏，统一以 visibleModules 开关为唯一真相，不修改板块内容。"""
 
 from __future__ import annotations
 
 from typing import Any
 
-from .shared import build_diff_payload, normalize_reason, summarize_dict
+from .shared import build_diff_payload, normalize_reason
 
-HIDDEN_SECTIONS_KEY = "_hidden_sections"
+# Agent 显隐操作的过渡字段：模块 id 列表，回传后由流式服务同步到 layout_config.visibleModules
+VISIBLE_MODULES_KEY = "_visible_modules"
 
-SECTION_KEYS = {
+# 受支持的模块 id（与前端 resumeLayoutConfig.ts 的 DEFAULT_MODULE_ORDER 同构）
+MODULE_IDS = [
+    "personal",
+    "summary",
     "education",
-    "work_experience",
+    "work",
     "projects",
+    "open_source",
     "skills",
-    "languages",
-    "custom_sections",
-}
+]
 
-_SECTION_LABELS = {
+_MODULE_LABELS = {
+    "personal": "个人信息",
+    "summary": "个人简介",
     "education": "教育经历",
-    "work_experience": "工作经历",
+    "work": "工作经历",
     "projects": "项目经历",
+    "open_source": "开源贡献",
     "skills": "技能专长",
-    "languages": "语言能力",
-    "custom_sections": "自定义板块",
+}
+
+# 把 content key 或常见别名归一化成模块 id
+_MODULE_ALIASES = {
+    "personal_info": "personal",
+    "work_experience": "work",
+    "experience": "work",
+    "project": "projects",
+    "edu": "education",
+    "opensource": "open_source",
+    "languages": "skills",
 }
 
 
-def _get_hidden(resume_content: dict[str, Any]) -> dict[str, Any]:
-    """用于获取隐藏板块存储区。"""
-    return resume_content.setdefault(HIDDEN_SECTIONS_KEY, {})
+def _normalize_module(section: str) -> str:
+    """用于把 content key 或别名归一化成模块 id。"""
+    key = str(section).strip()
+    return _MODULE_ALIASES.get(key, key)
 
 
-def _section_label(section: str) -> str:
-    """用于把板块 key 转成中文标签。"""
-    return _SECTION_LABELS.get(section, summarize_dict({"name": section}))
+def _current_visible(resume_content: dict[str, Any]) -> list[str]:
+    """用于读取当前可见模块列表；未注入基线时按全部可见兜底。"""
+    raw = resume_content.get(VISIBLE_MODULES_KEY)
+    if isinstance(raw, list):
+        return [str(module) for module in raw]
+    return list(MODULE_IDS)
 
 
 def show_section(
@@ -42,34 +61,28 @@ def show_section(
     section: str,
     reason: Any = None,
 ) -> dict[str, Any]:
-    """用于将一个隐藏板块重新显示到简历中，不修改板块内容。"""
-    if section not in SECTION_KEYS:
+    """用于显示一个简历板块（打开 visibleModules 开关），不修改板块内容。"""
+    module = _normalize_module(section)
+    if module not in _MODULE_LABELS:
         return {"success": False, "message": f"{section} 不是有效的简历板块"}
 
-    if section in resume_content and not isinstance(resume_content[section], str):
-        return {"success": False, "message": f"{_section_label(section)} 已在简历中显示"}
+    visible = _current_visible(resume_content)
+    label = _MODULE_LABELS[module]
+    if module in visible:
+        return {"success": False, "message": f"{label}已在简历中显示"}
 
-    hidden = _get_hidden(resume_content)
-    if section in hidden:
-        resume_content[section] = hidden.pop(section)
-        source_text = "已恢复隐藏内容"
-    else:
-        resume_content[section] = []
-        source_text = "新建空板块"
-
-    if not hidden:
-        resume_content.pop(HIDDEN_SECTIONS_KEY, None)
-
+    visible.append(module)
+    resume_content[VISIBLE_MODULES_KEY] = visible
     diff_payload = build_diff_payload(
-        title=f"显示板块「{_section_label(section)}」",
+        title=f"显示板块「{label}」",
         before="（隐藏）",
         after="（显示）",
         reason=normalize_reason(reason),
     )
     return {
         "success": True,
-        "message": f"已将{_section_label(section)}显示到简历中（{source_text}）",
-        "updated_section": section,
+        "message": f"已显示{label}板块",
+        "updated_section": module,
         **diff_payload,
     }
 
@@ -79,34 +92,35 @@ def hide_section(
     section: str,
     reason: Any = None,
 ) -> dict[str, Any]:
-    """用于将一个简历板块隐藏，内容保留以便后续恢复。"""
-    if section not in SECTION_KEYS:
+    """用于隐藏一个简历板块（关闭 visibleModules 开关），内容保留以便后续恢复。"""
+    module = _normalize_module(section)
+    if module not in _MODULE_LABELS:
         return {"success": False, "message": f"{section} 不是有效的简历板块"}
 
-    if section not in resume_content:
-        return {"success": False, "message": f"{_section_label(section)} 不在简历中"}
+    visible = _current_visible(resume_content)
+    label = _MODULE_LABELS[module]
+    if module not in visible:
+        return {"success": False, "message": f"{label}当前未显示"}
 
-    content = resume_content.pop(section)
-    hidden = _get_hidden(resume_content)
-    hidden[section] = content
-
+    visible.remove(module)
+    resume_content[VISIBLE_MODULES_KEY] = visible
     diff_payload = build_diff_payload(
-        title=f"隐藏板块「{_section_label(section)}」",
+        title=f"隐藏板块「{label}」",
         before="（显示）",
         after="（隐藏）",
         reason=normalize_reason(reason),
     )
     return {
         "success": True,
-        "message": f"已将{_section_label(section)}从简历中隐藏，内容已保留",
-        "updated_section": section,
+        "message": f"已隐藏{label}板块，内容已保留",
+        "updated_section": module,
         **diff_payload,
     }
 
 
 __all__ = [
-    "HIDDEN_SECTIONS_KEY",
-    "SECTION_KEYS",
+    "VISIBLE_MODULES_KEY",
+    "MODULE_IDS",
     "show_section",
     "hide_section",
 ]

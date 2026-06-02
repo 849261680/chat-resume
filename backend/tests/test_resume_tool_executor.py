@@ -123,10 +123,12 @@ class ResumeToolExecutorTests(unittest.TestCase):
         self.assertFalse(result["result"]["error"]["recoverable"])
 
     def test_show_section_can_show_hidden_section(self):
-        """用于验证show_section恢复隐藏板块到简历。"""
+        """用于验证show_section打开关闭的板块开关，不改动内容。"""
+        skills_data = [{"id": "skill_1", "category": "AI", "items": ["Agent"]}]
         resume: dict[str, Any] = {
             "projects": [],
-            "_hidden_sections": {"skills": [{"id": "skill_1", "category": "AI", "items": ["Agent"]}]},
+            "skills": skills_data,
+            "_visible_modules": ["projects"],
         }
         executor = ResumeToolExecutor()
 
@@ -141,9 +143,8 @@ class ResumeToolExecutorTests(unittest.TestCase):
 
         self.assertTrue(result["result"]["success"])
         self.assertEqual(result["result"]["updated_section"], "skills")
-        self.assertEqual(resume["skills"][0]["category"], "AI")
-        self.assertEqual(resume["skills"][0]["items"], ["Agent"])
-        self.assertNotIn("_hidden_sections", resume)
+        self.assertIn("skills", resume["_visible_modules"])
+        self.assertEqual(resume["skills"], skills_data)
 
 
 async def _await_tool_result(

@@ -181,23 +181,20 @@ class ExportService:
             )
             story.append(Spacer(1, 12))
 
-        projects = resume_content.get("projects", [])
-        if projects:
-            story.append(Paragraph("项目经验", heading_style))
-            for project in projects:
-                project_name = str(project.get("name", "")).strip()
-                if project_name:
-                    story.append(Paragraph(escape(project_name), normal_style))
-                description = str(
-                    project.get("summary", "") or project.get("description", "")
-                ).strip()
-                if description:
-                    story.append(Paragraph(escape(description), normal_style))
-                for highlight in self._build_highlight_texts(
-                    project.get("highlights", []) or project.get("achievements", [])
-                ):
-                    story.append(Paragraph(escape(highlight), normal_style))
-                story.append(Spacer(1, 6))
+        self._append_project_story_section(
+            story,
+            "项目经验",
+            resume_content.get("projects", []),
+            heading_style,
+            normal_style,
+        )
+        self._append_project_story_section(
+            story,
+            "开源贡献",
+            resume_content.get("open_source", []),
+            heading_style,
+            normal_style,
+        )
 
         doc.build(story)
         return filepath
@@ -293,6 +290,7 @@ class ExportService:
         work_experience = resume_content.get("work_experience", [])
         skills = self._build_skill_texts(resume_content.get("skills", []))
         projects = resume_content.get("projects", [])
+        open_source = resume_content.get("open_source", [])
 
         contact_html = "".join(
             f"<span>{escape(text)}</span>"
@@ -343,32 +341,8 @@ class ExportService:
         skill_html = "".join(
             f'<span class="skill">{escape(item)}</span>' for item in skills
         )
-        project_parts: list[str] = []
-        for item in projects:
-            subtitle = self._join_parts(
-                [
-                    item.get("role", ""),
-                    item.get("duration", ""),
-                ]
-            )
-            description = str(
-                item.get("summary", "") or item.get("description", "")
-            ).strip()
-            project_parts.append(
-                f"""
-            <div class="item">
-                <div class="item-title">{escape(str(item.get("name", "")))}</div>
-                <div class="item-subtitle">{escape(subtitle)}</div>
-                <div class="item-content">{escape(description)}</div>
-                {
-                    self._build_highlights_html(
-                        item.get("highlights", []) or item.get("achievements", [])
-                    )
-                }
-            </div>
-            """
-            )
-        project_html = "".join(project_parts)
+        project_html = self._build_project_items_html(projects)
+        open_source_html = self._build_project_items_html(open_source)
 
         return f"""
 <!DOCTYPE html>
@@ -469,10 +443,37 @@ class ExportService:
             )
         }
         {self._wrap_section("项目经验", project_html)}
+        {self._wrap_section("开源贡献", open_source_html)}
     </div>
 </body>
 </html>
 """
+
+    def _append_project_story_section(
+        self,
+        story: list[Any],
+        title: str,
+        projects: list[Any],
+        heading_style: Any,
+        normal_style: Any,
+    ) -> None:
+        """向 ReportLab 文档追加项目类区块。"""
+
+        if not projects:
+            return
+        story.append(Paragraph(title, heading_style))
+        for project in projects:
+            project_name = str(project.get("name", "")).strip()
+            if project_name:
+                story.append(Paragraph(escape(project_name), normal_style))
+            description = self._project_description(project)
+            if description:
+                story.append(Paragraph(escape(description), normal_style))
+            for highlight in self._build_highlight_texts(
+                project.get("highlights", []) or project.get("achievements", [])
+            ):
+                story.append(Paragraph(escape(highlight), normal_style))
+            story.append(Spacer(1, 6))
 
     def _wrap_section(self, title: str, content: str) -> str:
         """包装导出区块。"""
@@ -485,6 +486,38 @@ class ExportService:
             f"{content}"
             "</section>"
         )
+
+    def _build_project_items_html(self, projects: list[Any]) -> str:
+        """构建项目类条目的 HTML。"""
+
+        parts: list[str] = []
+        for item in projects:
+            subtitle = self._join_parts([item.get("role", ""), item.get("duration", "")])
+            description = self._project_description(item)
+            parts.append(
+                f"""
+            <div class="item">
+                <div class="item-title">{escape(str(item.get("name", "")))}</div>
+                <div class="item-subtitle">{escape(subtitle)}</div>
+                <div class="item-content">{escape(description)}</div>
+                {
+                    self._build_highlights_html(
+                        item.get("highlights", []) or item.get("achievements", [])
+                    )
+                }
+            </div>
+            """
+            )
+        return "".join(parts)
+
+    def _project_description(self, item: dict[str, Any]) -> str:
+        """读取项目类条目的简介文本。"""
+
+        return str(
+            item.get("overview", "")
+            or item.get("summary", "")
+            or item.get("description", "")
+        ).strip()
 
     def _build_contact_texts(self, personal_info: Dict[str, Any]) -> list[str]:
         """构建联系信息文本。"""

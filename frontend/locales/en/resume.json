@@ -143,6 +143,7 @@
     "education": "Education",
     "work": "Work",
     "projects": "Projects",
+    "openSource": "Open source",
     "skills": "Skills",
     "summary": "Summary"
   },
@@ -311,6 +312,7 @@
       "work": "Work experience",
       "skills": "Skills",
       "projects": "Projects",
+      "openSource": "Open source",
       "summary": "Summary"
     },
     "emptyTitle": "Start editing",

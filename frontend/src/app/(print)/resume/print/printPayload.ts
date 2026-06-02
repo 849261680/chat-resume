@@ -54,7 +54,8 @@ export function hasPrintableResumeContent(payload: PrintPayload | null): boolean
     content?.education?.length ||
     content?.work_experience?.length ||
     content?.skills?.length ||
-    content?.projects?.length,
+    content?.projects?.length ||
+    content?.open_source?.length,
   )
 }
 

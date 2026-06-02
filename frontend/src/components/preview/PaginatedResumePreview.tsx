@@ -22,7 +22,8 @@ const SECTION_ID_MAP: Record<ResumeModule, string> = {
   education: 'education-section',
   work: 'work-experience-section',
   skills: 'skills-section',
-  projects: 'projects-section'
+  projects: 'projects-section',
+  open_source: 'open-source-section'
 }
 const PAGE_CONTENT_WIDTH = A4_WIDTH - PAGE_PADDING * 2
 
@@ -217,6 +218,10 @@ export default function PaginatedResumePreview({
         return content.projects && content.projects.length > 0
           ? renderSection(sectionId, <ProjectsPreview data={content.projects} renderLines={renderLines} templateStyle={templateStyle} />)
           : null
+      case 'open_source':
+        return content.open_source && content.open_source.length > 0
+          ? renderSection(sectionId, <ProjectsPreview data={content.open_source} renderLines={renderLines} templateStyle={templateStyle} title={t('modules.openSource')} />)
+          : null
       default:
         return null
     }
@@ -314,7 +319,8 @@ export default function PaginatedResumePreview({
     (content.education && content.education.length > 0) ||
     (content.work_experience && content.work_experience.length > 0) ||
     (content.skills && content.skills.length > 0) ||
-    (content.projects && content.projects.length > 0)
+    (content.projects && content.projects.length > 0) ||
+    (content.open_source && content.open_source.length > 0)
 
   if (!hasContent) {
     return (

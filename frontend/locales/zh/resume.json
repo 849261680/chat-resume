@@ -143,6 +143,7 @@
     "education": "教育",
     "work": "工作",
     "projects": "项目",
+    "openSource": "开源",
     "skills": "技能",
     "summary": "简介"
   },
@@ -311,6 +312,7 @@
       "work": "工作经验",
       "skills": "技能",
       "projects": "项目经验",
+      "openSource": "开源贡献",
       "summary": "个人简介"
     },
     "emptyTitle": "开始编辑简历",

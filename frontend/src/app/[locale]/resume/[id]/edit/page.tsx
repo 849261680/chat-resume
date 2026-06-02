@@ -941,6 +941,13 @@ export default function ResumeEditPage() {
                       onChange={(data) => updateResumeContent('projects', data)}
                     />
                   )}
+
+                  {activeSection === 'open_source' && (
+                    <ProjectsEditor
+                      data={resume.content.open_source || []}
+                      onChange={(data) => updateResumeContent('open_source', data)}
+                    />
+                  )}
                 </div>
               </div>
             </div>

@@ -96,6 +96,8 @@ export interface Project {
   links?: ResumeLink[]
 }
 
+export type OpenSourceContribution = Project
+
 interface Language {
   id?: string
   name: string
@@ -119,6 +121,7 @@ export interface ResumeContent {
   work_experience?: WorkExperience[]
   skills?: Skill[]
   projects?: Project[]
+  open_source?: OpenSourceContribution[]
   languages?: Language[]
   custom_sections?: CustomSection[]
 }

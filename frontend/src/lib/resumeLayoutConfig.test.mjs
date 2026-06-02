@@ -28,3 +28,16 @@ test('deserializeLayoutConfig keeps an explicitly hidden summary module hidden',
 
   assert.equal(config.visibleModules.has('summary'), false)
 })
+
+test('deserializeLayoutConfig appends the open source module to old layouts', () => {
+  const config = deserializeLayoutConfig({
+    density: 'normal',
+    moduleOrder: ['personal', 'summary', 'projects', 'skills'],
+    visibleModules: ['personal', 'summary', 'projects', 'skills'],
+    spacingScale: 1,
+    templateStyle: 'classic',
+  })
+
+  assert.equal(config.moduleOrder.includes('open_source'), true)
+  assert.equal(config.visibleModules.has('open_source'), false)
+})

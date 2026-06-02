@@ -10,6 +10,7 @@ interface ProjectsPreviewProps {
   data: Project[]
   renderLines?: number[]
   templateStyle?: ResumeTemplateStyle
+  title?: string
 }
 
 /* 链接图标包装器：使用 flex 对齐，避免导出时基线计算偏差 */
@@ -217,6 +218,7 @@ export default function ProjectsPreview({
   data,
   renderLines,
   templateStyle = 'classic',
+  title,
 }: ProjectsPreviewProps) {
   const t = useTranslations('resume.layout.modules')
   if (!data || !Array.isArray(data) || data.length === 0) {
@@ -234,8 +236,8 @@ export default function ProjectsPreview({
       {shouldRenderLine(0) && (
         <h2 data-line-index={0} className="text-lg font-bold text-gray-900 pb-1.5 border-b border-gray-300" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 12px)' }}>
           {templateStyle === 'emerald' ? (
-            <span className="resume-emerald-heading-label">{t('projects')}</span>
-          ) : t('projects')}
+            <span className="resume-emerald-heading-label">{title || t('projects')}</span>
+          ) : title || t('projects')}
         </h2>
       )}
 

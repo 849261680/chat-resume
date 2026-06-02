@@ -34,6 +34,7 @@ const EDITOR_SECTION_TO_MODULE: Partial<Record<string, ResumeModule>> = {
   education: 'education',
   work: 'work',
   projects: 'projects',
+  open_source: 'open_source',
   skills: 'skills',
 }
 
@@ -248,6 +249,7 @@ export function useResumeEditor({ resumeId, isAuthenticated }: UseResumeEditorOp
       { key: 'education', label: t('sections.education') },
       { key: 'work', label: t('sections.work') },
       { key: 'projects', label: t('sections.projects') },
+      { key: 'open_source', label: t('sections.openSource') },
       { key: 'skills', label: t('sections.skills') },
     ]
     return allSections.filter((section) => {

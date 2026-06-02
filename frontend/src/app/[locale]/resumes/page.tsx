@@ -440,7 +440,7 @@ export default function ResumesPage() {
       const emptyResumeContent = {
         job_application: { target_company: '', target_title: '', jd_text: '', strategy: '' },
         personal_info: { name: '', email: '', phone: '', position: '', github: '' },
-        education: [], work_experience: [], skills: [], projects: []
+        education: [], work_experience: [], skills: [], projects: [], open_source: []
       }
       const newResume = await resumeApi.createResume({ title: t('untitled'), content: emptyResumeContent })
       toast.success(t('createDone'), { id: 'create' })

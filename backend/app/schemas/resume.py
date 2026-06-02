@@ -296,6 +296,7 @@ class ResumeContent(ResumeBaseModel):
     work_experience: list[WorkExperienceItem] = Field(default_factory=list)
     skills: list[SkillItem] = Field(default_factory=list)
     projects: list[ProjectItem] = Field(default_factory=list)
+    open_source: list[ProjectItem] = Field(default_factory=list)
     languages: list[LanguageItem] = Field(default_factory=list)
     custom_sections: list[CustomSection] = Field(default_factory=list)
 
@@ -319,6 +320,7 @@ class ResumeContent(ResumeBaseModel):
         "work_experience",
         "skills",
         "projects",
+        "open_source",
         "languages",
         "custom_sections",
         mode="before",
@@ -449,6 +451,7 @@ _FRONTEND_RESUME_CONTENT_INCLUDE = {
     "work_experience": True,
     "skills": True,
     "projects": True,
+    "open_source": True,
 }
 
 _RESUME_LIST_PREVIEW_INCLUDE = {
@@ -457,6 +460,7 @@ _RESUME_LIST_PREVIEW_INCLUDE = {
     "work_experience": True,
     "skills": True,
     "projects": True,
+    "open_source": True,
 }
 
 

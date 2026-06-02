@@ -36,6 +36,7 @@ const DEFAULT_MODULE_ORDER: ResumeModule[] = [
   'education',
   'work',
   'projects',
+  'open_source',
   'skills'
 ]
 
@@ -48,7 +49,8 @@ export const MODULE_LABELS: Record<ResumeModule, string> = {
   education: 'Education',
   work: 'Work experience',
   skills: 'Skills',
-  projects: 'Projects'
+  projects: 'Projects',
+  open_source: 'Open source',
 }
 
 // 用于补齐旧布局配置缺失的新模块，同时过滤无效模块。

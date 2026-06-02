@@ -13,6 +13,7 @@ interface ProjectsPreviewProps {
   title?: string
   descriptionLabel?: string
   secondaryLinkLabel?: string
+  inlineSecondaryLink?: boolean
 }
 
 /* 链接图标包装器：使用 flex 对齐，避免导出时基线计算偏差 */
@@ -60,21 +61,29 @@ function ProjectItem({
   templateStyle = 'classic',
   descriptionLabel,
   secondaryLinkLabel,
+  inlineSecondaryLink = false,
 }: {
   project: Project
   lineIndex: number
   templateStyle?: ResumeTemplateStyle
   descriptionLabel?: string
   secondaryLinkLabel?: string
+  inlineSecondaryLink?: boolean
 }) {
   const t = useTranslations('resume.preview')
   const highlights = project.highlights && project.highlights.length > 0
     ? project.highlights.map(item => item.text)
     : []
   const demoLabel = secondaryLinkLabel || t('demo')
-  const linkItems = getProjectLinkItems(project, demoLabel)
+  const linkItems = getProjectLinkItems(
+    { ...project, demo_url: inlineSecondaryLink ? '' : project.demo_url },
+    demoLabel,
+  )
   const isFormal = templateStyle === 'formal'
   const isEmerald = templateStyle === 'emerald'
+  const inlineLink = inlineSecondaryLink && project.demo_url
+    ? { label: demoLabel, url: project.demo_url }
+    : null
 
   if (isEmerald) {
     return (
@@ -83,6 +92,12 @@ function ProjectItem({
           <div className="min-w-0 flex flex-wrap items-baseline gap-x-1">
             <span>{project.name}</span>
             {project.role && <span> - {project.role}</span>}
+            {inlineLink && (
+              <span>
+                {' | '}
+                {inlineLink.label}: <a href={inlineLink.url} target="_blank" rel="noopener noreferrer">{inlineLink.url}</a>
+              </span>
+            )}
           </div>
           {project.duration && <span className="resume-emerald-subtle shrink-0 font-normal">{project.duration}</span>}
         </div>
@@ -119,7 +134,15 @@ function ProjectItem({
     return (
       <div data-line-index={lineIndex} className="relative print:break-inside-avoid resume-formal-item" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 16px)' }}>
         <div className="flex items-baseline justify-between gap-4 text-sm text-gray-900 font-semibold" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 8px)' }}>
-          <span className="min-w-0">{[project.name, project.role].filter(Boolean).join(' | ')}</span>
+          <span className="min-w-0">
+            {[project.name, project.role].filter(Boolean).join(' | ')}
+            {inlineLink && (
+              <>
+                {' | '}
+                {inlineLink.label}: <a href={inlineLink.url} target="_blank" rel="noopener noreferrer">{inlineLink.url}</a>
+              </>
+            )}
+          </span>
           {project.duration && <span className="shrink-0 font-normal">{project.duration}</span>}
         </div>
 
@@ -165,13 +188,26 @@ function ProjectItem({
               <span className="text-sm text-gray-600">{project.role}</span>
             </>
           )}
+          {inlineLink && (
+            <>
+              <span className="w-px h-4 bg-gray-300" />
+              <a
+                href={inlineLink.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-blue-600 underline underline-offset-2"
+              >
+                {inlineLink.label}: {inlineLink.url}
+              </a>
+            </>
+          )}
         </div>
         <div className="text-sm text-gray-600 ml-4 whitespace-nowrap">
           {project.duration}
         </div>
       </div>
 
-      {(project.github_url || project.demo_url) && (
+      {(project.github_url || (!inlineSecondaryLink && project.demo_url)) && (
         <div className="flex gap-4 text-sm text-blue-600" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 8px)' }}>
           {project.github_url && (
             <a
@@ -184,7 +220,7 @@ function ProjectItem({
               <span className="inline-block leading-none">{t('github')}</span>
             </a>
           )}
-          {project.demo_url && (
+          {!inlineSecondaryLink && project.demo_url && (
             <a
               href={project.demo_url}
               target="_blank"
@@ -237,6 +273,7 @@ export default function ProjectsPreview({
   title,
   descriptionLabel,
   secondaryLinkLabel,
+  inlineSecondaryLink,
 }: ProjectsPreviewProps) {
   const t = useTranslations('resume.layout.modules')
   if (!data || !Array.isArray(data) || data.length === 0) {
@@ -263,7 +300,7 @@ export default function ProjectsPreview({
       {data.map((project, index) => {
         const lineIndex = index + 1
         return shouldRenderLine(lineIndex) ? (
-          <ProjectItem key={project.id || index} project={project} lineIndex={lineIndex} templateStyle={templateStyle} descriptionLabel={descriptionLabel} secondaryLinkLabel={secondaryLinkLabel} />
+          <ProjectItem key={project.id || index} project={project} lineIndex={lineIndex} templateStyle={templateStyle} descriptionLabel={descriptionLabel} secondaryLinkLabel={secondaryLinkLabel} inlineSecondaryLink={inlineSecondaryLink} />
         ) : null
       })}
     </div>

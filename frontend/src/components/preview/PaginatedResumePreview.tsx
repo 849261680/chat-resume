@@ -221,7 +221,7 @@ export default function PaginatedResumePreview({
           : null
       case 'open_source':
         return content.open_source && content.open_source.length > 0
-          ? renderSection(sectionId, <ProjectsPreview data={content.open_source} renderLines={renderLines} templateStyle={templateStyle} title={t('modules.openSource')} descriptionLabel={previewT('openSourceDescription')} secondaryLinkLabel={previewT('openSourceLink')} />)
+          ? renderSection(sectionId, <ProjectsPreview data={content.open_source} renderLines={renderLines} templateStyle={templateStyle} title={t('modules.openSource')} descriptionLabel={previewT('openSourceDescription')} secondaryLinkLabel={previewT('openSourceLink')} inlineSecondaryLink />)
           : null
       default:
         return null

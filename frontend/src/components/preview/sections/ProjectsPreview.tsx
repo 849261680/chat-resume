@@ -96,7 +96,7 @@ function ProjectItem({
       <div data-line-index={lineIndex} className="relative print:break-inside-avoid resume-emerald-item" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 18px)' }}>
         <div className="flex items-baseline justify-between gap-4 text-sm font-semibold" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 8px)' }}>
           <div className="min-w-0 flex flex-wrap items-baseline gap-x-1">
-            <span style={inlineSecondaryLink ? { color: '#047857' } : undefined}>{project.name}</span>
+            <span style={{ color: '#047857' }}>{project.name}</span>
             {project.role && <span> - {project.role}</span>}
             {inlineLink && (
               <span>

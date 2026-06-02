@@ -54,6 +54,12 @@ function getProjectLinkItems(project: Project, secondaryLinkLabel: string) {
   ].filter((item): item is { label: string; url: string } => Boolean(item))
 }
 
+// 用于从 GitHub PR 链接中提取 PR 编号。
+function formatPullRequestLabel(url: string, fallbackLabel: string) {
+  const match = url.match(/\/pull\/(\d+)(?:[/?#]|$)/)
+  return match ? `${fallbackLabel} #${match[1]}` : fallbackLabel
+}
+
 // 单个项目项组件
 function ProjectItem({
   project,
@@ -82,7 +88,7 @@ function ProjectItem({
   const isFormal = templateStyle === 'formal'
   const isEmerald = templateStyle === 'emerald'
   const inlineLink = inlineSecondaryLink && project.demo_url
-    ? { label: demoLabel, url: project.demo_url }
+    ? { label: formatPullRequestLabel(project.demo_url, demoLabel), url: project.demo_url }
     : null
 
   if (isEmerald) {

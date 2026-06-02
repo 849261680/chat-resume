@@ -11,6 +11,8 @@ interface ProjectsPreviewProps {
   renderLines?: number[]
   templateStyle?: ResumeTemplateStyle
   title?: string
+  descriptionLabel?: string
+  secondaryLinkLabel?: string
 }
 
 /* 链接图标包装器：使用 flex 对齐，避免导出时基线计算偏差 */
@@ -44,20 +46,33 @@ const DemoIcon = () => (
 )
 
 // 用于生成项目链接的固定展示顺序。
-function getProjectLinkItems(project: Project) {
+function getProjectLinkItems(project: Project, secondaryLinkLabel: string) {
   return [
-    project.demo_url ? { label: 'Demo', url: project.demo_url } : null,
     project.github_url ? { label: 'GitHub', url: project.github_url } : null,
+    project.demo_url ? { label: secondaryLinkLabel, url: project.demo_url } : null,
   ].filter((item): item is { label: string; url: string } => Boolean(item))
 }
 
 // 单个项目项组件
-function ProjectItem({ project, lineIndex, templateStyle = 'classic' }: { project: Project; lineIndex: number; templateStyle?: ResumeTemplateStyle }) {
+function ProjectItem({
+  project,
+  lineIndex,
+  templateStyle = 'classic',
+  descriptionLabel,
+  secondaryLinkLabel,
+}: {
+  project: Project
+  lineIndex: number
+  templateStyle?: ResumeTemplateStyle
+  descriptionLabel?: string
+  secondaryLinkLabel?: string
+}) {
   const t = useTranslations('resume.preview')
   const highlights = project.highlights && project.highlights.length > 0
     ? project.highlights.map(item => item.text)
     : []
-  const linkItems = getProjectLinkItems(project)
+  const demoLabel = secondaryLinkLabel || t('demo')
+  const linkItems = getProjectLinkItems(project, demoLabel)
   const isFormal = templateStyle === 'formal'
   const isEmerald = templateStyle === 'emerald'
 
@@ -85,7 +100,7 @@ function ProjectItem({ project, lineIndex, templateStyle = 'classic' }: { projec
 
         {project.overview && (
           <p className="text-sm" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 6px)', lineHeight: '1.64' }}>
-            <span className="font-semibold">{t('projectDescription')}</span>{project.overview}
+            <span className="font-semibold">{descriptionLabel || t('projectDescription')}</span>{project.overview}
           </p>
         )}
 
@@ -121,6 +136,7 @@ function ProjectItem({ project, lineIndex, templateStyle = 'classic' }: { projec
 
         {project.overview && (
           <p className="text-sm text-gray-900" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 8px)', lineHeight: '1.72' }}>
+            {descriptionLabel && <span className="font-semibold">{descriptionLabel}</span>}
             {project.overview}
           </p>
         )}
@@ -176,7 +192,7 @@ function ProjectItem({ project, lineIndex, templateStyle = 'classic' }: { projec
               className="inline-flex items-center gap-1 leading-none hover:underline"
             >
               <DemoIcon />
-              <span className="inline-block leading-none">{t('demo')}</span>
+              <span className="inline-block leading-none">{demoLabel}</span>
             </a>
           )}
         </div>
@@ -190,7 +206,7 @@ function ProjectItem({ project, lineIndex, templateStyle = 'classic' }: { projec
             lineHeight: 'calc(1.35 + var(--spacing-scale, 1) * 0.25)'
           }}
         >
-          <span className="font-semibold text-gray-900">{t('projectDescription')}</span>{project.overview}
+          <span className="font-semibold text-gray-900">{descriptionLabel || t('projectDescription')}</span>{project.overview}
         </p>
       )}
 
@@ -219,6 +235,8 @@ export default function ProjectsPreview({
   renderLines,
   templateStyle = 'classic',
   title,
+  descriptionLabel,
+  secondaryLinkLabel,
 }: ProjectsPreviewProps) {
   const t = useTranslations('resume.layout.modules')
   if (!data || !Array.isArray(data) || data.length === 0) {
@@ -245,7 +263,7 @@ export default function ProjectsPreview({
       {data.map((project, index) => {
         const lineIndex = index + 1
         return shouldRenderLine(lineIndex) ? (
-          <ProjectItem key={project.id || index} project={project} lineIndex={lineIndex} templateStyle={templateStyle} />
+          <ProjectItem key={project.id || index} project={project} lineIndex={lineIndex} templateStyle={templateStyle} descriptionLabel={descriptionLabel} secondaryLinkLabel={secondaryLinkLabel} />
         ) : null
       })}
     </div>

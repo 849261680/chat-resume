@@ -15,6 +15,7 @@ import { useTranslations } from 'next-intl'
 interface ProjectsEditorProps {
   data: Project[]
   onChange: (data: Project[]) => void
+  variant?: 'project' | 'openSource'
 }
 
 // 用于标准化要点。
@@ -33,10 +34,12 @@ function fitTextareaToContent(element: HTMLTextAreaElement | null) {
 }
 
 // 用于渲染 ProjectsEditor 组件。
-export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) {
+export default function ProjectsEditor({ data, onChange, variant = 'project' }: ProjectsEditorProps) {
   const [projectsList, setProjectsList] = useState<Project[]>(Array.isArray(data) ? data : [])
   const editorRootRef = useRef<HTMLDivElement>(null)
-  const t = useTranslations('resume.forms.project')
+  const projectT = useTranslations('resume.forms.project')
+  const openSourceT = useTranslations('resume.forms.openSource')
+  const t = variant === 'openSource' ? openSourceT : projectT
 
   useEffect(() => {
     const next = Array.isArray(data)

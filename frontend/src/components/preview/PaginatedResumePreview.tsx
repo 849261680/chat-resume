@@ -60,6 +60,7 @@ export default function PaginatedResumePreview({
   viewportPadding = 8
 }: PaginatedResumePreviewProps) {
   const t = useTranslations('resume.layout')
+  const previewT = useTranslations('resume.preview')
   const containerRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const smartFitPageRef = useRef<HTMLDivElement>(null)
@@ -220,7 +221,7 @@ export default function PaginatedResumePreview({
           : null
       case 'open_source':
         return content.open_source && content.open_source.length > 0
-          ? renderSection(sectionId, <ProjectsPreview data={content.open_source} renderLines={renderLines} templateStyle={templateStyle} title={t('modules.openSource')} />)
+          ? renderSection(sectionId, <ProjectsPreview data={content.open_source} renderLines={renderLines} templateStyle={templateStyle} title={t('modules.openSource')} descriptionLabel={previewT('openSourceDescription')} secondaryLinkLabel={previewT('openSourceLink')} />)
           : null
       default:
         return null

@@ -15,8 +15,8 @@ TOOL_REQUIRED_ARGS: dict[str, set[str]] = {
     "update_item_fields": {"section", "item_id", "fields"},
     "upsert_job_application": {"fields"},
     "update_skills": {"category_id", "items"},
-    "add_resume_item": {"section", "item", "source"},
-    "remove_resume_item": {"section", "item_id"},
+    "show_section": {"section"},
+    "hide_section": {"section"},
     "update_overview": {"section", "item_id", "overview"},
     "update_bullet": {"section", "item_id", "bullet_id", "text"},
     "add_bullet": {"section", "item_id", "text"},
@@ -34,7 +34,7 @@ TOOL_REQUIRED_ARGS: dict[str, set[str]] = {
 TOOL_SECTION_ENUMS: dict[str, set[str]] = {
     "update_overview": {"projects"},
     "update_item_fields": {"education", "work_experience", "projects"},
-    "add_resume_item": {
+    "show_section": {
         "education",
         "work_experience",
         "projects",
@@ -42,7 +42,7 @@ TOOL_SECTION_ENUMS: dict[str, set[str]] = {
         "languages",
         "custom_sections",
     },
-    "remove_resume_item": {
+    "hide_section": {
         "education",
         "work_experience",
         "projects",
@@ -64,8 +64,8 @@ TOOL_DISPLAY_NAMES = {
     "upsert_job_application": "更新求职目标",
     "update_item_fields": "优化条目字段",
     "update_skills": "优化技能",
-    "add_resume_item": "新增简历条目",
-    "remove_resume_item": "删除简历条目",
+    "show_section": "显示板块",
+    "hide_section": "隐藏板块",
     "update_overview": "优化简介",
     "update_bullet": "优化要点",
     "add_bullet": "新增要点",
@@ -86,8 +86,8 @@ _SYNC_TOOL_NAME = Literal[
     "update_item_fields",
     "upsert_job_application",
     "update_skills",
-    "add_resume_item",
-    "remove_resume_item",
+    "show_section",
+    "hide_section",
     "update_overview",
     "update_bullet",
     "add_bullet",
@@ -151,11 +151,12 @@ class ResumeToolExecutor(ToolExecutor):
         allowed_sections = context.get("allowed_sections")
         target_section = tool_input.get("section")
 
+        _VISIBILITY_TOOLS = {"show_section", "hide_section"}
         if (
             allowed_sections is not None
             and target_section
             and target_section not in allowed_sections
-            and tool_name != "add_resume_item"
+            and tool_name not in _VISIBILITY_TOOLS
         ):
             return self.error_result(
                 tool_name,

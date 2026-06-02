@@ -12,7 +12,7 @@ from .job_post_tool import list_job_posts, read_job_post
 from .memory_tool import read_memory, update_memory
 from .read_resume_tool import read_resume_content
 from .remove_highlight_tool import remove_bullet, remove_highlight
-from .resume_item_tool import add_resume_item, remove_resume_item
+from .resume_item_tool import hide_section, show_section
 from .update_highlight_tool import update_bullet, update_highlight
 from .update_item_fields_tool import update_item_fields
 from .update_overview_tool import update_overview
@@ -39,12 +39,12 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
-            "name": "remove_resume_item",
+            "name": "hide_section",
             "description": (
-                "删除简历列表板块中的一个已有条目。section 只能是 education、"
-                "work_experience、projects、skills、languages、custom_sections；"
-                "item_id 必须来自当前简历 JSON。仅在用户明确要删除或该条目明显"
-                "不适合目标岗位时使用。"
+                "将一个简历板块从简历中隐藏。section 只能是 education、"
+                "work_experience、projects、skills、languages、custom_sections。"
+                "板块内容会被保留，后续可通过 show_section 恢复显示。"
+                "仅在用户明确要求隐藏某个板块时使用。"
             ),
             "parameters": {
                 "type": "object",
@@ -60,28 +60,24 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
                             "custom_sections",
                         ],
                     },
-                    "item_id": {
-                        "type": "string",
-                        "description": "要删除的条目 id",
-                    },
                     "reason": {
                         "type": "string",
-                        "description": "本次删除的简短理由，供前端展示",
+                        "description": "本次隐藏的简短理由，供前端展示",
                     },
                 },
-                "required": ["section", "item_id"],
+                "required": ["section"],
             },
         },
     },
     {
         "type": "function",
         "function": {
-            "name": "add_resume_item",
+            "name": "show_section",
             "description": (
-                "向简历列表板块新增一段工作、项目、教育、技能、语言或自定义内容。"
-                "section 只能是 education、work_experience、projects、skills、"
-                "languages、custom_sections。必须提供 source 表示用户明确事实来源；"
-                "不能编造项目、公司、学历、技能或年限。"
+                "将一个已隐藏的简历板块重新显示到简历中。section 只能是 education、"
+                "work_experience、projects、skills、languages、custom_sections。"
+                "如果板块之前被隐藏过，会恢复原有内容；否则创建空板块。"
+                "仅在用户明确要求显示某个板块时使用。"
             ),
             "parameters": {
                 "type": "object",
@@ -97,20 +93,12 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
                             "custom_sections",
                         ],
                     },
-                    "item": {
-                        "type": "object",
-                        "description": "新增条目的字段对象",
-                    },
-                    "source": {
-                        "type": "string",
-                        "description": "用户明确提供该事实的来源说明",
-                    },
                     "reason": {
                         "type": "string",
-                        "description": "本次新增的简短理由，供前端展示",
+                        "description": "本次显示的简短理由，供前端展示",
                     },
                 },
-                "required": ["section", "item", "source"],
+                "required": ["section"],
             },
         },
     },
@@ -631,14 +619,14 @@ RESUME_TOOL_CATALOG: tuple[ResumeToolDefinition, ...] = (
         _SCHEMA_BY_NAME.get("update_skills"),
     ),
     ResumeToolDefinition(
-        "add_resume_item",
-        add_resume_item,
-        _SCHEMA_BY_NAME.get("add_resume_item"),
+        "show_section",
+        show_section,
+        _SCHEMA_BY_NAME.get("show_section"),
     ),
     ResumeToolDefinition(
-        "remove_resume_item",
-        remove_resume_item,
-        _SCHEMA_BY_NAME.get("remove_resume_item"),
+        "hide_section",
+        hide_section,
+        _SCHEMA_BY_NAME.get("hide_section"),
     ),
     ResumeToolDefinition(
         "update_overview",

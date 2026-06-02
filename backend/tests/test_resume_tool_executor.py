@@ -122,26 +122,28 @@ class ResumeToolExecutorTests(unittest.TestCase):
         self.assertEqual(result["result"]["error"]["type"], "hidden_section")
         self.assertFalse(result["result"]["error"]["recoverable"])
 
-    def test_add_resume_item_can_create_missing_skills_section(self):
-        """用于验证新增技能条目不依赖简历里已有 skills 数组。"""
-        resume = {"projects": []}
+    def test_show_section_can_show_hidden_section(self):
+        """用于验证show_section恢复隐藏板块到简历。"""
+        resume: dict[str, Any] = {
+            "projects": [],
+            "_hidden_sections": {"skills": [{"id": "skill_1", "category": "AI", "items": ["Agent"]}]},
+        }
         executor = ResumeToolExecutor()
 
         result = cast(dict[str, Any], executor.execute(
-            tool_name="add_resume_item",
+            tool_name="show_section",
             tool_input={
                 "section": "skills",
-                "item": {"category": "AI 工具", "items": ["Codex", "Cursor"]},
-                "source": "用户要求补充 AI 编程工具经验",
-                "reason": "补充 JD 加分项",
+                "reason": "恢复技能板块",
             },
             context={"resume_content": resume, "allowed_sections": {"projects"}},
         ))
 
         self.assertTrue(result["result"]["success"])
         self.assertEqual(result["result"]["updated_section"], "skills")
-        self.assertEqual(resume["skills"][0]["category"], "AI 工具")
-        self.assertEqual(resume["skills"][0]["items"], ["Codex", "Cursor"])
+        self.assertEqual(resume["skills"][0]["category"], "AI")
+        self.assertEqual(resume["skills"][0]["items"], ["Agent"])
+        self.assertNotIn("_hidden_sections", resume)
 
 
 async def _await_tool_result(

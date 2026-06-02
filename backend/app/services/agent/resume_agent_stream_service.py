@@ -111,7 +111,7 @@ class ResumeAgentStreamService:
                     resume_content=resume_dict,
                     conversation_history=conversation_history,
                     confirmation_queue=confirmation_queue,
-                    allowed_sections=set(resume_dict.keys()),
+                    allowed_sections={k for k in resume_dict if not k.startswith("_")},
                     event_callback=None,
                     user_id=request.user_id,
                     resume_id=request.resume_id,
@@ -187,7 +187,7 @@ class ResumeAgentStreamService:
         result = ResumeAgentHarness(self.db, session_store=store).resume_session(
             session_id=session_id,
             resume_content=resume_content,
-            allowed_sections=set(resume_content.keys()),
+            allowed_sections={k for k in resume_content if not k.startswith("_")},
         )
         if not result["success"]:
             raise HTTPException(

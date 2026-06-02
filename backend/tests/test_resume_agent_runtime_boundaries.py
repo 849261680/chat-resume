@@ -65,8 +65,8 @@ RESUME_EDIT_TOOL_NAMES = {
     "upsert_job_application",
     "update_item_fields",
     "update_skills",
-    "add_resume_item",
-    "remove_resume_item",
+    "show_section",
+    "hide_section",
     "update_overview",
     "update_bullet",
     "add_bullet",
@@ -329,8 +329,8 @@ def test_turn_context_keeps_tools_available_for_hidden_sections():
 
     tools_by_name = {tool.name: tool for tool in pi_context.tools}
     assert "update_skills" in tools_by_name
-    assert "add_resume_item" in tools_by_name
-    assert "skills" in tools_by_name["add_resume_item"].parameters.properties[
+    assert "show_section" in tools_by_name
+    assert "skills" in tools_by_name["show_section"].parameters.properties[
         "section"
     ]["enum"]
     assert "update_skills" in state["tool_names"]
@@ -1005,12 +1005,12 @@ async def test_update_memory_terminates_after_tool_result_without_second_llm(tmp
 
 @pytest.mark.asyncio
 async def test_resume_tool_preview_allows_hidden_section_additions():
-    """用于验证隐藏模块不阻止新增技能条目进入确认预览。"""
+    """用于验证隐藏模块可以通过show_section恢复显示。"""
     agent = ResumeAgent()
     stage = ResumeToolExecutionStage()
-    resume = {
+    resume: dict[str, Any] = {
         "projects": [{"id": "proj_1", "name": "Chat Resume"}],
-        "skills": [{"id": "skill_1", "category": "AI", "items": ["Agent"]}],
+        "_hidden_sections": {"skills": [{"id": "skill_1", "category": "AI", "items": ["Agent"]}]},
     }
     confirmation_queue: asyncio.Queue[bool] = asyncio.Queue()
     confirmation_queue.put_nowait(True)
@@ -1028,12 +1028,10 @@ async def test_resume_tool_preview_allows_hidden_section_additions():
         agent=agent.definition,
         run_id="run_hidden_preview",
         call_id="call_hidden_skills",
-        tool_name="add_resume_item",
+        tool_name="show_section",
         tool_input={
             "section": "skills",
-            "item": {"category": "AI & Agent", "items": ["ReAct"]},
-            "source": "用户要求补充技能",
-            "reason": "补充技能板块",
+            "reason": "恢复技能板块",
         },
         context={"resume_content": resume, "allowed_sections": {"projects"}},
         confirmation_queue=confirmation_queue,
@@ -1053,7 +1051,7 @@ async def test_resume_tool_preview_allows_hidden_section_additions():
     assert not any(event.get("tool_call_failed") for event in events)
     assert executed_tools[0]["success"] is True
     assert resume["skills"][0] == {"id": "skill_1", "category": "AI", "items": ["Agent"]}
-    assert resume["skills"][1]["category"] == "AI & Agent"
+    assert "_hidden_sections" not in resume
 
 
 @pytest.mark.asyncio

@@ -142,8 +142,8 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertIn("upsert_job_application", tool_names)
         self.assertIn("update_item_fields", tool_names)
         self.assertIn("update_skills", tool_names)
-        self.assertIn("add_resume_item", tool_names)
-        self.assertIn("remove_resume_item", tool_names)
+        self.assertIn("show_section", tool_names)
+        self.assertIn("hide_section", tool_names)
 
     def test_update_item_fields_schema_does_not_expose_hidden_technologies(self):
         """用于验证条目字段工具不再暴露隐藏技术栈字段。"""
@@ -885,57 +885,95 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertEqual(json.loads(diff_item["after"])["items"], long_items)
         self.assertNotIn("…", diff_item["after"])
 
-    def test_add_resume_item_tool_requires_source_and_adds_project(self):
-        """用于验证add_resume_item带事实来源新增项目条目。"""
-        resume_content = {"projects": []}
-        executor = ResumeToolExecutor()
-
-        result = executor.execute(
-            tool_name="add_resume_item",
-            tool_input={
-                "section": "projects",
-                "item": {
-                    "name": "Agent 简历优化",
-                    "overview": "用户明确提供的项目经历",
-                    "role": "负责人",
-                    "technologies": ["隐藏字段不应写入"],
-                },
-                "source": "用户在本轮消息中明确提供",
-                "reason": "补充目标岗位相关项目",
-            },
-            context={"resume_content": resume_content},
-        )
-
-        self.assertTrue(result["result"]["success"])
-        self.assertEqual(len(resume_content["projects"]), 1)
-        self.assertTrue(resume_content["projects"][0]["id"].startswith("proj_"))
-        self.assertEqual(resume_content["projects"][0]["role"], "负责人")
-        self.assertNotIn("technologies", resume_content["projects"][0])
-        self.assertIn("补充目标岗位相关项目", result["result"]["diff_summary"])
-
-    def test_remove_resume_item_tool_removes_existing_skill_category(self):
-        """用于验证remove_resume_item删除已有技能分类。"""
-        resume_content = {
-            "skills": [
-                {"id": "skill_1", "category": "旧技能", "items": ["jQuery"]},
-                {"id": "skill_2", "category": "后端", "items": ["Python"]},
-            ]
+    def test_show_section_shows_hidden_section(self):
+        """用于验证show_section将隐藏板块显示到简历中。"""
+        resume_content: dict[str, Any] = {
+            "projects": [],
+            "_hidden_sections": {"skills": [{"id": "skill_1", "category": "AI", "items": ["Agent"]}]},
         }
         executor = ResumeToolExecutor()
 
         result = executor.execute(
-            tool_name="remove_resume_item",
+            tool_name="show_section",
             tool_input={
                 "section": "skills",
-                "item_id": "skill_1",
-                "reason": "删除与目标岗位弱相关的技能分类",
+                "reason": "补充技能板块",
             },
             context={"resume_content": resume_content},
         )
 
         self.assertTrue(result["result"]["success"])
-        self.assertEqual([item["id"] for item in resume_content["skills"]], ["skill_2"])
-        self.assertIn("删除与目标岗位弱相关", result["result"]["diff_summary"])
+        self.assertIn("skills", resume_content)
+        self.assertEqual(resume_content["skills"][0]["category"], "AI")
+        self.assertNotIn("_hidden_sections", resume_content)
+        self.assertIn("技能专长", result["result"]["message"])
+
+    def test_show_section_creates_empty_section(self):
+        """用于验证show_section在没有隐藏内容时创建空板块。"""
+        resume_content: dict[str, Any] = {"projects": []}
+        executor = ResumeToolExecutor()
+
+        result = executor.execute(
+            tool_name="show_section",
+            tool_input={
+                "section": "skills",
+                "reason": "添加技能板块",
+            },
+            context={"resume_content": resume_content},
+        )
+
+        self.assertTrue(result["result"]["success"])
+        self.assertIn("skills", resume_content)
+        self.assertEqual(resume_content["skills"], [])
+
+    def test_show_section_rejects_already_visible_section(self):
+        """用于验证show_section拒绝已显示的板块。"""
+        resume_content: dict[str, Any] = {"projects": []}
+        executor = ResumeToolExecutor()
+
+        result = executor.execute(
+            tool_name="show_section",
+            tool_input={"section": "projects"},
+            context={"resume_content": resume_content},
+        )
+
+        self.assertFalse(result["result"]["success"])
+
+    def test_hide_section_hides_section_and_preserves_content(self):
+        """用于验证hide_section隐藏板块并保留内容。"""
+        skills_data = [
+            {"id": "skill_1", "category": "旧技能", "items": ["jQuery"]},
+            {"id": "skill_2", "category": "后端", "items": ["Python"]},
+        ]
+        resume_content: dict[str, Any] = {"skills": skills_data}
+        executor = ResumeToolExecutor()
+
+        result = executor.execute(
+            tool_name="hide_section",
+            tool_input={
+                "section": "skills",
+                "reason": "隐藏与目标岗位弱相关的技能",
+            },
+            context={"resume_content": resume_content},
+        )
+
+        self.assertTrue(result["result"]["success"])
+        self.assertNotIn("skills", resume_content)
+        self.assertEqual(resume_content["_hidden_sections"]["skills"], skills_data)
+        self.assertIn("隐藏", result["result"]["message"])
+
+    def test_hide_section_rejects_already_hidden_section(self):
+        """用于验证hide_section拒绝不在简历中的板块。"""
+        resume_content: dict[str, Any] = {"projects": []}
+        executor = ResumeToolExecutor()
+
+        result = executor.execute(
+            tool_name="hide_section",
+            tool_input={"section": "skills"},
+            context={"resume_content": resume_content},
+        )
+
+        self.assertFalse(result["result"]["success"])
 
     def test_resume_tool_result_includes_structured_diff_reason(self):
         """用于验证简历tool结果includesstructureddiffreason。"""

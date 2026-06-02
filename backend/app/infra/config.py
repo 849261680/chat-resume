@@ -136,7 +136,7 @@ class Settings(BaseSettings):
         os.getenv("OPENROUTER_WRITE_TIMEOUT_SECONDS", "30")
     )
     OPENROUTER_FIRST_EVENT_TIMEOUT_SECONDS: float = float(
-        os.getenv("OPENROUTER_FIRST_EVENT_TIMEOUT_SECONDS", "45")
+        os.getenv("OPENROUTER_FIRST_EVENT_TIMEOUT_SECONDS", "120")
     )
     OPENROUTER_FIRST_TOKEN_TIMEOUT_SECONDS: float = float(
         os.getenv("OPENROUTER_FIRST_TOKEN_TIMEOUT_SECONDS", "0")

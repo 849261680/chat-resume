@@ -117,6 +117,7 @@ class ResumeAgentStreamService:
                     resume_id=request.resume_id,
                     list_job_posts_reader=resume_service.list_job_post_payloads,
                     read_job_post_reader=resume_service.get_job_post_payload,
+                    visible_modules=request.visible_modules,
                 )
                 async for event in event_stream:
                     if event.get("internal_only"):

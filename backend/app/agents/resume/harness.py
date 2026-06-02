@@ -77,6 +77,7 @@ class ResumeAgentHarness:
         resume_id: int | None = None,
         list_job_posts_reader=None,
         read_job_post_reader=None,
+        visible_modules: list[str] | None = None,
     ) -> AsyncIterator[ResumeStreamEvent]:
         """用于驱动简历 Agent 流式运行并同步写入会话事件。"""
         final_content_parts: list[str] = []
@@ -99,6 +100,11 @@ class ResumeAgentHarness:
                 agent_kwargs["list_job_posts_reader"] = list_job_posts_reader
             if read_job_post_reader is not None and supports_read_reader:
                 agent_kwargs["read_job_post_reader"] = read_job_post_reader
+            if visible_modules is not None and self._agent_accepts_kwarg(
+                agent,
+                "visible_modules",
+            ):
+                agent_kwargs["visible_modules"] = visible_modules
             async for event in agent.optimize_stream(
                 user_message=user_message,
                 resume_content=resume_content,

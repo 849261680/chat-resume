@@ -188,6 +188,7 @@ class ResumeAgent:
         resume_id: Optional[int] = None,
         list_job_posts_reader: Any = None,
         read_job_post_reader: Any = None,
+        visible_modules: Optional[List[str]] = None,
     ) -> AsyncGenerator[ResumeStreamEvent, None]:
         """用于执行一次带工具确认能力的流式简历优化请求。"""
         context: dict[str, Any] = {
@@ -197,6 +198,7 @@ class ResumeAgent:
             "resume_id": resume_id,
             "list_job_posts_reader": list_job_posts_reader,
             "read_job_post_reader": read_job_post_reader,
+            "visible_modules": visible_modules or [],
         }
         async for event in self.runtime.run_stream(
             agent=self.definition,

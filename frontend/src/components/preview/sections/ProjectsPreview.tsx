@@ -60,6 +60,17 @@ function formatPullRequestLabel(url: string, fallbackLabel: string) {
   return match ? `${fallbackLabel} #${match[1]}` : fallbackLabel
 }
 
+// 用于拆分绿页眉模板中写在项目名后的描述。
+function splitProjectNameDescription(name: string) {
+  const separator = ' - '
+  const separatorIndex = name.indexOf(separator)
+  if (separatorIndex < 0) return { title: name, suffix: '' }
+  return {
+    title: name.slice(0, separatorIndex),
+    suffix: name.slice(separatorIndex + 1),
+  }
+}
+
 // 单个项目项组件
 function ProjectItem({
   project,
@@ -90,13 +101,15 @@ function ProjectItem({
   const inlineLink = inlineSecondaryLink && project.demo_url
     ? { label: formatPullRequestLabel(project.demo_url, demoLabel), url: project.demo_url }
     : null
+  const emeraldName = splitProjectNameDescription(project.name)
 
   if (isEmerald) {
     return (
       <div data-line-index={lineIndex} className="relative print:break-inside-avoid resume-emerald-item" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 18px)' }}>
         <div className="flex items-baseline justify-between gap-4 text-sm font-semibold" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 8px)' }}>
           <div className="min-w-0 flex flex-wrap items-baseline gap-x-1">
-            <span style={{ color: '#047857' }}>{project.name}</span>
+            <span style={{ color: '#047857' }}>{emeraldName.title}</span>
+            {emeraldName.suffix && <span style={{ color: '#111827' }}>{emeraldName.suffix}</span>}
             {project.role && <span style={{ color: '#111827' }}> - {project.role}</span>}
             {inlineLink && (
               <span style={{ color: '#111827' }}>

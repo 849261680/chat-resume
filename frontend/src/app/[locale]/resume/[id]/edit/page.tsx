@@ -41,6 +41,7 @@ import type { ChatMessage, JobMatchSummary, StreamEvent } from '@/hooks/useStrea
 import { usePanelLayout } from '@/hooks/usePanelLayout'
 import { useResumeChatPanel } from '@/hooks/useResumeChatPanel'
 import { useResumeEditor } from '@/hooks/useResumeEditor'
+import SectionVisibilityConfirmCard from '@/components/editor/SectionVisibilityConfirmCard'
 import { useLocale, useTranslations } from 'next-intl'
 import { toInterviewLanguage, type AppLocale } from '@/i18n/routing'
 import toast from 'react-hot-toast'
@@ -69,6 +70,19 @@ function isMemoryToolEvent(event: StreamEvent): boolean {
 function isVisibilityToolEvent(event: StreamEvent): boolean {
   if (!('toolName' in event)) return false
   return ['show_section', 'hide_section', '显示板块', '隐藏板块'].includes(event.toolName)
+}
+
+// 把工具 section 参数（模块 id 或 content key）映射到 resume.layout.modules 的 i18n key。
+const VISIBILITY_SECTION_LABEL_KEYS: Record<string, string> = {
+  personal: 'personal',
+  personal_info: 'personal',
+  summary: 'summary',
+  education: 'education',
+  work: 'work',
+  work_experience: 'work',
+  projects: 'projects',
+  open_source: 'openSource',
+  skills: 'skills',
 }
 
 // 用于判断同一工具调用是否已有上方状态行可展示。
@@ -350,6 +364,7 @@ export default function ResumeEditPage() {
   const agentPanelRef = useRef<HTMLDivElement>(null)
   const t = useTranslations('resume.editor')
   const common = useTranslations('common')
+  const moduleT = useTranslations('resume.layout.modules')
 
   const routeResumeId = getResumeIdParam(params?.id)
   const hasValidResumeId = isValidResumeIdParam(routeResumeId)
@@ -1296,7 +1311,28 @@ export default function ResumeEditPage() {
                             if (memoryActivity !== undefined) return memoryActivity
                             const isActivePending = event.callId === latestPendingCallId
                             const feedbackDraft = toolFeedbackDrafts[event.callId] || ''
-                            const isVisibilityTool = isVisibilityToolEvent(event)
+                            if (isVisibilityToolEvent(event)) {
+                              const isShow = event.toolName === 'show_section' || event.toolName === '显示板块'
+                              const sectionId = String(event.toolInput?.section ?? '')
+                              const labelKey = VISIBILITY_SECTION_LABEL_KEYS[sectionId]
+                              const sectionLabel = labelKey ? moduleT(labelKey) : sectionId
+                              return (
+                                <SectionVisibilityConfirmCard
+                                  key={idx}
+                                  toolName={event.toolName}
+                                  isShow={isShow}
+                                  sectionLabel={sectionLabel}
+                                  stateLabel={isShow ? t('sectionVisibleOn') : t('sectionVisibleOff')}
+                                  reason={event.diffItems?.[0]?.reason || undefined}
+                                  isActivePending={isActivePending}
+                                  expiredLabel={t('expired')}
+                                  confirmLabel={t('confirm')}
+                                  cancelLabel={t('cancel')}
+                                  onConfirm={() => confirmTool(event.callId, true, 'resume_edit_accept_button')}
+                                  onReject={() => confirmTool(event.callId, false, 'resume_edit_reject_button')}
+                                />
+                              )
+                            }
                             return (
                               <div key={idx} className="mb-2 rounded-2xl border border-gray-200 bg-white overflow-hidden text-xs shadow-sm">
                                 {/* 标题栏 */}
@@ -1315,19 +1351,16 @@ export default function ResumeEditPage() {
                                   diffItems={event.diffItems}
                                   isConfirmed={true}
                                 />
-                                {/* 显隐板块是纯开关操作，无可重写内容，不展示反馈输入框 */}
-                                {!isVisibilityTool && (
-                                  <div className="px-4 py-3 bg-white border-t border-gray-100">
-                                    <textarea
-                                      value={feedbackDraft}
-                                      disabled={!isActivePending}
-                                      rows={2}
-                                      placeholder={t('toolFeedbackPlaceholder')}
-                                      onChange={(changeEvent) => updateToolFeedbackDraft(event.callId, changeEvent.target.value)}
-                                      className="w-full resize-none rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs leading-5 text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-blue-500 focus:bg-white disabled:cursor-not-allowed disabled:opacity-50"
-                                    />
-                                  </div>
-                                )}
+                                <div className="px-4 py-3 bg-white border-t border-gray-100">
+                                  <textarea
+                                    value={feedbackDraft}
+                                    disabled={!isActivePending}
+                                    rows={2}
+                                    placeholder={t('toolFeedbackPlaceholder')}
+                                    onChange={(changeEvent) => updateToolFeedbackDraft(event.callId, changeEvent.target.value)}
+                                    className="w-full resize-none rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs leading-5 text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-blue-500 focus:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+                                  />
+                                </div>
                                 {/* 操作按钮 */}
                                 <div className="px-4 py-3 bg-white border-t border-gray-200 flex gap-2">
                                   <button
@@ -1354,21 +1387,19 @@ export default function ResumeEditPage() {
                                   >
                                     {t('reject')}
                                   </button>
-                                  {!isVisibilityTool && (
-                                    <button
-                                      disabled={!isActivePending}
-                                      onClick={() => retryToolWithFeedback(event.callId)}
-                                      className="flex-1 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-                                      style={{
-                                        borderRadius: '56px',
-                                        border: '1px solid rgba(0,82,255,0.22)',
-                                        backgroundColor: '#eef4ff',
-                                        color: '#0052ff',
-                                      }}
-                                    >
-                                      {t('retryWithFeedback')}
-                                    </button>
-                                  )}
+                                  <button
+                                    disabled={!isActivePending}
+                                    onClick={() => retryToolWithFeedback(event.callId)}
+                                    className="flex-1 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                                    style={{
+                                      borderRadius: '56px',
+                                      border: '1px solid rgba(0,82,255,0.22)',
+                                      backgroundColor: '#eef4ff',
+                                      color: '#0052ff',
+                                    }}
+                                  >
+                                    {t('retryWithFeedback')}
+                                  </button>
                                 </div>
                               </div>
                             )

@@ -37,14 +37,19 @@ export default function SummaryPreview({ data, renderLines, templateStyle = 'cla
           <li style={{ margin: 0 }}>{text}</li>
         </ul>
       )}
-      {text && shouldRenderLine(1) && !isEmerald && (
-        <p
+      {text && shouldRenderLine(1) && isFormal && (
+        <ul data-line-index={1} className="list-disc text-sm text-gray-900" style={{ lineHeight: '1.72', paddingLeft: 18, margin: 0 }}>
+          <li>{text}</li>
+        </ul>
+      )}
+      {text && shouldRenderLine(1) && !isEmerald && !isFormal && (
+        <ul
           data-line-index={1}
-          className={isFormal ? 'text-sm text-gray-900' : 'text-sm text-gray-700'}
-          style={{ lineHeight: '1.72', margin: 0 }}
+          className="list-disc list-inside text-sm text-gray-900"
+          style={{ lineHeight: 'calc(1.35 + var(--spacing-scale, 1) * 0.25)', margin: 0 }}
         >
-          {text}
-        </p>
+          <li>{text}</li>
+        </ul>
       )}
     </div>
   )

@@ -204,7 +204,7 @@ function ProjectItem({
           {project.role && (
             <>
               <span className="w-px h-4 bg-gray-300" />
-              <span className="text-sm text-gray-600">{project.role}</span>
+              <span className="text-sm text-gray-900">{project.role}</span>
             </>
           )}
           {inlineLink && (

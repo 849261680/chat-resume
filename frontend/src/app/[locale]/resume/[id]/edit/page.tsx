@@ -72,19 +72,6 @@ function isVisibilityToolEvent(event: StreamEvent): boolean {
   return ['show_section', 'hide_section', '显示板块', '隐藏板块'].includes(event.toolName)
 }
 
-// 把工具 section 参数（模块 id 或 content key）映射到 resume.layout.modules 的 i18n key。
-const VISIBILITY_SECTION_LABEL_KEYS: Record<string, string> = {
-  personal: 'personal',
-  personal_info: 'personal',
-  summary: 'summary',
-  education: 'education',
-  work: 'work',
-  work_experience: 'work',
-  projects: 'projects',
-  open_source: 'openSource',
-  skills: 'skills',
-}
-
 // 用于判断同一工具调用是否已有上方状态行可展示。
 function hasToolActivityForCall(events: StreamEvent[], callId: string): boolean {
   return events.some((event) =>
@@ -364,7 +351,6 @@ export default function ResumeEditPage() {
   const agentPanelRef = useRef<HTMLDivElement>(null)
   const t = useTranslations('resume.editor')
   const common = useTranslations('common')
-  const moduleT = useTranslations('resume.layout.modules')
 
   const routeResumeId = getResumeIdParam(params?.id)
   const hasValidResumeId = isValidResumeIdParam(routeResumeId)
@@ -1260,6 +1246,8 @@ export default function ResumeEditPage() {
                                   const memoryActivity = renderMemoryToolDecisionActivity(event, message.streamEvents!, idx)
                                   if (memoryActivity !== undefined) return memoryActivity
                                   const isConfirmed = event.type === 'tool_confirmed'
+                                  // 显隐工具做出决策后不再渲染任何卡片或按钮
+                                  if (isVisibilityToolEvent(event)) return null
                                   return (
                                     <div key={idx} className="mb-2 rounded-2xl border border-gray-200 bg-white overflow-hidden text-xs shadow-sm">
                                       <div className="px-4 py-3 flex items-center gap-2 bg-white border-b border-gray-200">
@@ -1312,20 +1300,10 @@ export default function ResumeEditPage() {
                             const isActivePending = event.callId === latestPendingCallId
                             const feedbackDraft = toolFeedbackDrafts[event.callId] || ''
                             if (isVisibilityToolEvent(event)) {
-                              const isShow = event.toolName === 'show_section' || event.toolName === '显示板块'
-                              const sectionId = String(event.toolInput?.section ?? '')
-                              const labelKey = VISIBILITY_SECTION_LABEL_KEYS[sectionId]
-                              const sectionLabel = labelKey ? moduleT(labelKey) : sectionId
                               return (
                                 <SectionVisibilityConfirmCard
                                   key={idx}
-                                  toolName={event.toolName}
-                                  isShow={isShow}
-                                  sectionLabel={sectionLabel}
-                                  stateLabel={isShow ? t('sectionVisibleOn') : t('sectionVisibleOff')}
-                                  reason={event.diffItems?.[0]?.reason || undefined}
                                   isActivePending={isActivePending}
-                                  expiredLabel={t('expired')}
                                   confirmLabel={t('confirm')}
                                   cancelLabel={t('cancel')}
                                   onConfirm={() => confirmTool(event.callId, true, 'resume_edit_accept_button')}
@@ -1407,6 +1385,8 @@ export default function ResumeEditPage() {
                           if (event.type === 'tool_confirmed' || event.type === 'tool_rejected') {
                             const memoryActivity = renderMemoryToolDecisionActivity(event, streamEvents, idx)
                             if (memoryActivity !== undefined) return memoryActivity
+                            // 显隐工具做出决策后不再渲染任何卡片或按钮
+                            if (isVisibilityToolEvent(event)) return null
                             const isConfirmed = event.type === 'tool_confirmed'
                             return (
                               <div key={idx} className="mb-2 rounded-2xl border border-gray-200 bg-white overflow-hidden text-xs shadow-sm">

@@ -32,11 +32,16 @@ export default function SummaryPreview({ data, renderLines, templateStyle = 'cla
           {isEmerald ? <span className="resume-emerald-heading-label">{t('summary')}</span> : t('summary')}
         </h2>
       )}
-      {text && shouldRenderLine(1) && (
+      {text && shouldRenderLine(1) && isEmerald && (
+        <ul data-line-index={1} className="resume-emerald-list text-sm">
+          <li style={{ margin: 0 }}>{text}</li>
+        </ul>
+      )}
+      {text && shouldRenderLine(1) && !isEmerald && (
         <p
           data-line-index={1}
-          className={isFormal || isEmerald ? 'text-sm text-gray-900' : 'text-sm text-gray-700'}
-          style={{ lineHeight: isEmerald ? 'var(--resume-emerald-line-height)' : '1.72', margin: 0 }}
+          className={isFormal ? 'text-sm text-gray-900' : 'text-sm text-gray-700'}
+          style={{ lineHeight: '1.72', margin: 0 }}
         >
           {text}
         </p>

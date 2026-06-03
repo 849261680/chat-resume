@@ -65,6 +65,12 @@ function isMemoryToolEvent(event: StreamEvent): boolean {
   return event.toolName === 'update_memory' || event.toolName === '更新记忆'
 }
 
+// 用于识别显隐板块工具：纯开关操作没有可重写的内容，确认卡不应出现反馈框和重写按钮。
+function isVisibilityToolEvent(event: StreamEvent): boolean {
+  if (!('toolName' in event)) return false
+  return ['show_section', 'hide_section', '显示板块', '隐藏板块'].includes(event.toolName)
+}
+
 // 用于判断同一工具调用是否已有上方状态行可展示。
 function hasToolActivityForCall(events: StreamEvent[], callId: string): boolean {
   return events.some((event) =>
@@ -1290,6 +1296,7 @@ export default function ResumeEditPage() {
                             if (memoryActivity !== undefined) return memoryActivity
                             const isActivePending = event.callId === latestPendingCallId
                             const feedbackDraft = toolFeedbackDrafts[event.callId] || ''
+                            const isVisibilityTool = isVisibilityToolEvent(event)
                             return (
                               <div key={idx} className="mb-2 rounded-2xl border border-gray-200 bg-white overflow-hidden text-xs shadow-sm">
                                 {/* 标题栏 */}
@@ -1308,16 +1315,19 @@ export default function ResumeEditPage() {
                                   diffItems={event.diffItems}
                                   isConfirmed={true}
                                 />
-                                <div className="px-4 py-3 bg-white border-t border-gray-100">
-                                  <textarea
-                                    value={feedbackDraft}
-                                    disabled={!isActivePending}
-                                    rows={2}
-                                    placeholder={t('toolFeedbackPlaceholder')}
-                                    onChange={(changeEvent) => updateToolFeedbackDraft(event.callId, changeEvent.target.value)}
-                                    className="w-full resize-none rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs leading-5 text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-blue-500 focus:bg-white disabled:cursor-not-allowed disabled:opacity-50"
-                                  />
-                                </div>
+                                {/* 显隐板块是纯开关操作，无可重写内容，不展示反馈输入框 */}
+                                {!isVisibilityTool && (
+                                  <div className="px-4 py-3 bg-white border-t border-gray-100">
+                                    <textarea
+                                      value={feedbackDraft}
+                                      disabled={!isActivePending}
+                                      rows={2}
+                                      placeholder={t('toolFeedbackPlaceholder')}
+                                      onChange={(changeEvent) => updateToolFeedbackDraft(event.callId, changeEvent.target.value)}
+                                      className="w-full resize-none rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs leading-5 text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-blue-500 focus:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+                                    />
+                                  </div>
+                                )}
                                 {/* 操作按钮 */}
                                 <div className="px-4 py-3 bg-white border-t border-gray-200 flex gap-2">
                                   <button
@@ -1344,19 +1354,21 @@ export default function ResumeEditPage() {
                                   >
                                     {t('reject')}
                                   </button>
-                                  <button
-                                    disabled={!isActivePending}
-                                    onClick={() => retryToolWithFeedback(event.callId)}
-                                    className="flex-1 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-                                    style={{
-                                      borderRadius: '56px',
-                                      border: '1px solid rgba(0,82,255,0.22)',
-                                      backgroundColor: '#eef4ff',
-                                      color: '#0052ff',
-                                    }}
-                                  >
-                                    {t('retryWithFeedback')}
-                                  </button>
+                                  {!isVisibilityTool && (
+                                    <button
+                                      disabled={!isActivePending}
+                                      onClick={() => retryToolWithFeedback(event.callId)}
+                                      className="flex-1 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                                      style={{
+                                        borderRadius: '56px',
+                                        border: '1px solid rgba(0,82,255,0.22)',
+                                        backgroundColor: '#eef4ff',
+                                        color: '#0052ff',
+                                      }}
+                                    >
+                                      {t('retryWithFeedback')}
+                                    </button>
+                                  )}
                                 </div>
                               </div>
                             )

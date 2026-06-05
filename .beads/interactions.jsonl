@@ -277,3 +277,4 @@
 {"id":"int-97181464","kind":"field_change","created_at":"2026-06-05T09:42:01.187006Z","actor":"宇宙熊Yzx","issue_id":"cr-bjxu","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"已将板块文案统一改为开源经验"}}
 {"id":"int-f64ef1bf","kind":"field_change","created_at":"2026-06-05T10:05:51.186457Z","actor":"宇宙熊Yzx","issue_id":"cr-cbv3","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"曳光弹第一切片完成：4维确定性评分工具，5测试通过"}}
 {"id":"int-4dd9e481","kind":"field_change","created_at":"2026-06-05T10:32:56.153398Z","actor":"宇宙熊Yzx","issue_id":"cr-2xfk","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Work/Projects/Skills 编辑器输入框统一用 ?? '' 兜底"}}
+{"id":"int-89e91b3e","kind":"field_change","created_at":"2026-06-05T11:10:21.520847Z","actor":"宇宙熊Yzx","issue_id":"cr-fzi2","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"彻底移除岗位匹配工具：工具/service/类型/前端渲染/测试全部清理，残留扫描为空"}}

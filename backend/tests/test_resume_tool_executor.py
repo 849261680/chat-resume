@@ -1,29 +1,15 @@
 """用于覆盖 test_resume_tool_executor.py 对应的回归测试。"""
 
-import asyncio
-import inspect
 import sys
 import unittest
 from pathlib import Path
-from typing import Any, Awaitable, cast
+from typing import Any, cast
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 from app.agents.resume.executor import ResumeToolExecutor  # noqa: E402
-
-
-class FakeJobMatchAnalyzer:
-    """用于模拟岗位匹配语义分析器。"""
-
-    async def analyze(self, *, jd_text: str, resume_text: str):
-        """用于返回可预测的岗位匹配结果。"""
-        return {
-            "matched_keywords": ["Agent"],
-            "missing_keywords": ["Redis"],
-            "fact_gaps": ["需要补充 Redis 相关真实经历"],
-        }
 
 
 class ResumeToolExecutorTests(unittest.TestCase):
@@ -77,30 +63,6 @@ class ResumeToolExecutorTests(unittest.TestCase):
         self.assertIn("is_current", result["result"]["message"])
         self.assertFalse(resume["work_experience"][0]["is_current"])
 
-    def test_execute_wraps_async_job_match_summary_result(self):
-        """用于验证异步只读工具仍返回统一工具结果结构。"""
-        resume = {
-            "job_application": {"jd_text": "要求 Agent 和 Redis 经验。"},
-            "projects": [{"name": "Chat Resume", "overview": "Agent 简历工具"}],
-        }
-        executor = ResumeToolExecutor()
-
-        pending = executor.execute(
-            tool_name="generate_job_match_summary",
-            tool_input={},
-            context={
-                "resume_content": resume,
-                "confirmed_diff_items": [],
-                "semantic_analyzer": FakeJobMatchAnalyzer(),
-            },
-        )
-
-        self.assertTrue(inspect.isawaitable(pending))
-        result = asyncio.run(_await_tool_result(cast(Awaitable[dict[str, Any]], pending)))
-        self.assertEqual(result["tool_name"], "岗位匹配摘要")
-        self.assertTrue(result["result"]["success"])
-        self.assertIn("job_match_summary", result["result"])
-
     def test_execute_returns_structured_hidden_section_error(self):
         """用于验证executereturnsstructuredhiddensection错误。"""
         executor = ResumeToolExecutor()
@@ -145,10 +107,3 @@ class ResumeToolExecutorTests(unittest.TestCase):
         self.assertEqual(result["result"]["updated_section"], "skills")
         self.assertIn("skills", resume["_visible_modules"])
         self.assertEqual(resume["skills"], skills_data)
-
-
-async def _await_tool_result(
-    pending: Awaitable[dict[str, Any]],
-) -> dict[str, Any]:
-    """用于在同步 unittest 中等待异步工具结果。"""
-    return await pending

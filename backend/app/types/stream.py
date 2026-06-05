@@ -29,27 +29,6 @@ class DiffItem(TypedDict, total=False):
     reason: str
 
 
-class JobMatchSummary(TypedDict):
-    """用于描述岗位匹配证据链摘要。"""
-
-    matched_keywords: list[str]
-    missing_keywords: list[str]
-    resume_changes: list[str]
-    fact_gaps: list[str]
-    top_gaps: list["JobMatchTopGap"]
-
-
-class JobMatchTopGap(TypedDict):
-    """用于描述本轮最值得处理的岗位缺口。"""
-
-    gap: str
-    priority_reason: str
-    jd_evidence: list[str]
-    resume_anchor: str
-    suggested_edit: str
-    risk: str
-
-
 class ResumeStreamEvent(TypedDict, total=False):
     """用于约束前后端流式事件字段的可选集合。"""
 
@@ -58,7 +37,6 @@ class ResumeStreamEvent(TypedDict, total=False):
     qr_images: list[str]
     tool_calls: list[dict[str, Any]]
     resume_content: dict[str, Any] | None
-    job_match_summary: JobMatchSummary
     tool_call_started: bool
     tool_pending: bool
     tool_confirmed: bool
@@ -126,7 +104,6 @@ def session_started_event(session_id: str) -> ResumeStreamEvent:
 def stream_done_event(
     *,
     resume_content: dict[str, Any] | None = None,
-    job_match_summary: JobMatchSummary | None = None,
 ) -> ResumeStreamEvent:
     """用于构造简历 Agent 流式会话完成事件。"""
     event: ResumeStreamEvent = {
@@ -138,8 +115,6 @@ def stream_done_event(
     }
     if resume_content is not None:
         event["resume_content"] = resume_content
-    if job_match_summary is not None:
-        event["job_match_summary"] = job_match_summary
     return event
 
 
@@ -154,8 +129,6 @@ def stream_error_event(error: str) -> ResumeStreamEvent:
 
 __all__ = [
     "DiffItem",
-    "JobMatchSummary",
-    "JobMatchTopGap",
     "ResumeStreamEvent",
     "ResumeStreamEventType",
     "public_resume_stream_event",

@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from typing import Any
 
 from .add_highlight_tool import add_bullet, add_highlight
-from .job_match_summary_tool import generate_job_match_summary
 from .job_post_tool import list_job_posts, read_job_post
 from .memory_tool import read_memory, update_memory
 from .read_resume_tool import read_resume_content
@@ -397,22 +396,6 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
-            "name": "generate_job_match_summary",
-            "description": (
-                "生成岗位匹配摘要，只读。适合在用户询问 JD 匹配、关键词命中、"
-                "缺失关键词、需要补充哪些事实，或需要展示 JD 证据链时调用。"
-                "该工具不修改简历。"
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {},
-                "required": [],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
             "name": "read_memory",
             "description": (
                 "读取当前用户或当前简历的长期记忆。适合在优化前了解用户长期偏好、"
@@ -668,11 +651,6 @@ RESUME_TOOL_CATALOG: tuple[ResumeToolDefinition, ...] = (
         "score_resume",
         score_resume_tool,
         _SCHEMA_BY_NAME.get("score_resume"),
-    ),
-    ResumeToolDefinition(
-        "generate_job_match_summary",
-        generate_job_match_summary,
-        _SCHEMA_BY_NAME.get("generate_job_match_summary"),
     ),
     ResumeToolDefinition(
         "list_job_posts",

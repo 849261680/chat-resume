@@ -25,7 +25,6 @@ TOOL_REQUIRED_ARGS: dict[str, set[str]] = {
     "add_highlight": {"section", "item_id", "text"},
     "remove_highlight": {"section", "item_id", "highlight_id"},
     "score_resume": set(),
-    "generate_job_match_summary": set(),
     "list_job_posts": set(),
     "read_job_post": {"job_post_id"},
     "read_memory": {"scope"},
@@ -80,7 +79,6 @@ TOOL_DISPLAY_NAMES = {
     "add_highlight": "新增要点",
     "remove_highlight": "删除要点",
     "score_resume": "简历评分",
-    "generate_job_match_summary": "岗位匹配摘要",
     "list_job_posts": "读取JD列表",
     "read_job_post": "读取JD",
     "read_resume": "读取简历",
@@ -113,17 +111,6 @@ _SYNC_TOOL_NAME = Literal[
 
 class ResumeToolExecutor(ToolExecutor):
     """用于把 runtime 的工具调用转换成可落库的简历编辑结果。"""
-
-    @overload
-    def execute(
-        self,
-        *,
-        tool_name: Literal["generate_job_match_summary"],
-        tool_input: dict[str, Any],
-        context: dict[str, Any],
-    ) -> Awaitable[dict[str, Any]]:
-        """用于声明岗位匹配工具返回异步结果。"""
-        ...
 
     @overload
     def execute(
@@ -186,11 +173,6 @@ class ResumeToolExecutor(ToolExecutor):
             )
 
         try:
-            if tool_name == "generate_job_match_summary":
-                tool_input = {
-                    "confirmed_diff_items": context.get("confirmed_diff_items", []),
-                    "semantic_analyzer": context.get("semantic_analyzer"),
-                }
             if tool_name == "list_job_posts":
                 tool_input = {
                     **tool_input,

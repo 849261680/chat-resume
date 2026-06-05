@@ -1261,7 +1261,6 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertIn("item_id 和 bullet_id 必须来自当前简历 JSON", descriptions["update_bullet"])
         self.assertIn("section 必须是 projects", descriptions["update_overview"])
         self.assertIn("is_current 是内部派生字段", descriptions["update_item_fields"])
-        self.assertIn("该工具不修改简历", descriptions["generate_job_match_summary"])
 
     def test_system_prompt_omits_tool_call_protocol_section(self):
         """用于验证系统提示词不再硬编码工具协议正文。"""

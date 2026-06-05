@@ -106,7 +106,6 @@ def _event_tool_name(event: dict[str, Any]) -> str:
         "优化要点": "update_bullet",
         "新增要点": "add_bullet",
         "删除要点": "remove_bullet",
-        "岗位匹配摘要": "generate_job_match_summary",
     }
     return aliases.get(tool_name, tool_name)
 

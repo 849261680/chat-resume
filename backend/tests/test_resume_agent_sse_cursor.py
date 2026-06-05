@@ -56,41 +56,6 @@ class FakeResumeAgent:
         yield {"content": "已开始优化"}
 
 
-class FakeResumeAgentWithConfirmedChange:
-    async def optimize_stream(
-        self,
-        user_message: str,
-        resume_content: dict[str, Any],
-        conversation_history: list[dict[str, str]],
-        confirmation_queue: asyncio.Queue | None,
-        allowed_sections: set[str],
-        event_callback=None,
-        user_id: int | None = None,
-        resume_id: int | None = None,
-    ):
-        """用于输出一条已确认工具改动事件。"""
-        del (
-            user_message,
-            conversation_history,
-            confirmation_queue,
-            allowed_sections,
-            event_callback,
-            user_id,
-            resume_id,
-        )
-        yield {
-            "tool_confirmed": True,
-            "call_id": "call_summary",
-            "diff_items": [
-                {
-                    "after": "负责 Agent 后端服务，支撑高并发 API",
-                    "reason": "补充岗位关键词",
-                }
-            ],
-            "resume_content": resume_content,
-        }
-
-
 class ResumeAgentSseCursorTests(unittest.TestCase):
     def test_format_sse_event_includes_id_and_data(self):
         """用于验证SSE事件同时包含id和data。"""
@@ -171,31 +136,6 @@ class ResumeAgentSseStreamServiceTests(unittest.IsolatedAsyncioTestCase):
             "ai_client_sse_123",
         )
         self.assertEqual(stored[1].payload["content"], "已开始优化")
-
-    async def test_done_event_does_not_auto_append_job_match_summary(self):
-        """用于验证普通回答完成时不会自动附带岗位匹配摘要卡片。"""
-        self.resume.content = {
-            "job_application": {"jd_text": "要求 Agent、后端、API、高并发、Redis。"},
-            "work_experience": [{"highlights": [{"text": "负责 Agent 后端服务"}]}],
-        }
-        self.db.commit()
-        service = ResumeAgentStreamService(self.db)
-        request = ResumeAgentStreamInput(
-            message="优化一下",
-            resume_id=self.resume.id,
-            user_id=self.user.id,
-            request_id="req_no_auto_summary",
-        )
-
-        with patch(
-            "app.services.agent.resume_agent_stream_service.ResumeAgent",
-            return_value=FakeResumeAgentWithConfirmedChange(),
-        ):
-            events = [event async for event in service.stream_events(request)]
-
-        done_event = events[-1]
-        self.assertTrue(done_event["done"])
-        self.assertNotIn("job_match_summary", done_event)
 
     def test_replay_stream_events_returns_payloads_after_cursor(self):
         """用于验证服务可按cursor回放公开stream事件。"""

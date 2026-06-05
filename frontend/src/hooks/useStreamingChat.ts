@@ -9,27 +9,9 @@ export type DiffItem = {
   reason?: string
 }
 
-export type JobMatchSummary = {
-  matched_keywords: string[]
-  missing_keywords: string[]
-  resume_changes: string[]
-  fact_gaps: string[]
-  top_gaps: JobMatchTopGap[]
-}
-
-export type JobMatchTopGap = {
-  gap: string
-  priority_reason: string
-  jd_evidence: string[]
-  resume_anchor: string
-  suggested_edit: string
-  risk: 'can_improve' | 'needs_user_confirmation' | 'insufficient_evidence' | string
-}
-
 export type StreamEvent =
   | { type: 'tool'; name: string }
   | { type: 'text'; content: string }
-  | { type: 'job_match_summary'; summary: JobMatchSummary }
   | {
       type: 'tool_call'
       callId: string
@@ -113,47 +95,6 @@ type PendingToolTiming = {
   appendedAt: number
   streamStartedAt: number
   clientRequestId: string
-}
-
-// 用于标准化字符串列表。
-function normalizeStringList(value: unknown): string[] {
-  if (!Array.isArray(value)) return []
-  return value
-    .map((item) => String(item || '').trim())
-    .filter(Boolean)
-}
-
-// 用于标准化岗位匹配摘要。
-function normalizeJobMatchSummary(value: unknown): JobMatchSummary | null {
-  if (!value || typeof value !== 'object') return null
-  const record = value as Record<string, unknown>
-  const summary = {
-    matched_keywords: normalizeStringList(record.matched_keywords),
-    missing_keywords: normalizeStringList(record.missing_keywords),
-    resume_changes: normalizeStringList(record.resume_changes),
-    fact_gaps: normalizeStringList(record.fact_gaps),
-    top_gaps: normalizeJobMatchTopGaps(record.top_gaps),
-  }
-  return Object.values(summary).some((items) => items.length > 0) ? summary : null
-}
-
-// 用于标准化岗位 Top gaps。
-function normalizeJobMatchTopGaps(value: unknown): JobMatchTopGap[] {
-  if (!Array.isArray(value)) return []
-  return value.flatMap((item) => {
-    if (!item || typeof item !== 'object') return []
-    const record = item as Record<string, unknown>
-    const gap = String(record.gap || '').trim()
-    if (!gap) return []
-    return [{
-      gap,
-      priority_reason: String(record.priority_reason || '').trim(),
-      jd_evidence: normalizeStringList(record.jd_evidence),
-      resume_anchor: String(record.resume_anchor || '').trim(),
-      suggested_edit: String(record.suggested_edit || '').trim(),
-      risk: String(record.risk || '').trim(),
-    }]
-  }).slice(0, 3)
 }
 
 // 用于标准化差异条目。
@@ -562,13 +503,6 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                     })
                     onResumeUpdate?.(data.resume_content)
                   }
-                  const jobMatchSummary = normalizeJobMatchSummary(data.job_match_summary)
-                  if (jobMatchSummary) {
-                    eventsBuffer = [...eventsBuffer, {
-                      type: 'job_match_summary',
-                      summary: jobMatchSummary,
-                    }]
-                  }
                   // 流式传输完成，创建完整的AI消息（携带工具事件快照，用于历史渲染）
                   const aiMessage: ChatMessage = {
                     id: Date.now().toString(),
@@ -632,17 +566,6 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                       toolName: resolveToolName(data, t('toolCall')),
                       toolId: resolveToolId(data),
                       displayMessage: data.display_message ? String(data.display_message) : undefined,
-                    }]
-                  }
-                  const jobMatchSummary = normalizeJobMatchSummary(
-                    data.result && typeof data.result === 'object'
-                      ? (data.result as Record<string, unknown>).job_match_summary
-                      : null
-                  )
-                  if (jobMatchSummary) {
-                    eventsBuffer = [...eventsBuffer, {
-                      type: 'job_match_summary',
-                      summary: jobMatchSummary,
                     }]
                   }
                   debugStreamLog('[useStreamingChat] tool_result handling end', {

@@ -37,7 +37,7 @@ import ResumePreview from '@/components/preview/ResumePreview'
 import ResumeLayoutControls from '@/components/preview/ResumeLayoutControls'
 import MarkdownMessage from '@/components/ui/MarkdownMessage'
 import StreamingMessage from '@/components/ui/StreamingMessage'
-import type { ChatMessage, JobMatchSummary, StreamEvent } from '@/hooks/useStreamingChat'
+import type { ChatMessage, StreamEvent } from '@/hooks/useStreamingChat'
 import { usePanelLayout } from '@/hooks/usePanelLayout'
 import { useResumeChatPanel } from '@/hooks/useResumeChatPanel'
 import { useResumeEditor } from '@/hooks/useResumeEditor'
@@ -97,65 +97,6 @@ function renderMemoryToolDecisionActivity(
         toolName: event.toolName,
       }}
     />
-  )
-}
-
-// 用于渲染 Agent 完成后的 JD 匹配证据链摘要。
-function JobMatchSummaryCard({ summary }: { summary: JobMatchSummary }) {
-  const matchedCount = summary.matched_keywords.length
-  const missingCount = summary.missing_keywords.length
-  const total = matchedCount + missingCount
-  const matchPct = total > 0 ? Math.round((matchedCount / total) * 100) : null
-
-  return (
-    <div className="mb-3 rounded-2xl border border-gray-200 bg-white px-3 py-2.5 text-xs shadow-sm">
-      {/* 标题 + 匹配度一行 */}
-      <div className="mb-2.5 flex items-baseline justify-between gap-2">
-        <span className="text-xs font-semibold text-gray-900">岗位匹配摘要</span>
-        {matchPct !== null && (
-          <div className="flex items-center gap-1.5 text-[11px] text-[#5b616e]">
-            <span className="font-semibold text-[#0a0b0d]">命中率 {matchPct}%</span>
-            <span className="text-gray-300">·</span>
-            <span className={matchedCount > 0 ? 'font-medium text-emerald-600' : ''}>命中 {matchedCount}</span>
-            <span className="text-gray-300">·</span>
-            <span className={missingCount > 0 ? 'font-medium text-rose-600' : ''}>缺失 {missingCount}</span>
-          </div>
-        )}
-      </div>
-
-      {/* 分隔线 */}
-      <div className="mb-2 border-t border-gray-100" />
-
-      <div className="space-y-2">
-        {/* 缺失关键词 — rose 红色系，明确传递"需关注" */}
-        {missingCount > 0 && (
-          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1.5">
-            <span className="mr-0.5 flex-shrink-0 rounded px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-rose-600">
-              缺失
-            </span>
-            {summary.missing_keywords.map((item) => (
-              <span key={item} className="rounded-full border border-rose-200 bg-rose-50 px-1.5 py-0.5 text-[10px] font-medium text-rose-600">
-                {item}
-              </span>
-            ))}
-          </div>
-        )}
-
-        {/* 已命中 — emerald 翠绿系，清晰传递"通过" */}
-        {matchedCount > 0 && (
-          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1.5">
-            <span className="mr-0.5 flex-shrink-0 rounded px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-emerald-600">
-              命中
-            </span>
-            {summary.matched_keywords.map((item) => (
-              <span key={item} className="rounded-full border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] text-emerald-700">
-                {item}
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
   )
 }
 
@@ -1270,9 +1211,6 @@ export default function ResumeEditPage() {
                                 if (event.type === 'tool_call' || event.type === 'tool_result' || event.type === 'tool_failed') {
                                   return <AgentToolActivity key={idx} event={event} />
                                 }
-                                if (event.type === 'job_match_summary') {
-                                  return <JobMatchSummaryCard key={idx} summary={event.summary} />
-                                }
                                 if (event.type === 'text') return (
                                   <div key={idx}>
                                     <MarkdownMessage content={event.content} />
@@ -1411,9 +1349,6 @@ export default function ResumeEditPage() {
                           }
                           if (event.type === 'tool_call' || event.type === 'tool_result' || event.type === 'tool_failed') {
                             return <AgentToolActivity key={idx} event={event} live />
-                          }
-                          if (event.type === 'job_match_summary') {
-                            return <JobMatchSummaryCard key={idx} summary={event.summary} />
                           }
                           if (event.type === 'tool') {
                             return (

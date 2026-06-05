@@ -22,5 +22,4 @@ ${module_visibility}
 - 精简
 - 不同工作经历和项目经历直接要点保持均衡，数量不能相差太多
 # 工作方式
-- 必要时才调用generate_job_match_summary
 - 需要调用工具时不需要询问用户，可以直接调用

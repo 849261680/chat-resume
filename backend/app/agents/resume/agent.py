@@ -22,7 +22,6 @@ logger = logging.getLogger(__name__)
 _TOOLS_WITH_OPTIONAL_ARGS_ONLY = {"read_resume"}
 _AUTO_EXECUTE_TOOL_NAMES: set[str] = {
     "score_resume",
-    "generate_job_match_summary",
     "list_job_posts",
     "read_job_post",
     "read_memory",
@@ -42,7 +41,6 @@ _TOOL_PROFILES: dict[str, set[str]] = {
         "add_bullet",
         "remove_bullet",
         "score_resume",
-        "generate_job_match_summary",
         "list_job_posts",
         "read_job_post",
         "read_memory",
@@ -50,7 +48,6 @@ _TOOL_PROFILES: dict[str, set[str]] = {
     },
     "read_only": {
         "score_resume",
-        "generate_job_match_summary",
         "list_job_posts",
         "read_job_post",
         "read_memory",

@@ -151,7 +151,7 @@ export default function WorkExperienceEditor({ data, onChange }: WorkExperienceE
                     </label>
                     <input
                       type="text"
-                      value={work.company}
+                      value={work.company ?? ''}
                       onChange={(e) => updateWork(work.id!, 'company', e.target.value)}
                       placeholder={t('companyPlaceholder')}
                       className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
@@ -164,7 +164,7 @@ export default function WorkExperienceEditor({ data, onChange }: WorkExperienceE
                     </label>
                     <input
                       type="text"
-                      value={work.position}
+                      value={work.position ?? ''}
                       onChange={(e) => updateWork(work.id!, 'position', e.target.value)}
                       placeholder={t('positionPlaceholder')}
                       className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
@@ -177,7 +177,7 @@ export default function WorkExperienceEditor({ data, onChange }: WorkExperienceE
                     </label>
                     <input
                       type="text"
-                      value={work.duration}
+                      value={work.duration ?? ''}
                       onChange={(e) => updateWork(work.id!, 'duration', e.target.value)}
                       placeholder="2022.07 - 2024.06"
                       className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
@@ -235,7 +235,7 @@ export default function WorkExperienceEditor({ data, onChange }: WorkExperienceE
                         <textarea
                           data-autogrow="work-highlight"
                           ref={fitTextareaToContent}
-                          value={highlight.text}
+                          value={highlight.text ?? ''}
                           onChange={(e) => {
                             updateBullet(work.id!, highlightIndex, e.target.value)
                             fitTextareaToContent(e.currentTarget)

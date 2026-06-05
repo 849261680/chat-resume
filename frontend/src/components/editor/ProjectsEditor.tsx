@@ -159,7 +159,7 @@ export default function ProjectsEditor({ data, onChange, variant = 'project' }: 
                     </label>
                     <input
                       type="text"
-                      value={project.name}
+                      value={project.name ?? ''}
                       onChange={(e) => updateProject(project.id!, 'name', e.target.value)}
                       placeholder={t('namePlaceholder')}
                       className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
@@ -176,7 +176,7 @@ export default function ProjectsEditor({ data, onChange, variant = 'project' }: 
                       </div>
                       <input
                         type="text"
-                        value={project.duration}
+                        value={project.duration ?? ''}
                         onChange={(e) => updateProject(project.id!, 'duration', e.target.value)}
                         placeholder="2023.03 - 2023.08"
                         className="w-full pl-10 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
@@ -190,7 +190,7 @@ export default function ProjectsEditor({ data, onChange, variant = 'project' }: 
                     </label>
                     <input
                       type="text"
-                      value={project.role}
+                      value={project.role ?? ''}
                       onChange={(e) => updateProject(project.id!, 'role', e.target.value)}
                       placeholder={t('rolePlaceholder')}
                       className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
@@ -271,7 +271,7 @@ export default function ProjectsEditor({ data, onChange, variant = 'project' }: 
                         <textarea
                           data-autogrow="project-text"
                           ref={fitTextareaToContent}
-                          value={highlight.text}
+                          value={highlight.text ?? ''}
                           onChange={(e) => {
                             updateBullet(project.id!, highlightIndex, e.target.value)
                             fitTextareaToContent(e.currentTarget)

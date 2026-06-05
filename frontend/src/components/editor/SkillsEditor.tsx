@@ -136,11 +136,11 @@ export default function SkillsEditor({ data, onChange }: SkillsEditorProps) {
           <div className="flex items-center gap-2 flex-wrap">
             <input
               type="text"
-              value={group.category}
+              value={group.category ?? ''}
               onChange={(e) => updateCategory(group.id!, e.target.value)}
               placeholder={t('categoryPlaceholder')}
               className="text-sm font-semibold text-gray-900 bg-transparent border-0 focus:ring-0 focus:outline-none px-1 py-0.5 rounded hover:bg-gray-50 focus:bg-gray-50 w-auto min-w-[80px]"
-              style={{ width: `${Math.max(group.category.length, 4) + 2}ch` }}
+              style={{ width: `${Math.max((group.category ?? '').length, 4) + 2}ch` }}
             />
 
             {group.items.map((item, idx) => {
@@ -153,7 +153,7 @@ export default function SkillsEditor({ data, onChange }: SkillsEditorProps) {
                   <input
                     ref={(el) => { chipRefs.current.set(key, el) }}
                     type="text"
-                    value={item}
+                    value={item ?? ''}
                     onChange={(e) => updateItem(group.id!, idx, e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {

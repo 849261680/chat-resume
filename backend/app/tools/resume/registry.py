@@ -13,6 +13,7 @@ from .memory_tool import read_memory, update_memory
 from .read_resume_tool import read_resume_content
 from .remove_highlight_tool import remove_bullet, remove_highlight
 from .resume_item_tool import hide_section, show_section
+from .score_resume_tool import score_resume_tool
 from .update_highlight_tool import update_bullet, update_highlight
 from .update_item_fields_tool import update_item_fields
 from .update_overview_tool import update_overview
@@ -379,6 +380,23 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
+            "name": "score_resume",
+            "description": (
+                "对当前简历做确定性评分，只读。返回总分、各维度得分（完整度、"
+                "量化程度、表达质量、JD 匹配）以及带 item_id/bullet_id 的可执行"
+                "修改建议。适合用户要求给简历打分、评估质量、找出薄弱点时调用。"
+                "该工具不修改简历；拿到建议后可再调用 update_bullet 等工具优化。"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "generate_job_match_summary",
             "description": (
                 "生成岗位匹配摘要，只读。适合在用户询问 JD 匹配、关键词命中、"
@@ -645,6 +663,11 @@ RESUME_TOOL_CATALOG: tuple[ResumeToolDefinition, ...] = (
         "remove_bullet",
         remove_bullet,
         _SCHEMA_BY_NAME.get("remove_bullet"),
+    ),
+    ResumeToolDefinition(
+        "score_resume",
+        score_resume_tool,
+        _SCHEMA_BY_NAME.get("score_resume"),
     ),
     ResumeToolDefinition(
         "generate_job_match_summary",

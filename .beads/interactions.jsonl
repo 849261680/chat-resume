@@ -275,3 +275,4 @@
 {"id":"int-0ed8427e","kind":"field_change","created_at":"2026-06-03T09:09:06.976485Z","actor":"宇宙熊Yzx","issue_id":"cr-jg9b","extra":{"field":"status","new_value":"closed","old_value":"open","reason":"classic/formal/modern 个人简介正文改用各自模板的 list-disc bullet"}}
 {"id":"int-eab62c11","kind":"field_change","created_at":"2026-06-03T09:18:05.886303Z","actor":"宇宙熊Yzx","issue_id":"cr-01ve","extra":{"field":"status","new_value":"closed","old_value":"open","reason":"role 改为 text-gray-900"}}
 {"id":"int-97181464","kind":"field_change","created_at":"2026-06-05T09:42:01.187006Z","actor":"宇宙熊Yzx","issue_id":"cr-bjxu","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"已将板块文案统一改为开源经验"}}
+{"id":"int-f64ef1bf","kind":"field_change","created_at":"2026-06-05T10:05:51.186457Z","actor":"宇宙熊Yzx","issue_id":"cr-cbv3","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"曳光弹第一切片完成：4维确定性评分工具，5测试通过"}}

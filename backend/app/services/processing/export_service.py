@@ -190,7 +190,7 @@ class ExportService:
         )
         self._append_project_story_section(
             story,
-            "开源贡献",
+            "开源经验",
             resume_content.get("open_source", []),
             heading_style,
             normal_style,
@@ -443,7 +443,7 @@ class ExportService:
             )
         }
         {self._wrap_section("项目经验", project_html)}
-        {self._wrap_section("开源贡献", open_source_html)}
+        {self._wrap_section("开源经验", open_source_html)}
     </div>
 </body>
 </html>

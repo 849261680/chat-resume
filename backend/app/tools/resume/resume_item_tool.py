@@ -26,7 +26,7 @@ _MODULE_LABELS = {
     "education": "教育经历",
     "work": "工作经历",
     "projects": "项目经历",
-    "open_source": "开源贡献",
+    "open_source": "开源经验",
     "skills": "技能专长",
 }
 

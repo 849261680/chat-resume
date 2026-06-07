@@ -6,14 +6,14 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
-from .add_highlight_tool import add_bullet, add_highlight
+from .add_bullet_tool import add_bullet
 from .job_post_tool import list_job_posts, read_job_post
 from .memory_tool import read_memory, update_memory
 from .read_resume_tool import read_resume_content
-from .remove_highlight_tool import remove_bullet, remove_highlight
+from .remove_bullet_tool import remove_bullet
 from .resume_item_tool import hide_section, show_section
 from .score_resume_tool import score_resume_tool
-from .update_highlight_tool import update_bullet, update_highlight
+from .update_bullet_tool import update_bullet
 from .update_item_fields_tool import update_item_fields
 from .update_overview_tool import update_overview
 from .update_profile_tool import update_profile
@@ -668,9 +668,6 @@ RESUME_TOOL_CATALOG: tuple[ResumeToolDefinition, ...] = (
         update_memory,
         _SCHEMA_BY_NAME.get("update_memory"),
     ),
-    ResumeToolDefinition("update_highlight", update_highlight),
-    ResumeToolDefinition("add_highlight", add_highlight),
-    ResumeToolDefinition("remove_highlight", remove_highlight),
 )
 
 RESUME_TOOLS_SCHEMA: list[dict[str, Any]] = [

@@ -14,11 +14,11 @@ from .shared import (
 )
 
 
-def remove_highlight(
+def remove_bullet(
     resume_content: dict[str, Any],
     section: str,
     item_id: str,
-    highlight_id: str,
+    bullet_id: str,
     reason: Any = None,
 ) -> dict[str, Any]:
     """用于从指定条目中删除一条已有 resume bullet。"""
@@ -38,15 +38,15 @@ def remove_highlight(
     remaining = [
         highlight
         for highlight in highlights
-        if str(highlight.get("id")) != str(highlight_id)
+        if str(highlight.get("id")) != str(bullet_id)
     ]
     if len(remaining) == len(highlights):
-        return {"success": False, "message": f"未找到 id={highlight_id} 的要点"}
+        return {"success": False, "message": f"未找到 id={bullet_id} 的要点"}
 
     removed = next(
         highlight
         for highlight in highlights
-        if str(highlight.get("id")) == str(highlight_id)
+        if str(highlight.get("id")) == str(bullet_id)
     )
     items[idx]["highlights"] = remaining
     resume_content[section] = items
@@ -67,21 +67,4 @@ def remove_highlight(
     }
 
 
-def remove_bullet(
-    resume_content: dict[str, Any],
-    section: str,
-    item_id: str,
-    bullet_id: str,
-    reason: Any = None,
-) -> dict[str, Any]:
-    """用于从指定条目中删除一条已有 resume bullet。"""
-    return remove_highlight(
-        resume_content,
-        section=section,
-        item_id=item_id,
-        highlight_id=bullet_id,
-        reason=reason,
-    )
-
-
-__all__ = ["remove_bullet", "remove_highlight"]
+__all__ = ["remove_bullet"]

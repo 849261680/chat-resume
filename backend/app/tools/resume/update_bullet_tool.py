@@ -15,11 +15,11 @@ from .shared import (
 )
 
 
-def update_highlight(
+def update_bullet(
     resume_content: dict[str, Any],
     section: str,
     item_id: str,
-    highlight_id: str,
+    bullet_id: str,
     text: Any,
     reason: Any = None,
 ) -> dict[str, Any]:
@@ -39,7 +39,7 @@ def update_highlight(
 
     next_text = str(text or "").strip()
     for highlight in highlights:
-        if str(highlight.get("id")) == str(highlight_id):
+        if str(highlight.get("id")) == str(bullet_id):
             current_text = str(highlight.get("text") or "").strip()
             if next_text == current_text:
                 return {
@@ -62,26 +62,7 @@ def update_highlight(
                 "updated_section": section,
                 **diff_payload,
             }
-    return {"success": False, "message": f"未找到 id={highlight_id} 的要点"}
+    return {"success": False, "message": f"未找到 id={bullet_id} 的要点"}
 
 
-def update_bullet(
-    resume_content: dict[str, Any],
-    section: str,
-    item_id: str,
-    bullet_id: str,
-    text: Any,
-    reason: Any = None,
-) -> dict[str, Any]:
-    """用于精确更新某条 resume bullet 的文本内容。"""
-    return update_highlight(
-        resume_content,
-        section=section,
-        item_id=item_id,
-        highlight_id=bullet_id,
-        text=text,
-        reason=reason,
-    )
-
-
-__all__ = ["update_bullet", "update_highlight"]
+__all__ = ["update_bullet"]

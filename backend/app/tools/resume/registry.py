@@ -9,7 +9,6 @@ from typing import Any
 from .add_bullet_tool import add_bullet
 from .job_post_tool import list_job_posts, read_job_post
 from .memory_tool import read_memory, update_memory
-from .read_resume_tool import read_resume_content
 from .remove_bullet_tool import remove_bullet
 from .resume_item_tool import hide_section, show_section
 from .score_resume_tool import score_resume_tool
@@ -595,7 +594,6 @@ _SCHEMA_BY_NAME = {
 }
 
 RESUME_TOOL_CATALOG: tuple[ResumeToolDefinition, ...] = (
-    ResumeToolDefinition("read_resume", read_resume_content),
     ResumeToolDefinition(
         "update_summary",
         update_summary,

@@ -2,7 +2,6 @@
 
 from .add_bullet_tool import add_bullet
 from .job_post_tool import list_job_posts, read_job_post
-from .read_resume_tool import read_resume_content
 from .resume_item_tool import hide_section, show_section
 from .registry import RESUME_TOOLS_SCHEMA, execute_resume_tool
 from .remove_bullet_tool import remove_bullet
@@ -20,7 +19,6 @@ __all__ = [
     "execute_resume_tool",
     "list_job_posts",
     "read_job_post",
-    "read_resume_content",
     "remove_bullet",
     "hide_section",
     "update_bullet",

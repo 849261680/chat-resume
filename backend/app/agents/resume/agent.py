@@ -19,7 +19,6 @@ from .stream_events import normalize_resume_stream_payload
 
 logger = logging.getLogger(__name__)
 
-_TOOLS_WITH_OPTIONAL_ARGS_ONLY = {"read_resume"}
 _AUTO_EXECUTE_TOOL_NAMES: set[str] = {
     "score_resume",
     "list_job_posts",
@@ -259,7 +258,7 @@ class ResumeAgent:
             tool_args["section"] = "projects"
 
         required = TOOL_REQUIRED_ARGS.get(tool_name)
-        if required is None and tool_name not in _TOOLS_WITH_OPTIONAL_ARGS_ONLY:
+        if required is None:
             return None, self.tool_executor.error_result(
                 tool_name,
                 "unknown_tool",

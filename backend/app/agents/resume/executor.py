@@ -72,7 +72,6 @@ TOOL_DISPLAY_NAMES = {
     "score_resume": "简历评分",
     "list_job_posts": "读取JD列表",
     "read_job_post": "读取JD",
-    "read_resume": "读取简历",
     "read_memory": "读取记忆",
     "update_memory": "更新记忆",
 }
@@ -88,7 +87,6 @@ _SYNC_TOOL_NAME = Literal[
     "update_bullet",
     "add_bullet",
     "remove_bullet",
-    "read_resume",
     "score_resume",
     "list_job_posts",
     "read_job_post",

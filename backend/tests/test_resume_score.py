@@ -77,7 +77,13 @@ def test_score_payload_prioritizes_evidence_backed_agent_actions():
     result = score_resume(resume)
     action = result["priority_actions"][0]
 
-    assert result["diagnosis"]["primary_risk"]["dimension_key"] in {"quantification", "jd_match", "expression"}
+    assert result["diagnosis"]["primary_risk"]["dimension_key"] in {
+        "quantification",
+        "jd_match",
+        "expression",
+        "impact_clarity",
+        "responsibility_depth",
+    }
     assert result["diagnosis"]["evidence"]
     assert action["tool_hint"] == "update_bullet"
     assert action["target"] == {"item_id": "work1", "bullet_id": "h1"}
@@ -116,3 +122,40 @@ def test_tool_wrapper_returns_score_payload():
     assert result["success"] is True
     assert "total_score" in result
     assert isinstance(result["top_suggestions"], list)
+
+
+def test_score_resume_returns_rule_and_semantic_layers():
+    """用于验证单一评分工具同时返回规则层和语义评审层。"""
+    resume = _full_resume()
+    resume["work_experience"][0]["highlights"][0]["text"] = "负责后端接口开发"
+
+    result = score_resume(resume)
+
+    assert result["rule_checks"]["score"] >= 0
+    assert result["semantic_review"]["status"] == "available"
+    assert result["semantic_review"]["overall"]["score"] >= 0
+    assert {item["key"] for item in result["semantic_review"]["dimensions"]} == {
+        "role_fit",
+        "project_persuasiveness",
+        "responsibility_depth",
+        "impact_clarity",
+        "interview_readiness",
+    }
+    assert any(action["source"] == "semantic_review" for action in result["priority_actions"])
+
+
+def test_score_resume_falls_back_when_semantic_review_fails():
+    """用于验证语义评审异常时评分工具仍返回规则评分。"""
+
+    def broken_reviewer(_resume: dict, _dimensions: list[dict]) -> dict:
+        """用于模拟语义评审 provider 或解析失败。"""
+        raise ValueError("bad semantic json")
+
+    result = score_resume(_full_resume(), semantic_reviewer=broken_reviewer)
+
+    assert result["semantic_review"] == {
+        "status": "unavailable",
+        "reason": "bad semantic json",
+        "score": None,
+    }
+    assert result["total_score"] == result["rule_checks"]["score"]

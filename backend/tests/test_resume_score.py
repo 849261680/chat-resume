@@ -61,6 +61,29 @@ def test_unquantified_bullet_produces_actionable_finding():
     assert "量化" in finding["suggestion"]
 
 
+def test_score_payload_prioritizes_evidence_backed_agent_actions():
+    """用于验证评分结果给出证据、优先风险和下一步工具动作。"""
+    resume = {
+        "personal_info": {"name": "李四", "email": "l@s.com"},
+        "summary": {"text": "前端工程师。"},
+        "education": [{"id": "edu1", "school": "清华", "highlights": [{"id": "h0", "text": "计算机本科毕业生"}]}],
+        "work_experience": [
+            {"id": "work1", "company": "某厂", "highlights": [{"id": "h1", "text": "负责维护前端页面和组件库"}]}
+        ],
+        "skills": [{"id": "sk1", "category": "前端", "items": ["React"]}],
+        "job_application": {"jd_text": "要求 React、性能优化、TypeScript 经验。"},
+    }
+
+    result = score_resume(resume)
+    action = result["priority_actions"][0]
+
+    assert result["diagnosis"]["primary_risk"]["dimension_key"] in {"quantification", "jd_match", "expression"}
+    assert result["diagnosis"]["evidence"]
+    assert action["tool_hint"] == "update_bullet"
+    assert action["target"] == {"item_id": "work1", "bullet_id": "h1"}
+    assert "再次调用 score_resume" in result["agent_next_step"]
+
+
 def test_no_jd_drops_jd_dimension_and_renormalizes():
     """用于验证无 JD 时不计入 JD 维度，且权重归一到 100。"""
     resume = _full_resume()

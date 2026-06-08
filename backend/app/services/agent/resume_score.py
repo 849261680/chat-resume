@@ -32,6 +32,7 @@ _EN_STOPWORDS = {
     "and", "or", "the", "for", "with", "you", "our", "will", "are", "etc",
     "to", "of", "in", "on", "at", "as", "is", "be", "we", "an", "by",
 }
+_SECTION_PRIORITY = {"work_experience": 0, "projects": 1, "education": 2}
 
 
 def score_resume(resume_content: dict[str, Any]) -> dict[str, Any]:
@@ -47,13 +48,17 @@ def score_resume(resume_content: dict[str, Any]) -> dict[str, Any]:
 
     scored = _apply_weights(dimensions)
     total = round(sum(item["score"] for item in scored))
+    priority_actions = _build_priority_actions(scored)
     return {
         "success": True,
         "message": "已完成简历评分。",
         "total_score": total,
         "grade": _grade(total),
+        "diagnosis": _build_diagnosis(total, scored),
         "dimensions": scored,
         "top_suggestions": _collect_top_suggestions(scored),
+        "priority_actions": priority_actions,
+        "agent_next_step": _agent_next_step(priority_actions),
     }
 
 
@@ -89,6 +94,157 @@ def _collect_top_suggestions(scored: list[dict[str, Any]]) -> list[str]:
     return _dedupe(suggestions)[:4]
 
 
+def _build_diagnosis(total: int, scored: list[dict[str, Any]]) -> dict[str, Any]:
+    """用于生成面向 Agent 解释和决策的结构化诊断摘要。"""
+    primary = _primary_risk(scored)
+    return {
+        "verdict": _verdict(total, primary),
+        "risk_level": _risk_level(total),
+        "primary_risk": primary,
+        "evidence": _collect_evidence(scored),
+    }
+
+
+def _primary_risk(scored: list[dict[str, Any]]) -> dict[str, Any]:
+    """用于找出相对得分最低的评分维度。"""
+    if not scored:
+        return {}
+    weakest = min(scored, key=lambda item: item["score"] / (item["max"] or 1))
+    return {
+        "dimension_key": weakest["key"],
+        "dimension_name": weakest["name"],
+        "score": weakest["score"],
+        "max": weakest["max"],
+        "reason": _dimension_reason(weakest),
+    }
+
+
+def _dimension_reason(dimension: dict[str, Any]) -> str:
+    """用于把维度 findings 压缩成一句主风险原因。"""
+    first = (dimension.get("findings") or [{}])[0]
+    if first.get("issue"):
+        return str(first["issue"])
+    return f"{dimension['name']}当前没有明显扣分项。"
+
+
+def _collect_evidence(scored: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """用于汇总能支撑评分结论的扣分证据和优势证据。"""
+    evidence: list[dict[str, Any]] = []
+    for dimension in scored:
+        evidence.extend(_finding_evidence(dimension))
+        if not dimension["findings"]:
+            evidence.append(_strength_evidence(dimension))
+    return evidence[:8]
+
+
+def _finding_evidence(dimension: dict[str, Any]) -> list[dict[str, Any]]:
+    """用于把单个维度的 finding 转成诊断证据。"""
+    return [
+        {
+            "dimension_key": dimension["key"],
+            "dimension_name": dimension["name"],
+            "issue": finding["issue"],
+            "suggestion": finding["suggestion"],
+            "target": _finding_target(finding),
+        }
+        for finding in dimension["findings"][:3]
+    ]
+
+
+def _strength_evidence(dimension: dict[str, Any]) -> dict[str, Any]:
+    """用于生成无扣分维度的正向证据。"""
+    return {
+        "dimension_key": dimension["key"],
+        "dimension_name": dimension["name"],
+        "issue": "该维度暂无明显短板",
+        "suggestion": "保持当前写法，优先处理其他低分维度",
+        "target": {},
+    }
+
+
+def _build_priority_actions(scored: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """用于把 findings 转成 Agent 可执行的下一步动作列表。"""
+    actions = []
+    for dimension in _dimensions_by_weakness(scored):
+        actions.extend(_dimension_actions(dimension))
+    actions.sort(key=_action_sort_key)
+    return actions[:5]
+
+
+def _agent_next_step(priority_actions: list[dict[str, Any]]) -> str:
+    """用于根据是否存在优先动作生成 Agent 复评提示。"""
+    if not priority_actions:
+        return "当前没有明确扣分动作；可询问用户目标岗位或新的 JD，然后再次调用 score_resume 复评。"
+    return (
+        "先处理 priority_actions[0] 指向的最高优先级问题；如果包含 "
+        "item_id/bullet_id，调用对应编辑工具更新该 bullet，然后再次调用 "
+        "score_resume 复评。"
+    )
+
+
+def _dimensions_by_weakness(scored: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """用于按相对短板程度排序维度。"""
+    return sorted(scored, key=lambda item: item["score"] / (item["max"] or 1))
+
+
+def _dimension_actions(dimension: dict[str, Any]) -> list[dict[str, Any]]:
+    """用于把单个维度的 findings 转成候选动作。"""
+    return [
+        {
+            "dimension_key": dimension["key"],
+            "dimension_name": dimension["name"],
+            "title": finding["suggestion"],
+            "reason": finding["issue"],
+            "target": _finding_target(finding),
+            "section": finding.get("section", ""),
+            "tool_hint": _tool_hint(finding),
+        }
+        for finding in dimension["findings"]
+    ]
+
+
+def _action_sort_key(action: dict[str, Any]) -> tuple[int, int]:
+    """用于优先选择工作或项目 bullet 这类可直接编辑的动作。"""
+    has_target = 0 if action["target"] else 1
+    section_rank = _SECTION_PRIORITY.get(str(action.get("section") or ""), 9)
+    return has_target, section_rank
+
+
+def _finding_target(finding: dict[str, Any]) -> dict[str, str]:
+    """用于从 finding 中提取可编辑的 item/bullet 定位信息。"""
+    item_id = str(finding.get("item_id") or "")
+    bullet_id = str(finding.get("bullet_id") or "")
+    if item_id and bullet_id:
+        return {"item_id": item_id, "bullet_id": bullet_id}
+    return {}
+
+
+def _tool_hint(finding: dict[str, Any]) -> str:
+    """用于给 Agent 提供下一步可考虑调用的编辑工具名称。"""
+    if _finding_target(finding):
+        return "update_bullet"
+    if finding.get("missing_keyword"):
+        return "add_bullet"
+    return "update_resume"
+
+
+def _risk_level(total: int) -> str:
+    """用于把总分转成便于 UI 或 Agent 展示的风险等级。"""
+    if total >= 85:
+        return "low"
+    if total >= 70:
+        return "medium"
+    return "high"
+
+
+def _verdict(total: int, primary: dict[str, Any]) -> str:
+    """用于生成一句简短的总体判断。"""
+    if total >= 85:
+        return "简历基础质量较好，建议围绕最低分维度做小幅增强。"
+    name = primary.get("dimension_name") or "核心维度"
+    return f"当前最大短板是{name}，应先处理证据最明确、可直接编辑的经历要点。"
+
+
 def _score_completeness(resume_content: dict[str, Any]) -> dict[str, Any]:
     """用于检查必填板块和字段是否齐全。"""
     personal = resume_content.get("personal_info") or {}
@@ -120,11 +276,11 @@ def _score_quantification(resume_content: dict[str, Any]) -> dict[str, Any]:
         return {"key": "quantification", "ratio": 0.0, "findings": []}
     findings = [
         {
-            "item_id": item_id, "bullet_id": bullet_id,
+            "section": section, "item_id": item_id, "bullet_id": bullet_id,
             "issue": "该要点缺少量化结果",
             "suggestion": "补充可量化的影响，如提升 X%、覆盖 N 用户、缩短到 M 秒",
         }
-        for _, item_id, bullet_id, text in bullets
+        for section, item_id, bullet_id, text in bullets
         if not _NUMBER_RE.search(text)
     ]
     ratio = (len(bullets) - len(findings)) / len(bullets)
@@ -138,11 +294,11 @@ def _score_expression(resume_content: dict[str, Any]) -> dict[str, Any]:
         return {"key": "expression", "ratio": 0.0, "findings": []}
     findings = [
         {
-            "item_id": item_id, "bullet_id": bullet_id,
+            "section": section, "item_id": item_id, "bullet_id": bullet_id,
             "issue": _expression_issue(text),
             "suggestion": "用强动作动词开头，控制在一行内，并说清任务-方案-结果",
         }
-        for _, item_id, bullet_id, text in bullets
+        for section, item_id, bullet_id, text in bullets
         if _expression_issue(text)
     ]
     ratio = (len(bullets) - len(findings)) / len(bullets)

@@ -15,6 +15,7 @@ def score_resume(
     resume_content: dict[str, Any],
     *,
     semantic_reviewer: SemanticReviewer = review_resume_semantics,
+    score_history: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """用于计算整份简历的规则分、语义评审、总分和可执行修改建议。"""
     rule_checks = score_resume_rules(resume_content)
@@ -23,18 +24,20 @@ def score_resume(
     )
     total = _calibrated_total(rule_checks["score"], semantic_review)
     priority_actions = _merge_priority_actions(rule_checks, semantic_review)
+    convergence = _assess_convergence(total, score_history, priority_actions)
     return {
         "success": True,
-        "message": "已完成简历评分。",
+        "message": _score_message(total, convergence),
         "total_score": total,
         "grade": grade_score(total),
         "rule_checks": rule_checks,
         "semantic_review": semantic_review,
         "diagnosis": _build_diagnosis(total, rule_checks, semantic_review),
+        "convergence": convergence,
         "dimensions": rule_checks["dimensions"],
         "top_suggestions": rule_checks["top_suggestions"],
         "priority_actions": priority_actions,
-        "agent_next_step": _agent_next_step(priority_actions),
+        "agent_next_step": _agent_next_step(priority_actions, convergence),
     }
 
 
@@ -256,8 +259,13 @@ def _verdict(total: int, primary: dict[str, Any]) -> str:
     return f"当前最大短板是{name}，应先处理证据最明确、可直接编辑的经历要点。"
 
 
-def _agent_next_step(priority_actions: list[dict[str, Any]]) -> str:
-    """用于根据是否存在优先动作生成 Agent 复评提示。"""
+def _agent_next_step(
+    priority_actions: list[dict[str, Any]],
+    convergence: dict[str, Any] | None = None,
+) -> str:
+    """用于根据是否存在优先动作和收敛状态生成 Agent 复评提示。"""
+    if convergence and convergence.get("should_stop"):
+        return convergence.get("stop_reason", "简历已达到当前优化天花板。")
     if not priority_actions:
         return "当前没有明确扣分动作；可询问用户目标岗位或新的 JD，然后再次调用 score_resume 复评。"
     return (
@@ -267,4 +275,81 @@ def _agent_next_step(priority_actions: list[dict[str, Any]]) -> str:
     )
 
 
-__all__ = ["score_resume"]
+def _assess_convergence(
+    current_score: int,
+    score_history: list[dict[str, Any]] | None,
+    priority_actions: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    """用于评估分数收敛状态，返回 None 表示首次评分无历史可比。"""
+    if not score_history:
+        return None
+    previous_scores = [
+        snap["total_score"]
+        for snap in score_history
+        if isinstance(snap.get("total_score"), (int, float))
+    ]
+    if not previous_scores:
+        return None
+    initial_score = previous_scores[0]
+    last_score = previous_scores[-1]
+    improvement_from_last = current_score - last_score
+    total_improvement = current_score - initial_score
+    # 收敛判断：达到目标分数
+    if current_score >= 85:
+        return {
+            "status": "converged",
+            "should_stop": True,
+            "stop_reason": f"总分 {current_score} 已达到优秀水平（≥85），优化完成。",
+            "initial_score": initial_score,
+            "last_score": last_score,
+            "current_score": current_score,
+            "total_improvement": total_improvement,
+            "rounds": len(previous_scores) + 1,
+        }
+    # 收敛判断：连续两轮无提升
+    if improvement_from_last <= 0 and len(previous_scores) >= 1:
+        # 再检查倒数第二轮
+        if len(previous_scores) >= 2 and previous_scores[-1] <= previous_scores[-2]:
+            return {
+                "status": "plateaued",
+                "should_stop": True,
+                "stop_reason": (
+                    f"连续 2 轮评分无提升（{previous_scores[-2]}→{previous_scores[-1]}→{current_score}），"
+                    f"已达当前内容天花板。"
+                ),
+                "initial_score": initial_score,
+                "last_score": last_score,
+                "current_score": current_score,
+                "total_improvement": total_improvement,
+                "rounds": len(previous_scores) + 1,
+            }
+    # 收敛判断：无更多可改项
+    if not priority_actions:
+        return {
+            "status": "no_actions",
+            "should_stop": True,
+            "stop_reason": "所有可检测问题已处理完毕，无需继续优化。",
+            "initial_score": initial_score,
+            "last_score": last_score,
+            "current_score": current_score,
+            "total_improvement": total_improvement,
+            "rounds": len(previous_scores) + 1,
+        }
+    # 仍在进步中
+    return {
+        "status": "improving",
+        "should_stop": False,
+        "stop_reason": "",
+        "initial_score": initial_score,
+        "last_score": last_score,
+        "current_score": current_score,
+        "total_improvement": total_improvement,
+        "rounds": len(previous_scores) + 1,
+    }
+
+
+def _score_message(total: int, convergence: dict[str, Any] | None) -> str:
+    """用于生成面向用户的评分结果描述。"""
+    if convergence and convergence.get("should_stop"):
+        return convergence.get("stop_reason", "已完成简历评分。")
+    return f"已完成简历评分，当前 {total} 分。"

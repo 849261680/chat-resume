@@ -31,6 +31,39 @@ _EN_STOPWORDS = {
     "and", "or", "the", "for", "with", "you", "our", "will", "are", "etc",
     "to", "of", "in", "on", "at", "as", "is", "be", "we", "an", "by",
 }
+
+# 同义词组：每组内的任一关键词命中视为全部命中。
+_SYNONYM_GROUPS: tuple[tuple[str, ...], ...] = (
+    ("微服务", "Microservice", "microservice", "服务拆分", "服务化"),
+    ("高并发", "High Concurrency", "大并发", "高吞吐"),
+    ("性能优化", "Performance Optimization", "性能调优", "调优"),
+    ("前端", "Frontend", "frontend", "Web 前端"),
+    ("后端", "Backend", "backend", "服务端"),
+    ("消息队列", "Message Queue", "MQ", "消息中间件", "Kafka", "RabbitMQ"),
+    ("向量数据库", "Vector Database", "向量检索", "向量存储"),
+    ("检索增强", "RAG", "Retrieval Augmented"),
+    ("可观测", "Observability", "监控", "可观测性", "链路追踪"),
+    ("机器学习", "Machine Learning", "ML"),
+    ("深度学习", "Deep Learning", "DL", "神经网络"),
+    ("数据分析", "Data Analysis", "数据分析"),
+    ("推荐系统", "Recommendation System", "推荐引擎", "推荐算法"),
+    ("系统设计", "System Design", "架构设计", "架构"),
+    ("工作流", "Workflow", "工作流引擎", "流程引擎"),
+    ("Agent", "AI Agent", "智能体"),
+    ("项目管理", "Project Management"),
+    ("团队协作", "Team Collaboration"),
+    ("全栈", "Full Stack", "fullstack", "full-stack"),
+)
+
+# JD 中暗示必需技能的句式模式
+_REQUIRED_PATTERNS = re.compile(
+    r"(必须|要求|需要|必备|required|must have|essential|mandatory)",
+    re.IGNORECASE,
+)
+_PREFERRED_PATTERNS = re.compile(
+    r"(优先|加分|nice to have|preferred|plus|bonus|preferred)",
+    re.IGNORECASE,
+)
 _SECTION_PRIORITY = {"work_experience": 0, "projects": 1, "education": 2}
 
 
@@ -230,21 +263,31 @@ def _score_expression(resume_content: dict[str, Any]) -> dict[str, Any]:
 
 
 def _score_jd_match(resume_content: dict[str, Any], jd_text: str) -> dict[str, Any]:
-    """用于按确定性关键词覆盖率衡量简历与 JD 的匹配度。"""
+    """用于按同义词感知、权重化的关键词匹配率衡量简历与 JD 的匹配度。"""
     keywords = _extract_jd_keywords(jd_text)
     if not keywords:
         return {"key": "jd_match", "ratio": 0.0, "findings": []}
     resume_text = flatten_resume_text(resume_content).lower()
-    missing = [kw for kw in keywords if kw.lower() not in resume_text]
-    ratio = (len(keywords) - len(missing)) / len(keywords)
-    findings = [
-        {
-            "issue": f"JD 关键词「{keyword}」未在简历中体现",
-            "suggestion": f"如有真实经历，补充与「{keyword}」相关的事实和结果",
-            "missing_keyword": keyword,
-        }
-        for keyword in missing[:6]
-    ]
+    synonym_index = _build_synonym_index()
+    weighted_hits = 0.0
+    total_weight = 0.0
+    missing: list[dict[str, Any]] = []
+    for entry in keywords:
+        keyword = entry["keyword"]
+        weight = entry["weight"]
+        total_weight += weight
+        if _keyword_matches_resume(keyword, resume_text, synonym_index):
+            weighted_hits += weight
+        else:
+            missing.append({
+                "issue": f"JD 关键词「{keyword}」未在简历中体现",
+                "suggestion": f"如有真实经历，补充与「{keyword}」相关的事实和结果",
+                "missing_keyword": keyword,
+                "weight": weight,
+            })
+    ratio = weighted_hits / total_weight if total_weight else 0.0
+    missing.sort(key=lambda m: m["weight"], reverse=True)
+    findings = missing[:6]
     return {"key": "jd_match", "ratio": ratio, "findings": findings}
 
 
@@ -282,15 +325,87 @@ def _has_any(resume_content: dict[str, Any], sections: tuple[str, ...]) -> bool:
     return any(resume_content.get(section) for section in sections)
 
 
-def _extract_jd_keywords(jd_text: str) -> list[str]:
-    """用于从 JD 中提取确定性关键词，最多 20 个。"""
-    keywords = [kw for kw in _COMMON_CN_KEYWORDS if kw in jd_text]
-    keywords.extend(
-        match.group(0)
-        for match in _ENGLISH_KEYWORD_RE.finditer(jd_text)
-        if _valid_en_keyword(match.group(0))
-    )
-    return _dedupe(keywords)[:20]
+def _extract_jd_keywords(jd_text: str) -> list[dict[str, Any]]:
+    """用于从 JD 中提取带权重的关键词，最多 20 个。"""
+    keywords: list[dict[str, Any]] = []
+    seen_names: set[str] = set()
+    for kw in _COMMON_CN_KEYWORDS:
+        if kw in jd_text and kw not in seen_names:
+            seen_names.add(kw)
+            keywords.append({
+                "keyword": kw,
+                "weight": _infer_keyword_weight(kw, jd_text),
+            })
+    for match in _ENGLISH_KEYWORD_RE.finditer(jd_text):
+        token = match.group(0)
+        if _valid_en_keyword(token) and token not in seen_names:
+            seen_names.add(token)
+            keywords.append({
+                "keyword": token,
+                "weight": _infer_keyword_weight(token, jd_text),
+            })
+    return _dedupe_keywords(keywords)[:20]
+
+
+def _infer_keyword_weight(keyword: str, jd_text: str) -> float:
+    """用于根据 JD 子句上下文推断关键词权重。必需=2.0，普通=1.0，加分=0.5。"""
+    pos = jd_text.lower().find(keyword.lower())
+    if pos < 0:
+        return 1.0
+    # 向前回溯到最近的子句分隔符
+    sentence_start = 0
+    for sep in ("。", "\n", ";", "；", "•", "·", "，", ","):
+        idx = jd_text.rfind(sep, 0, pos)
+        if idx >= 0:
+            sentence_start = max(sentence_start, idx + 1)
+    # 向后到最近的子句分隔符
+    kw_end = pos + len(keyword)
+    sentence_end = len(jd_text)
+    for sep in ("。", "\n", ";", "；", "•", "·", "，", ","):
+        idx = jd_text.find(sep, kw_end)
+        if idx >= 0:
+            sentence_end = min(sentence_end, idx)
+    clause = jd_text[sentence_start:sentence_end]
+    # 优先判断加分，再判断必需
+    if _PREFERRED_PATTERNS.search(clause):
+        return 0.5
+    if _REQUIRED_PATTERNS.search(clause):
+        return 2.0
+    return 1.0
+
+
+def _build_synonym_index() -> dict[str, set[str]]:
+    """用于构建关键词到同义词集合的映射。"""
+    index: dict[str, set[str]] = {}
+    for group in _SYNONYM_GROUPS:
+        lowered = {member.lower() for member in group}
+        for member in group:
+            index[member.lower()] = lowered
+    return index
+
+
+def _keyword_matches_resume(
+    keyword: str,
+    resume_text: str,
+    synonym_index: dict[str, set[str]],
+) -> bool:
+    """用于判断关键词（含同义词）是否在简历文本中命中。"""
+    if keyword.lower() in resume_text:
+        return True
+    synonyms = synonym_index.get(keyword.lower())
+    if synonyms is None:
+        return False
+    return any(syn in resume_text for syn in synonyms)
+
+
+def _dedupe_keywords(keywords: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """用于按关键词去重，保留权重最高的条目。"""
+    best: dict[str, dict[str, Any]] = {}
+    for entry in keywords:
+        key = entry["keyword"].lower()
+        if key not in best or entry["weight"] > best[key]["weight"]:
+            best[key] = entry
+    return list(best.values())
 
 
 def _valid_en_keyword(keyword: str) -> bool:

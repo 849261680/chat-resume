@@ -1,0 +1,143 @@
+/**
+ * 聊天输入框组件
+ *
+ * 用于隔离 inputMessage 状态，避免每次击键触发 ResumeEditPage 整体重渲染。
+ * inputMessage 管在组件内部，只在发送时通知父组件。
+ */
+
+'use client'
+
+import React, { useCallback, useLayoutEffect, useRef, useState } from 'react'
+import { ArrowUpIcon, StopIcon } from '@heroicons/react/24/outline'
+
+interface ChatInputBoxProps {
+  /** 外部注入的初始上下文（选中的简历文本） */
+  selectedResumeContext: string
+  /** 清除选中上下文 */
+  onClearContext: () => void
+  /** 发送消息 */
+  onSend: (message: string) => void
+  /** 停止流式输出 */
+  onStop: () => void
+  /** 是否正在发送 */
+  isSending: boolean
+  /** 是否正在流式输出 */
+  isStreaming: boolean
+  /** 输入框占位文字 */
+  placeholder: string
+}
+
+// 用于渲染聊天输入框，将 inputMessage 状态隔离在组件内部。
+const ChatInputBox = React.memo(function ChatInputBox({
+  selectedResumeContext,
+  onClearContext,
+  onSend,
+  onStop,
+  isSending,
+  isStreaming,
+  placeholder,
+}: ChatInputBoxProps) {
+  const [inputMessage, setInputMessage] = useState('')
+  const chatInputRef = useRef<HTMLTextAreaElement>(null)
+
+  // textarea 按内容自动增高
+  useLayoutEffect(() => {
+    const input = chatInputRef.current
+    if (!input) return
+    input.style.height = 'auto'
+    input.style.height = `${Math.min(input.scrollHeight, 160)}px`
+    input.style.overflowY = input.scrollHeight > 160 ? 'auto' : 'hidden'
+  }, [inputMessage])
+
+  const handleKeyDown = useCallback((event: React.KeyboardEvent) => {
+    if (event.key === 'Backspace' && selectedResumeContext && inputMessage.length === 0) {
+      event.preventDefault()
+      onClearContext()
+      return
+    }
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault()
+      const hasContent = inputMessage.trim() || selectedResumeContext.trim()
+      if (!hasContent || isSending || isStreaming) return
+      const message = selectedResumeContext.trim()
+        ? `选中的简历内容：\n${selectedResumeContext}\n\n用户要求：\n${inputMessage.trim()}`
+        : inputMessage.trim()
+      onSend(message)
+      setInputMessage('')
+    }
+  }, [inputMessage, selectedResumeContext, onClearContext, onSend, isSending, isStreaming])
+
+  const hasContent = inputMessage.trim() || selectedResumeContext.trim()
+
+  return (
+    <div className="pt-3 flex-shrink-0">
+      <div
+        data-testid="resume-chat-input-box"
+        className="relative min-h-[66px] px-3 py-2 pr-12"
+        style={{
+          border: '1px solid rgba(91,97,110,0.25)',
+          borderRadius: '12px',
+        }}
+      >
+        <div className="flex min-h-[48px] flex-wrap items-start gap-1.5">
+          {selectedResumeContext && (
+            <span
+              data-testid="selected-resume-context"
+              className="max-w-full whitespace-pre-wrap break-words rounded-md px-2 py-1 text-sm leading-relaxed"
+              style={{
+                backgroundColor: 'rgba(0,82,255,0.08)',
+                color: '#0667d0',
+              }}
+            >
+              {selectedResumeContext}
+            </span>
+          )}
+          <textarea
+            ref={chatInputRef}
+            value={inputMessage}
+            onChange={(e) => setInputMessage(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={placeholder}
+            className="min-h-[32px] min-w-[160px] flex-1 resize-none bg-transparent p-1 text-sm focus:outline-none"
+            style={{
+              color: '#0a0b0d',
+              overflowY: 'hidden',
+            }}
+            rows={1}
+            disabled={isSending || isStreaming}
+          />
+        </div>
+        <button
+          type="button"
+          aria-label={isStreaming ? '停止 Agent' : '发送消息'}
+          onClick={isStreaming ? onStop : () => {
+            if (!hasContent || isSending) return
+            const message = selectedResumeContext.trim()
+              ? `选中的简历内容：\n${selectedResumeContext}\n\n用户要求：\n${inputMessage.trim()}`
+              : inputMessage.trim()
+            onSend(message)
+            setInputMessage('')
+          }}
+          disabled={!isStreaming && (!hasContent || isSending)}
+          className="absolute right-3 bottom-3 w-9 h-9 rounded-full transition-colors flex items-center justify-center disabled:cursor-not-allowed"
+          style={{
+            backgroundColor: isStreaming
+              ? '#eef0f3'
+              : (hasContent ? '#0052ff' : '#eef0f3'),
+            color: isStreaming
+              ? '#111827'
+              : (hasContent ? '#ffffff' : '#9ca3af'),
+          }}
+        >
+          {isStreaming ? (
+            <StopIcon className="w-4 h-4" />
+          ) : (
+            <ArrowUpIcon className="w-4 h-4" />
+          )}
+        </button>
+      </div>
+    </div>
+  )
+})
+
+export default ChatInputBox

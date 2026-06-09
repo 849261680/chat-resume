@@ -22,6 +22,7 @@ TOOL_REQUIRED_ARGS: dict[str, set[str]] = {
     "add_bullet": {"section", "item_id", "text"},
     "remove_bullet": {"section", "item_id", "bullet_id"},
     "score_resume": set(),
+    "evaluate_bullet": {"section", "item_id", "bullet_id"},
     "list_job_posts": set(),
     "read_job_post": {"job_post_id"},
     "read_memory": {"scope"},
@@ -55,6 +56,7 @@ TOOL_SECTION_ENUMS: dict[str, set[str]] = {
     "update_bullet": {"education", "work_experience", "projects"},
     "add_bullet": {"education", "work_experience", "projects"},
     "remove_bullet": {"education", "work_experience", "projects"},
+    "evaluate_bullet": {"education", "work_experience", "projects"},
 }
 
 TOOL_DISPLAY_NAMES = {
@@ -70,6 +72,7 @@ TOOL_DISPLAY_NAMES = {
     "add_bullet": "新增要点",
     "remove_bullet": "删除要点",
     "score_resume": "简历评分",
+    "evaluate_bullet": "评价要点",
     "list_job_posts": "读取JD列表",
     "read_job_post": "读取JD",
     "read_memory": "读取记忆",
@@ -180,6 +183,11 @@ class ResumeToolExecutor(ToolExecutor):
                 }
             if tool_name == "update_memory" and context.get("dry_run") is True:
                 tool_input = {**tool_input, "dry_run": True}
+            if tool_name == "score_resume":
+                tool_input = {
+                    **tool_input,
+                    "score_history": context.get("score_history") or [],
+                }
             result = execute_resume_tool(
                 tool_name=tool_name,
                 resume_content=resume_content,

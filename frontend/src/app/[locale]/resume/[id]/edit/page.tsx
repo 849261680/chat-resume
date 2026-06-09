@@ -13,6 +13,7 @@ import { useAuth } from '@/lib/auth'
 import { resumeApi, type Resume } from '@/lib/api'
 import { formatApiErrorMessage } from '@/lib/apiErrors'
 import { Link } from '@/i18n/navigation'
+import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 import {
   ArrowLeftIcon,
   ArrowUpIcon,
@@ -20,7 +21,6 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   PlayCircleIcon,
-  StopIcon,
   TrashIcon,
   XMarkIcon
 } from '@heroicons/react/24/outline'
@@ -42,6 +42,7 @@ import { usePanelLayout } from '@/hooks/usePanelLayout'
 import { useResumeChatPanel } from '@/hooks/useResumeChatPanel'
 import { useResumeEditor } from '@/hooks/useResumeEditor'
 import SectionVisibilityConfirmCard from '@/components/editor/SectionVisibilityConfirmCard'
+import ChatInputBox from '@/components/editor/ChatInputBox'
 import { useLocale, useTranslations } from 'next-intl'
 import { toInterviewLanguage, type AppLocale } from '@/i18n/routing'
 import toast from 'react-hot-toast'
@@ -343,8 +344,6 @@ export default function ResumeEditPage() {
 
   const {
     messages,
-    inputMessage,
-    setInputMessage,
     selectedResumeContext,
     isSending,
     isClearingMessages,
@@ -352,18 +351,17 @@ export default function ResumeEditPage() {
     setApiError,
     messagesEndRef,
     messagesContainerRef,
-    chatInputRef,
     isStreaming,
     streamEvents,
     confirmTool,
     restorePendingConfirmation,
     stopStreaming,
+    setSelectedResumeContext,
+    dispatchMessage,
     handleMessagesScroll,
     handleClearMessages,
-    handleKeyPress,
     appendToInputMessage,
     sendMessageWithContext,
-    sendMessage,
   } = useResumeChatPanel({
     resumeId,
     visibleModules: Array.from(layoutConfig.visibleModules),
@@ -630,6 +628,9 @@ export default function ResumeEditPage() {
       setIsCreatingInterview(false)
     }
   }, [common, isCreatingInterview, locale, resume, router, t])
+
+  // 预览区内容防抖：编辑器输入时只更新本地状态，停止输入 300ms 后才重渲染预览
+  const previewContent = useDebouncedValue(resume?.content, 300)
 
   if (!mounted || isLoading || resumeLoading) {
     return (
@@ -1035,7 +1036,7 @@ export default function ResumeEditPage() {
             <div className="flex-1 overflow-y-auto min-h-0 hide-scrollbar print:overflow-visible print:h-auto">
               <ResumePreview
                 key={JSON.stringify(moduleOrder.map(m => `${m.type}-${m.order}-${m.visible}`))}
-                content={resume.content}
+                content={previewContent ?? resume.content}
                 moduleOrder={moduleOrder}
                 spacingScale={layoutConfig.spacingScale}
                 templateStyle={layoutConfig.templateStyle}
@@ -1387,66 +1388,15 @@ export default function ResumeEditPage() {
                 </div>
 
                 {/* Input Area */}
-                <div className="pt-3 flex-shrink-0">
-                  <div
-                    data-testid="resume-chat-input-box"
-                    className="relative min-h-[66px] px-3 py-2 pr-12"
-                    style={{
-                      border: '1px solid rgba(91,97,110,0.25)',
-                      borderRadius: '12px',
-                    }}
-                  >
-                    <div className="flex min-h-[48px] flex-wrap items-start gap-1.5">
-                      {selectedResumeContext && (
-                        <span
-                          data-testid="selected-resume-context"
-                          className="max-w-full whitespace-pre-wrap break-words rounded-md px-2 py-1 text-sm leading-relaxed"
-                          style={{
-                            backgroundColor: 'rgba(0,82,255,0.08)',
-                            color: '#0667d0',
-                          }}
-                        >
-                          {selectedResumeContext}
-                        </span>
-                      )}
-                      <textarea
-                        ref={chatInputRef}
-                        value={inputMessage}
-                        onChange={(e) => setInputMessage(e.target.value)}
-                        onKeyDown={handleKeyPress}
-                        placeholder={t('messagePlaceholder')}
-                        className="min-h-[32px] min-w-[160px] flex-1 resize-none bg-transparent p-1 text-sm focus:outline-none"
-                        style={{
-                          color: '#0a0b0d',
-                          overflowY: 'hidden',
-                        }}
-                        rows={1}
-                        disabled={isSending || isStreaming}
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      aria-label={isStreaming ? '停止 Agent' : '发送消息'}
-                      onClick={isStreaming ? stopStreaming : sendMessage}
-                      disabled={!isStreaming && ((!inputMessage.trim() && !selectedResumeContext.trim()) || isSending)}
-                      className="absolute right-3 bottom-3 w-9 h-9 rounded-full transition-colors flex items-center justify-center disabled:cursor-not-allowed"
-                      style={{
-                        backgroundColor: isStreaming
-                          ? '#eef0f3'
-                          : ((inputMessage.trim() || selectedResumeContext.trim()) ? '#0052ff' : '#eef0f3'),
-                        color: isStreaming
-                          ? '#111827'
-                          : ((inputMessage.trim() || selectedResumeContext.trim()) ? '#ffffff' : '#9ca3af'),
-                      }}
-                    >
-                      {isStreaming ? (
-                        <StopIcon className="w-4 h-4" />
-                      ) : (
-                        <ArrowUpIcon className="w-4 h-4" />
-                      )}
-                    </button>
-                  </div>
-                </div>
+                <ChatInputBox
+                  selectedResumeContext={selectedResumeContext}
+                  onClearContext={() => setSelectedResumeContext('')}
+                  onSend={(message) => { void dispatchMessage(message) }}
+                  onStop={stopStreaming}
+                  isSending={isSending}
+                  isStreaming={isStreaming}
+                  placeholder={t('messagePlaceholder')}
+                />
               </div>
               </motion.div>
               </AnimatePresence>

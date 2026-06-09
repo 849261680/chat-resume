@@ -1,6 +1,7 @@
 """用于集中暴露简历编辑相关的顶层工具。"""
 
 from .add_bullet_tool import add_bullet
+from .evaluate_bullet_tool import evaluate_bullet
 from .job_post_tool import list_job_posts, read_job_post
 from .resume_item_tool import hide_section, show_section
 from .registry import RESUME_TOOLS_SCHEMA, execute_resume_tool
@@ -15,6 +16,7 @@ from .update_summary_tool import update_summary
 __all__ = [
     "RESUME_TOOLS_SCHEMA",
     "add_bullet",
+    "evaluate_bullet",
     "show_section",
     "execute_resume_tool",
     "list_job_posts",

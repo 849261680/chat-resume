@@ -331,6 +331,8 @@ export function useResumeChatPanel({
     confirmTool,
     stopStreaming,
     restorePendingConfirmation,
+    setSelectedResumeContext,
+    dispatchMessage,
     handleMessagesScroll,
     handleClearMessages,
     handleKeyPress,

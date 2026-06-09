@@ -19,6 +19,7 @@ from .update_profile_tool import update_profile
 from .update_skills_tool import update_skills
 from .update_summary_tool import update_summary
 from .upsert_job_application_tool import upsert_job_application
+from .evaluate_bullet_tool import evaluate_bullet
 
 _BULLET_SECTIONS = ["education", "work_experience", "projects"]
 ResumeToolResult = dict[str, Any] | Awaitable[dict[str, Any]]
@@ -396,6 +397,37 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
+            "name": "evaluate_bullet",
+            "description": (
+                "用 LLM 以招聘经理视角评价单条简历要点。从量化程度、动作表达、"
+                "结果影响、主导性和整体说服力五个维度打分，给出改进建议。"
+                "只读不改简历；适合用户要求评价某条要点、分析为什么某条不够好时调用。"
+                "section 只能是 education、work_experience、projects；"
+                "item_id 和 bullet_id 必须来自当前简历 JSON。"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "section": {
+                        "type": "string",
+                        "enum": _BULLET_SECTIONS,
+                    },
+                    "item_id": {
+                        "type": "string",
+                        "description": "经历/项目/教育条目的 id",
+                    },
+                    "bullet_id": {
+                        "type": "string",
+                        "description": "要评价的 bullet id",
+                    },
+                },
+                "required": ["section", "item_id", "bullet_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "read_memory",
             "description": (
                 "读取当前用户或当前简历的长期记忆。适合在优化前了解用户长期偏好、"
@@ -650,6 +682,11 @@ RESUME_TOOL_CATALOG: tuple[ResumeToolDefinition, ...] = (
         "score_resume",
         score_resume_tool,
         _SCHEMA_BY_NAME.get("score_resume"),
+    ),
+    ResumeToolDefinition(
+        "evaluate_bullet",
+        evaluate_bullet,
+        _SCHEMA_BY_NAME.get("evaluate_bullet"),
     ),
     ResumeToolDefinition(
         "list_job_posts",

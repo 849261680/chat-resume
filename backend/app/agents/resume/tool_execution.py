@@ -25,6 +25,7 @@ from app.agents.resume.event_publisher import publish_resume_runtime_event
 from app.infra.config import settings
 from app.runtime.contracts import AgentDefinition, RuntimeEventCallback
 from app.runtime.tool_confirmation import ToolConfirmationPolicy
+from app.agents.resume.quality_gate import evaluate_resume_edit_quality
 from app.types.stream import ResumeStreamEvent
 
 logger = logging.getLogger("app.agents.resume.runtime")
@@ -284,6 +285,36 @@ class ResumeToolExecutionStage:
                 needs_confirmation=False,
             )
             return json.dumps(result, ensure_ascii=False)
+        quality_failure = self.quality_gate_failure(
+            tool_name=tool_name,
+            tool_input=tool_input,
+            context=context,
+            preview_result=preview_result,
+        )
+        if quality_failure is not None:
+            self.trace_tool_executed(
+                agent,
+                run_id,
+                call_id,
+                tool_name,
+                quality_failure,
+                tool_started_at,
+            )
+            quality_result = quality_failure["result"]
+            executed_tools.append(self.executed_tool_summary(quality_failure, quality_result))
+            await self.publish_tool_result(
+                call_id=call_id,
+                tool_name=tool_name,
+                tool_result=quality_failure,
+                result=quality_result,
+                display_message=quality_failure.get("display_message"),
+                event_queue=event_queue,
+                event_callback=event_callback,
+                executed_tools=executed_tools,
+                context=context,
+                needs_confirmation=False,
+            )
+            return json.dumps(quality_result, ensure_ascii=False)
         await self.publish_event(
             event_queue=event_queue,
             event_callback=event_callback,
@@ -660,6 +691,46 @@ class ResumeToolExecutionStage:
             confirmation_wait_ms=confirmation_wait_ms,
             terminate_turn=terminate_turn,
         )
+
+    @staticmethod
+    def quality_gate_failure(
+        *,
+        tool_name: str,
+        tool_input: dict[str, Any],
+        context: dict[str, Any],
+        preview_result: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        """用于把质量门禁未通过结果转换成工具失败载荷。"""
+        resume_content = context.get("resume_content")
+        if not isinstance(resume_content, dict):
+            return None
+        gate = evaluate_resume_edit_quality(
+            resume_content=resume_content,
+            tool_name=tool_name,
+            tool_input=tool_input,
+            preview_result=preview_result.get("result", {}),
+            user_message=str(context.get("user_message") or ""),
+        )
+        if gate.get("passed") is True:
+            return None
+        message = str(gate.get("message") or "这次改写没有通过简历质量门禁。")
+        result = {
+            "success": False,
+            "error": {
+                "type": str(gate.get("error_type") or "resume_quality_gate_failed"),
+                "message": message,
+                "recoverable": bool(gate.get("recoverable", True)),
+            },
+            "message": message,
+            "unsupported_claims": gate.get("unsupported_claims", []),
+        }
+        return {
+            "tool_name": str(preview_result.get("tool_name") or tool_name),
+            "result": result,
+            "display_message": message,
+            "qr_image": None,
+            "updated_section_name": None,
+        }
 
     def trace_tool_executed(
         self,

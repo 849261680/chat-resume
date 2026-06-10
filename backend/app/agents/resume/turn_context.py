@@ -47,6 +47,7 @@ class ResumeTurnContextBuilder:
         stream_state: dict[str, Any],
     ) -> tuple[AgentContext, list[Message], AgentLoopConfig]:
         """用于生成一次 ReAct loop 的上下文、prompt 和配置。"""
+        context["user_message"] = user_message
         context["conversation_history"] = conversation_history or []
         context["confirmed_diff_items"] = stream_state["confirmed_diff_items"]
         tool_profile = self.tool_profile(agent, context)

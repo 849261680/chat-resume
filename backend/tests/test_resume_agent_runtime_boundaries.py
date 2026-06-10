@@ -745,7 +745,11 @@ async def test_resume_tool_execution_stage_runs_confirmed_tool_independently():
             "text": "维护多个后台服务，支撑日活 10 万用户",
             "reason": "补充业务规模",
         },
-        context={"resume_content": resume, "allowed_sections": {"work_experience"}},
+        context={
+            "resume_content": resume,
+            "allowed_sections": {"work_experience"},
+            "user_message": "这个后台服务实际支撑日活 10 万用户",
+        },
         confirmation_queue=confirmation_queue,
         event_queue=event_queue,
         event_callback=None,
@@ -765,6 +769,70 @@ async def test_resume_tool_execution_stage_runs_confirmed_tool_independently():
     assert any(event.get("tool_confirmed") for event in events)
     assert executed_tools[0]["success"] is True
     assert stream_state["confirmed_diff_items"]
+
+
+@pytest.mark.asyncio
+async def test_resume_tool_execution_stage_blocks_unsupported_claims_before_confirmation():
+    """用于验证无来源事实不会进入用户确认卡。"""
+    agent = ResumeAgent()
+    stage = ResumeToolExecutionStage()
+    resume = {
+        "projects": [
+            {
+                "id": "proj_1",
+                "name": "校园二手交易平台",
+                "highlights": [{"id": "hl_1", "text": "用 Spring Boot 写了商品发布和搜索接口"}],
+            }
+        ],
+        "skills": [{"id": "skill_1", "category": "后端", "items": ["Spring Boot", "MySQL"]}],
+    }
+    confirmation_queue: asyncio.Queue[bool] = asyncio.Queue()
+    confirmation_queue.put_nowait(True)
+    event_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+    stream_state = {
+        "visible_tool_call_ids": set(),
+        "confirmed_diff_items": [],
+        "confirmation_wait_ms": 0.0,
+        "chunk_index": 0,
+        "response_parts": [],
+    }
+    executed_tools: list[dict[str, Any]] = []
+
+    result = await stage.execute_tool_result(
+        agent=agent.definition,
+        run_id="run_quality_gate",
+        call_id="call_quality_gate",
+        tool_name="update_bullet",
+        tool_input={
+            "section": "projects",
+            "item_id": "proj_1",
+            "bullet_id": "hl_1",
+            "text": "引入 Redis 与 Kafka 优化搜索链路，支撑 10万 DAU 并将延迟降低 70%",
+            "reason": "贴合后端 JD",
+        },
+        context={
+            "resume_content": resume,
+            "allowed_sections": {"projects"},
+            "user_message": "帮我优化这个项目经历",
+        },
+        confirmation_queue=confirmation_queue,
+        event_queue=event_queue,
+        event_callback=None,
+        executed_tools=executed_tools,
+        stream_state=stream_state,
+    )
+
+    events: list[dict[str, Any]] = []
+    while not event_queue.empty():
+        events.append(event_queue.get_nowait())
+
+    assert result.details["success"] is False
+    assert result.details["error"]["type"] == "unsupported_resume_claim"
+    assert "Redis" in result.details["message"]
+    assert resume["projects"][0]["highlights"][0]["text"] == "用 Spring Boot 写了商品发布和搜索接口"
+    assert not any(event.get("tool_pending") for event in events)
+    assert any(event.get("tool_call_failed") for event in events)
+    assert executed_tools[0]["success"] is False
 
 
 @pytest.mark.asyncio
@@ -808,7 +876,11 @@ async def test_resume_tool_execution_stage_returns_feedback_on_rejection():
             "bullet_id": "hl_1",
             "text": "维护多个后台服务，支撑高并发场景",
         },
-        context={"resume_content": resume, "allowed_sections": {"work_experience"}},
+        context={
+            "resume_content": resume,
+            "allowed_sections": {"work_experience"},
+            "user_message": "这个后台服务实际支撑高并发场景",
+        },
         confirmation_queue=confirmation_queue,
         event_queue=event_queue,
         event_callback=None,
@@ -1091,7 +1163,7 @@ async def test_resume_agent_loop_runs_react_turns_independently():
     context = {"resume_content": resume, "allowed_sections": {"work_experience"}}
     pi_context, prompts, config = _build_test_turn_inputs(
         agent,
-        user_message="优化这段工作经历",
+        user_message="优化这段工作经历，这个服务实际支撑日活 10 万用户",
         context=context,
         state=state,
     )

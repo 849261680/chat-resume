@@ -12,6 +12,7 @@ from app.runtime.contracts import AgentDefinition
 from app.tools.resume.registry import RESUME_TOOLS_SCHEMA
 from app.types.stream import ResumeStreamEvent
 
+from .candidate_profile import load_candidate_profile_context
 from .executor import TOOL_REQUIRED_ARGS, ResumeToolExecutor
 from .prompt_context import build_resume_prompt_context, strip_redundant_fields
 from .runtime import ResumeAgentRuntime
@@ -163,6 +164,10 @@ class ResumeAgent:
                 "allowed_sections": allowed_sections,
                 "user_id": user_id,
                 "resume_id": resume_id,
+                "candidate_profile": load_candidate_profile_context(
+                    user_id=user_id,
+                    resume_id=resume_id,
+                ).markdown,
                 "list_job_posts_reader": list_job_posts_reader,
                 "read_job_post_reader": read_job_post_reader,
             },
@@ -198,6 +203,10 @@ class ResumeAgent:
             "allowed_sections": allowed_sections,
             "user_id": user_id,
             "resume_id": resume_id,
+            "candidate_profile": load_candidate_profile_context(
+                user_id=user_id,
+                resume_id=resume_id,
+            ).markdown,
             "list_job_posts_reader": list_job_posts_reader,
             "read_job_post_reader": read_job_post_reader,
             "visible_modules": visible_modules or [],

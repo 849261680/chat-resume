@@ -10,6 +10,7 @@ agent:
     target_title: ""
     target_company: ""
     jd_text: ""
+    candidate_profile: ""
     module_visibility: ""
   model_defaults:
     temperature: 0.4

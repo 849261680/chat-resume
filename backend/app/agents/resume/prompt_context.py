@@ -88,6 +88,7 @@ def build_resume_prompt_context(context: dict[str, Any]) -> dict[str, Any]:
             visible_modules,
         ),
         "score_history": score_history,
+        "candidate_profile": str(context.get("candidate_profile", "") or ""),
     }
 
 

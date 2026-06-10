@@ -117,6 +117,8 @@
     "retryWithFeedback": "Retry with feedback",
     "rewriteFeedbackFallback": "Please rewrite this edit.",
     "toolFeedbackPlaceholder": "Add feedback for the agent to regenerate this edit...",
+    "userInputRequestCustom": "Write my own answer",
+    "userInputRequestSubmit": "Submit",
     "reject": "Reject",
     "confirm": "Confirm",
     "cancel": "Cancel",

@@ -10,6 +10,7 @@ from app.tools.base import ToolExecutor
 from app.tools.resume.registry import execute_resume_tool
 
 TOOL_REQUIRED_ARGS: dict[str, set[str]] = {
+    "ask_user": {"question", "options"},
     "update_summary": {"text"},
     "update_profile": {"fields"},
     "update_item_fields": {"section", "item_id", "fields"},
@@ -77,8 +78,10 @@ TOOL_DISPLAY_NAMES = {
     "read_job_post": "读取JD",
     "read_memory": "读取记忆",
     "update_memory": "更新记忆",
+    "ask_user": "询问信息",
 }
 _SYNC_TOOL_NAME = Literal[
+    "ask_user",
     "update_summary",
     "update_profile",
     "update_item_fields",

@@ -21,6 +21,7 @@ from .stream_events import normalize_resume_stream_payload
 logger = logging.getLogger(__name__)
 
 _AUTO_EXECUTE_TOOL_NAMES: set[str] = {
+    "ask_user",
     "score_resume",
     "list_job_posts",
     "read_job_post",
@@ -30,6 +31,7 @@ _AUTO_EXECUTE_TOOL_NAMES: set[str] = {
 _TOOL_PROFILES: dict[str, set[str]] = {
     "resume_edit": {
         "update_summary",
+        "ask_user",
         "update_profile",
         "upsert_job_application",
         "update_item_fields",
@@ -49,6 +51,7 @@ _TOOL_PROFILES: dict[str, set[str]] = {
     "read_only": {
         "score_resume",
         "list_job_posts",
+        "ask_user",
         "read_job_post",
         "read_memory",
     },

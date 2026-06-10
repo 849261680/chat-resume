@@ -16,6 +16,7 @@ _EVENT_TYPE_BY_NAME: dict[str, ResumeStreamEventType] = {
     "tool_rejected": "tool_rejected",
     "tool_call_failed": "tool_call_failed",
     "tool_result": "tool_result",
+    "user_input_request": "user_input_request",
     "prompt_rendered": "prompt_rendered",
     "llm_request": "llm_request",
     "llm_response": "llm_response",
@@ -44,6 +45,8 @@ def infer_event_type(event: Mapping[str, Any]) -> ResumeStreamEventType:
         return "llm_response"
     if event.get("done"):
         return "done"
+    if event.get("user_input_request"):
+        return "user_input_request"
     if event.get("display_message") and event.get("result") is not None:
         return "tool_result"
     if event.get("content"):
@@ -221,6 +224,9 @@ def normalize_resume_stream_payload(
         payload["usage"] = usage
     if "result" in event:
         payload["result"] = event.get("result")
+    user_input_request = _dict_or_none(event.get("user_input_request"))
+    if user_input_request is not None:
+        payload["user_input_request"] = user_input_request
     display_message = event.get("display_message")
     if isinstance(display_message, str) or display_message is None:
         payload["display_message"] = display_message
@@ -490,6 +496,37 @@ def tool_result_event(
     return payload
 
 
+def user_input_request_event(
+    *,
+    call_id: str | None = None,
+    tool_id: str | None = None,
+    tool_display_name: str | None = None,
+    result: dict[str, Any],
+    display_message: str | None,
+    tool_calls: list[dict[str, Any]],
+) -> ResumeStreamEvent:
+    """用于处理 Agent 向用户追问信息的结构化请求。"""
+    payload: ResumeStreamEvent = {
+        "event_type": "user_input_request",
+        "content": "",
+        "tool_calls": tool_calls,
+        "result": result,
+        "display_message": display_message,
+        "done": False,
+    }
+    request = result.get("user_input_request")
+    if isinstance(request, dict):
+        payload["user_input_request"] = request
+    if call_id is not None:
+        payload["call_id"] = call_id
+    if tool_id is not None:
+        payload["tool_id"] = tool_id
+    if tool_display_name is not None:
+        payload["tool_name"] = tool_display_name
+        payload["tool_display_name"] = tool_display_name
+    return payload
+
+
 def _tool_id_from_event(event: Mapping[str, Any]) -> str | None:
     """用于处理工具标识from事件。"""
     tool_call = event.get("tool_call")
@@ -516,4 +553,5 @@ __all__ = [
     "tool_pending_event",
     "tool_rejected_event",
     "tool_result_event",
+    "user_input_request_event",
 ]

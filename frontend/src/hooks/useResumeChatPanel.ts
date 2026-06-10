@@ -68,6 +68,8 @@ export function useResumeChatPanel({
     stopStreaming,
     confirmTool,
     restorePendingConfirmation,
+    userInputRequest,
+    clearUserInputRequest,
   } = useStreamingChat(parseInt(resumeId || '0', 10), {
     visibleModules,
     agentType: 'resume',
@@ -200,6 +202,7 @@ export function useResumeChatPanel({
   const dispatchMessage = useCallback(async (messageContent: string, clearInput = false) => {
     const trimmedMessage = messageContent.trim()
     if (!trimmedMessage || isSending || isStreaming) return
+    clearUserInputRequest()
 
     try {
       await performAutoSave()
@@ -329,6 +332,8 @@ export function useResumeChatPanel({
     currentStreamingMessage,
     streamEvents,
     confirmTool,
+    userInputRequest,
+    clearUserInputRequest,
     stopStreaming,
     restorePendingConfirmation,
     setSelectedResumeContext,

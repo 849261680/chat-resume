@@ -13,6 +13,7 @@ ResumeStreamEventType = Literal[
     "tool_rejected",
     "tool_call_failed",
     "tool_result",
+    "user_input_request",
     "prompt_rendered",
     "llm_request",
     "llm_response",
@@ -52,6 +53,7 @@ class ResumeStreamEvent(TypedDict, total=False):
     diff_items: list[DiffItem]
     result: Any
     display_message: str | None
+    user_input_request: dict[str, Any]
     internal_only: bool
     prompt_rendered: bool
     llm_request: bool

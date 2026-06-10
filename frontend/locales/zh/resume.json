@@ -117,6 +117,8 @@
     "retryWithFeedback": "重写修改",
     "rewriteFeedbackFallback": "请重写修改这处内容。",
     "toolFeedbackPlaceholder": "输入你希望 Agent 重新生成时参考的反馈...",
+    "userInputRequestCustom": "自己输入文字",
+    "userInputRequestSubmit": "提交",
     "reject": "拒绝",
     "confirm": "确认",
     "cancel": "取消",

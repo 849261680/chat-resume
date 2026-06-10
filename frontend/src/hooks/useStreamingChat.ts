@@ -9,6 +9,14 @@ export type DiffItem = {
   reason?: string
 }
 
+export type UserInputRequest = {
+  question: string
+  options: string[]
+  category?: string
+  context?: string
+  allowCustom: boolean
+}
+
 export type StreamEvent =
   | { type: 'tool'; name: string }
   | { type: 'text'; content: string }
@@ -58,6 +66,12 @@ export type StreamEvent =
       toolId?: string
       diffSummary: string
       diffItems?: DiffItem[]
+    }
+  | {
+      type: 'user_input_request'
+      callId?: string
+      toolName?: string
+      request: UserInputRequest
     }
 
 type PendingConfirmationResponse = {
@@ -261,6 +275,25 @@ function resolveToolInput(data: Record<string, unknown>): Record<string, unknown
   }
 }
 
+// 用于把后端询问工具载荷标准化成前端卡片数据。
+function normalizeUserInputRequest(value: unknown): UserInputRequest | null {
+  if (!value || typeof value !== 'object') return null
+  const record = value as Record<string, unknown>
+  const question = typeof record.question === 'string' ? record.question.trim() : ''
+  const rawOptions = Array.isArray(record.options) ? record.options : []
+  const options = rawOptions
+    .map((option) => String(option).trim())
+    .filter((option) => option.length > 0)
+  if (!question || options.length === 0) return null
+  return {
+    question,
+    options,
+    category: typeof record.category === 'string' ? record.category : undefined,
+    context: typeof record.context === 'string' ? record.context : undefined,
+    allowCustom: record.allow_custom !== false,
+  }
+}
+
 // 用于解析工具名称。
 function resolveToolName(data: Record<string, unknown>, fallbackName: string): string {
   if (data.tool_display_name) return normalizeToolName(String(data.tool_display_name))
@@ -279,6 +312,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
   const [isStreaming, setIsStreaming] = useState(false)
   const [currentStreamingMessage, setCurrentStreamingMessage] = useState('')
   const [streamEvents, setStreamEvents] = useState<StreamEvent[]>([])
+  const [userInputRequest, setUserInputRequest] = useState<UserInputRequest | null>(null)
   const [sessionId, setSessionId] = useState<string | null>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
   // 使用 ref 作为立即生效的锁，因为 useState 更新是异步的
@@ -313,6 +347,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
       debugStreamLog('[useStreamingChat] 已有流式请求进行中，跳过重复调用')
       return
     }
+    setUserInputRequest(null)
     // 立即加锁
     isStreamingLockRef.current = true
 
@@ -533,6 +568,9 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
 
                 if (data.event_type === 'tool_call' && data.call_id) {
                   const callId = data.call_id as string
+                  if (resolveToolId(data) === 'ask_user') {
+                    continue
+                  }
                   eventsBuffer = [...eventsBuffer, {
                     type: 'tool_call',
                     callId,
@@ -550,6 +588,9 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
 
                 if (data.event_type === 'tool_result') {
                   const callId = data.call_id ? String(data.call_id) : ''
+                  if (resolveToolId(data) === 'ask_user') {
+                    continue
+                  }
                   debugStreamLog('[useStreamingChat] tool_result handling start', {
                     callId,
                     eventsBefore: summarizeToolEvents(eventsBuffer),
@@ -573,6 +614,23 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                     eventsAfter: summarizeToolEvents(eventsBuffer),
                   })
                   setStreamEvents([...eventsBuffer])
+                }
+
+                if (data.event_type === 'user_input_request') {
+                  const request = normalizeUserInputRequest(data.user_input_request)
+                  if (request) {
+                    setUserInputRequest(request)
+                    eventsBuffer = [
+                      ...eventsBuffer,
+                      {
+                        type: 'user_input_request',
+                        callId: data.call_id ? String(data.call_id) : undefined,
+                        toolName: data.tool_display_name ? String(data.tool_display_name) : undefined,
+                        request,
+                      },
+                    ]
+                    setStreamEvents([...eventsBuffer])
+                  }
                 }
 
                 if (data.event_type === 'tool_call_failed' && data.call_id) {
@@ -940,5 +998,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
     stopStreaming,
     confirmTool,
     restorePendingConfirmation,
+    userInputRequest,
+    clearUserInputRequest: () => setUserInputRequest(null),
   }
 }

@@ -43,6 +43,7 @@ import { useResumeChatPanel } from '@/hooks/useResumeChatPanel'
 import { useResumeEditor } from '@/hooks/useResumeEditor'
 import SectionVisibilityConfirmCard from '@/components/editor/SectionVisibilityConfirmCard'
 import ChatInputBox from '@/components/editor/ChatInputBox'
+import UserInputRequestCard from '@/components/editor/UserInputRequestCard'
 import { useLocale, useTranslations } from 'next-intl'
 import { toInterviewLanguage, type AppLocale } from '@/i18n/routing'
 import toast from 'react-hot-toast'
@@ -64,13 +65,15 @@ function summarizeRenderedToolEvents(events: StreamEvent[]): string[] {
 // 用于识别记忆工具，避免把记忆写入当成简历 diff 确认卡展示。
 function isMemoryToolEvent(event: StreamEvent): boolean {
   if (!('toolName' in event)) return false
-  return event.toolName === 'update_memory' || event.toolName === '更新记忆'
+  const toolName = event.toolName || ''
+  return toolName === 'update_memory' || toolName === '更新记忆'
 }
 
 // 用于识别显隐板块工具：纯开关操作没有可重写的内容，确认卡不应出现反馈框和重写按钮。
 function isVisibilityToolEvent(event: StreamEvent): boolean {
   if (!('toolName' in event)) return false
-  return ['show_section', 'hide_section', '显示板块', '隐藏板块'].includes(event.toolName)
+  const toolName = event.toolName || ''
+  return ['show_section', 'hide_section', '显示板块', '隐藏板块'].includes(toolName)
 }
 
 // 用于判断同一工具调用是否已有上方状态行可展示。
@@ -354,6 +357,7 @@ export default function ResumeEditPage() {
     isStreaming,
     streamEvents,
     confirmTool,
+    userInputRequest,
     restorePendingConfirmation,
     stopStreaming,
     setSelectedResumeContext,
@@ -390,6 +394,13 @@ export default function ResumeEditPage() {
       return next
     })
   }, [confirmTool, t, toolFeedbackDrafts])
+
+  // 用于把询问卡片的选择转换成下一轮用户消息。
+  const submitUserInputRequest = useCallback((answer: string) => {
+    if (!userInputRequest) return
+    const message = `针对 Agent 的问题：${userInputRequest.question}\n我的回答：${answer}`
+    void dispatchMessage(message)
+  }, [dispatchMessage, userInputRequest])
 
   useEffect(() => {
     if (!mounted || isLoading || !isAuthenticated || hasValidResumeId) return
@@ -1212,6 +1223,7 @@ export default function ResumeEditPage() {
                                 if (event.type === 'tool_call' || event.type === 'tool_result' || event.type === 'tool_failed') {
                                   return <AgentToolActivity key={idx} event={event} />
                                 }
+                                if (event.type === 'user_input_request') return null
                                 if (event.type === 'text') return (
                                   <div key={idx}>
                                     <MarkdownMessage content={event.content} />
@@ -1351,6 +1363,7 @@ export default function ResumeEditPage() {
                           if (event.type === 'tool_call' || event.type === 'tool_result' || event.type === 'tool_failed') {
                             return <AgentToolActivity key={idx} event={event} live />
                           }
+                          if (event.type === 'user_input_request') return null
                           if (event.type === 'tool') {
                             return (
                               <div key={idx} className="flex items-center gap-2 text-xs text-gray-500 mb-1">
@@ -1388,6 +1401,13 @@ export default function ResumeEditPage() {
                 </div>
 
                 {/* Input Area */}
+                {userInputRequest && (
+                  <UserInputRequestCard
+                    request={userInputRequest}
+                    disabled={isSending || isStreaming}
+                    onSubmit={submitUserInputRequest}
+                  />
+                )}
                 <ChatInputBox
                   selectedResumeContext={selectedResumeContext}
                   onClearContext={() => setSelectedResumeContext('')}

@@ -20,6 +20,7 @@ from app.agents.resume.stream_events import (
     tool_pending_event,
     tool_rejected_event,
     tool_result_event,
+    user_input_request_event,
 )
 from app.agents.resume.event_publisher import publish_resume_runtime_event
 from app.infra.config import settings
@@ -540,6 +541,15 @@ class ResumeToolExecutionStage:
                 diff_summary=result.get("diff_summary") if isinstance(result, dict) else None,
                 diff_items=result.get("diff_items", []) if isinstance(result, dict) else [],
                 context=context,
+            )
+        elif isinstance(result, dict) and isinstance(result.get("user_input_request"), dict):
+            event = user_input_request_event(
+                call_id=call_id,
+                tool_id=tool_name,
+                tool_display_name=tool_display_name,
+                tool_calls=executed_tools,
+                result=result,
+                display_message=display_message,
             )
         else:
             event = tool_result_event(

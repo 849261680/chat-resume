@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .add_bullet_tool import add_bullet
+from .ask_user_tool import ask_user
 from .job_post_tool import list_job_posts, read_job_post
 from .memory_tool import read_memory, update_memory
 from .remove_bullet_tool import remove_bullet
@@ -36,6 +37,54 @@ class ResumeToolDefinition:
 
 
 _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
+    {
+        "type": "function",
+        "function": {
+            "name": "ask_user",
+            "description": (
+                "向用户发起结构化追问，不修改简历。"
+                "触发条件：优化前缺少必要事实，例如工作经历、个人信息、项目经历、量化结果、职责边界。"
+                "必须提供一个具体问题和几个可选答案；前端会额外提供“自己输入文字”。"
+                "调用后当前 ReAct 轮会停止，等待用户回答。"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "question": {
+                        "type": "string",
+                        "description": "需要用户回答的具体问题",
+                    },
+                    "options": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "提供给用户点击选择的候选答案，建议 2-4 个",
+                    },
+                    "category": {
+                        "type": "string",
+                        "enum": [
+                            "personal_info",
+                            "work_experience",
+                            "projects",
+                            "education",
+                            "skills",
+                            "job_application",
+                            "other",
+                        ],
+                        "description": "本次追问对应的信息类别",
+                    },
+                    "context": {
+                        "type": "string",
+                        "description": "为什么需要这个信息的简短上下文",
+                    },
+                    "allow_custom": {
+                        "type": "boolean",
+                        "description": "是否允许用户自己输入文字，默认 true",
+                    },
+                },
+                "required": ["question", "options"],
+            },
+        },
+    },
     {
         "type": "function",
         "function": {
@@ -627,6 +676,7 @@ _SCHEMA_BY_NAME = {
 }
 
 RESUME_TOOL_CATALOG: tuple[ResumeToolDefinition, ...] = (
+    ResumeToolDefinition("ask_user", ask_user, _SCHEMA_BY_NAME.get("ask_user")),
     ResumeToolDefinition(
         "update_summary",
         update_summary,

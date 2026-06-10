@@ -171,8 +171,13 @@ def _make_openrouter_stream_args() -> tuple[
     return model, context, options, partial, queue
 
 
-def test_openrouter_body_disables_reasoning_explicitly():
+def test_openrouter_body_disables_reasoning_explicitly(monkeypatch: pytest.MonkeyPatch):
     """OpenRouter 请求体应显式关闭 reasoning，避免 provider 默认开启深度推理。"""
+    monkeypatch.setattr(
+        openrouter.settings,
+        "OPENROUTER_API_BASE",
+        "https://openrouter.ai/api/v1",
+    )
     model, context, options, _, _ = _make_openrouter_stream_args()
 
     body = _openrouter_body(model, context, options)
@@ -180,6 +185,25 @@ def test_openrouter_body_disables_reasoning_explicitly():
     assert body["reasoning"] == {"effort": "none", "exclude": True}
     assert body["reasoning_effort"] == "none"
     assert body["include_reasoning"] is False
+    assert body["parallel_tool_calls"] is False
+
+
+def test_deepseek_direct_body_omits_openrouter_reasoning_params(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """DeepSeek 直连请求体不应携带 OpenRouter 专用 reasoning 参数。"""
+    monkeypatch.setattr(
+        openrouter.settings,
+        "OPENROUTER_API_BASE",
+        "https://api.deepseek.com/v1",
+    )
+    model, context, options, _, _ = _make_openrouter_stream_args()
+
+    body = _openrouter_body(model, context, options)
+
+    assert "reasoning" not in body
+    assert "reasoning_effort" not in body
+    assert "include_reasoning" not in body
     assert body["parallel_tool_calls"] is False
 
 

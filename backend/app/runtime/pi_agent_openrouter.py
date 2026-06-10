@@ -28,6 +28,7 @@ from pi_agent_core import (
     StreamToolCallEndEvent,
     StreamToolCallStartEvent,
     TextContent,
+    ThinkingContent,
     ToolCall,
     StopReason,
     Usage,
@@ -670,18 +671,25 @@ def _openrouter_body(
     context: AgentContext,
     options: SimpleStreamOptions,
 ) -> dict[str, Any]:
-    """用于处理OpenRouter请求体。"""
+    """用于构造 OpenAI 兼容流式请求体。"""
+    messages = _openai_messages(context)
+    is_openrouter = "openrouter" in settings.OPENROUTER_API_BASE.lower()
     body: dict[str, Any] = {
         "model": model.id,
-        "messages": _openai_messages(context),
+        "messages": messages,
         "tools": _openai_tools(context),
-        "reasoning": {"effort": "none", "exclude": True},
-        "reasoning_effort": "none",
-        "include_reasoning": False,
         "stream": True,
         "stream_options": {"include_usage": True},
         "parallel_tool_calls": False,
     }
+    if is_openrouter:
+        body["reasoning"] = {"effort": "none", "exclude": True}
+        body["reasoning_effort"] = "none"
+        body["include_reasoning"] = False
+    # DeepSeek V4 要求 assistant 消息必须包含 reasoning_content
+    for msg in messages:
+        if msg.get("role") == "assistant" and "reasoning_content" not in msg:
+            msg["reasoning_content"] = ""
     if options.temperature is not None:
         body["temperature"] = options.temperature
     if options.max_tokens is not None:
@@ -869,6 +877,8 @@ def _openai_message(message: Any) -> dict[str, Any] | None:
 def _openai_assistant_message(message: Any) -> dict[str, Any]:
     """用于处理OpenAI 兼容助手消息。"""
     tool_calls = []
+    has_thinking = False
+    reasoning_text = ""
     for block in getattr(message, "content", []):
         if isinstance(block, ToolCall):
             tool_calls.append(
@@ -884,12 +894,18 @@ def _openai_assistant_message(message: Any) -> dict[str, Any]:
                     },
                 }
             )
+        if isinstance(block, ThinkingContent):
+            has_thinking = True
+            reasoning_text = block.thinking or ""
     content = _text_content(message)
     payload: dict[str, Any] = {"role": "assistant"}
     if content or not tool_calls:
         payload["content"] = content
     if tool_calls:
         payload["tool_calls"] = tool_calls
+    # DeepSeek V4 要求始终回传 reasoning_content（即使为空）
+    if has_thinking:
+        payload["reasoning_content"] = reasoning_text
     return payload
 
 

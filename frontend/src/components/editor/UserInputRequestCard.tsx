@@ -149,21 +149,24 @@ export default function UserInputRequestCard({
               {customOpen && (
                 <button
                   type="button"
+                  aria-label={t('userInputRequestSubmit')}
                   disabled={disabled || !trimmedCustomAnswer}
                   onClick={submitCustomAnswer}
-                  className="shrink-0 rounded-xl bg-gray-950 px-4 py-2 text-sm font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gray-950 text-white transition-colors hover:bg-black disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  {t('userInputRequestSubmit')}
+                  <ArrowRightIcon className="h-6 w-6" />
                 </button>
               )}
-              <button
-                type="button"
-                disabled={disabled}
-                onClick={skipQuestion}
-                className="shrink-0 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-950 shadow-sm transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {skipAnswer}
-              </button>
+              {!customOpen && (
+                <button
+                  type="button"
+                  disabled={disabled}
+                  onClick={skipQuestion}
+                  className="shrink-0 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-950 shadow-sm transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {skipAnswer}
+                </button>
+              )}
             </div>
           </div>
         )}

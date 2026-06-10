@@ -11,6 +11,7 @@ agent:
     target_company: ""
     jd_text: ""
     candidate_profile: ""
+    current_time: ""
     module_visibility: ""
   model_defaults:
     temperature: 0.4

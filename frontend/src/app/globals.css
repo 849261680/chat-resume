@@ -567,3 +567,32 @@
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+
+/* 思考中动效：从左往右的高对比扫光 */
+@keyframes thinking-shimmer {
+  0% {
+    background-position: -120% center;
+  }
+  100% {
+    background-position: 120% center;
+  }
+}
+
+.thinking-shimmer {
+  background: linear-gradient(
+    90deg,
+    #5b616e 0%,
+    #5b616e 24%,
+    #1f6fff 42%,
+    #ffffff 50%,
+    #1f6fff 58%,
+    #5b616e 76%,
+    #5b616e 100%
+  );
+  background-size: 260% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  filter: drop-shadow(0 0 8px rgba(31, 111, 255, 0.38));
+  -webkit-text-fill-color: transparent;
+  animation: thinking-shimmer 1.15s linear infinite;
+}

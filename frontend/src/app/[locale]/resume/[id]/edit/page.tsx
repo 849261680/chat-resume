@@ -1382,7 +1382,7 @@ export default function ResumeEditPage() {
                         })}
                         {shouldShowStreamingThinking && (
                           <div className="mt-2 px-4 py-3 text-sm" style={{ color: '#5b616e' }}>
-                            <span className="inline-block animate-pulse">{t('thinking')}</span>
+                            <span className="inline-block thinking-shimmer">{t('thinking')}</span>
                           </div>
                         )}
                       </div>
@@ -1392,7 +1392,7 @@ export default function ResumeEditPage() {
                   {(isSending || isStreaming) && streamEvents.length === 0 && (
                     <div className="flex w-full justify-start">
                       <div className="max-w-[93%] px-4 py-3 text-sm" style={{ color: '#5b616e' }}>
-                        <span className="inline-block animate-pulse">{t('thinking')}</span>
+                        <span className="inline-block thinking-shimmer">{t('thinking')}</span>
                       </div>
                     </div>
                   )}

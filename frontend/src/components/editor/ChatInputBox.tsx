@@ -49,6 +49,21 @@ const ChatInputBox = React.memo(function ChatInputBox({
     input.style.overflowY = input.scrollHeight > 160 ? 'auto' : 'hidden'
   }, [inputMessage])
 
+  const hasContent = Boolean(inputMessage.trim() || selectedResumeContext.trim())
+
+  // 发送当前输入内容，并在引用被发送后清理引用状态。
+  const sendCurrentMessage = useCallback(() => {
+    const selectedContext = selectedResumeContext.trim()
+    const userRequest = inputMessage.trim()
+    if ((!selectedContext && !userRequest) || isSending || isStreaming) return
+    const message = selectedContext
+      ? `选中的简历内容：\n${selectedResumeContext}\n\n用户要求：\n${userRequest}`
+      : userRequest
+    onSend(message)
+    setInputMessage('')
+    if (selectedContext) onClearContext()
+  }, [inputMessage, selectedResumeContext, onClearContext, onSend, isSending, isStreaming])
+
   const handleKeyDown = useCallback((event: React.KeyboardEvent) => {
     if (event.key === 'Backspace' && selectedResumeContext && inputMessage.length === 0) {
       event.preventDefault()
@@ -57,17 +72,9 @@ const ChatInputBox = React.memo(function ChatInputBox({
     }
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault()
-      const hasContent = inputMessage.trim() || selectedResumeContext.trim()
-      if (!hasContent || isSending || isStreaming) return
-      const message = selectedResumeContext.trim()
-        ? `选中的简历内容：\n${selectedResumeContext}\n\n用户要求：\n${inputMessage.trim()}`
-        : inputMessage.trim()
-      onSend(message)
-      setInputMessage('')
+      sendCurrentMessage()
     }
-  }, [inputMessage, selectedResumeContext, onClearContext, onSend, isSending, isStreaming])
-
-  const hasContent = inputMessage.trim() || selectedResumeContext.trim()
+  }, [inputMessage, selectedResumeContext, onClearContext, sendCurrentMessage])
 
   return (
     <div className="pt-3 flex-shrink-0">
@@ -110,14 +117,7 @@ const ChatInputBox = React.memo(function ChatInputBox({
         <button
           type="button"
           aria-label={isStreaming ? '停止 Agent' : '发送消息'}
-          onClick={isStreaming ? onStop : () => {
-            if (!hasContent || isSending) return
-            const message = selectedResumeContext.trim()
-              ? `选中的简历内容：\n${selectedResumeContext}\n\n用户要求：\n${inputMessage.trim()}`
-              : inputMessage.trim()
-            onSend(message)
-            setInputMessage('')
-          }}
+          onClick={isStreaming ? onStop : sendCurrentMessage}
           disabled={!isStreaming && (!hasContent || isSending)}
           className="absolute right-3 bottom-3 w-9 h-9 rounded-full transition-colors flex items-center justify-center disabled:cursor-not-allowed"
           style={{

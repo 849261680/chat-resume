@@ -45,7 +45,8 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
             "description": (
                 "向用户发起结构化追问，不修改简历。"
                 "触发条件：优化前缺少必要事实，例如工作经历、个人信息、项目经历、量化结果、职责边界。"
-                "必须提供一个具体问题和几个可选答案；前端会额外提供“自己输入文字”。"
+                "必须提供一个直接问用户的疑问句和几个可选答案；前端会额外提供“自己输入文字”。"
+                "question 不要写成任务说明或陈述句，例如不要写“我需要了解三个关键信息”。"
                 "调用后当前 ReAct 轮会停止，等待用户回答。"
             ),
             "parameters": {
@@ -53,7 +54,11 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
                 "properties": {
                     "question": {
                         "type": "string",
-                        "description": "需要用户回答的具体问题",
+                        "description": (
+                            "需要用户回答的具体问题。必须是直接问用户的疑问句，"
+                            "例如“你在 OpenClaw 中具体负责哪部分？”；"
+                            "不要写成“我需要了解三个关键信息”这类陈述或任务说明。"
+                        ),
                     },
                     "options": {
                         "type": "array",

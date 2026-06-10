@@ -52,6 +52,22 @@ def test_ask_user_tool_is_registered_and_auto_executed():
     )["success"] is True
 
 
+def test_ask_user_schema_requires_question_wording():
+    """用于验证 ask_user schema 约束 question 必须是用户问题。"""
+    schema = next(
+        tool for tool in RESUME_TOOLS_SCHEMA
+        if tool["function"]["name"] == "ask_user"
+    )
+    description = schema["function"]["description"]
+    question_description = schema["function"]["parameters"]["properties"]["question"][
+        "description"
+    ]
+
+    assert "直接问用户的疑问句" in description
+    assert "直接问用户的疑问句" in question_description
+    assert "不要写成" in question_description
+
+
 def test_user_input_request_event_is_public_stream_payload():
     """用于验证用户信息询问事件能通过 SSE 公开传给前端。"""
     event = user_input_request_event(

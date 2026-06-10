@@ -77,3 +77,5 @@ def test_resume_system_prompt_includes_candidate_profile_rules():
     assert "缺失关键信息：目标岗位" in prompt
     assert "先问最多 3 个关键问题" in prompt
     assert "update_memory" in prompt
+    assert "question 必须是直接问用户的疑问句" in prompt
+    assert "不要把 question 写成" in prompt

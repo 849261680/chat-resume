@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from typing import Any, Iterator
 
-# 规则评分维度的基础权重，无 JD 时 jd_match 会被剔除并按比例归一到 100。
+# 规则评分维度的基础权重,无 JD 时 jd_match 会被剔除并按比例归一到 100。
 _BASE_WEIGHTS = {
     "completeness": 30,
     "quantification": 25,
@@ -21,6 +21,8 @@ _DIMENSION_NAMES = {
 _BULLET_SECTIONS = ("education", "work_experience", "projects")
 _NUMBER_RE = re.compile(r"\d")
 _WEAK_PREFIXES = ("负责", "参与", "协助", "帮助", "配合", "完成")
+# 弱动词后面紧跟强动词的最大间距（弱动词长度+间隔）
+_WEAK_STRONG_MAX_GAP = 6
 _ENGLISH_KEYWORD_RE = re.compile(r"\b[A-Za-z][A-Za-z0-9+#.\-]{1,}\b")
 _COMMON_CN_KEYWORDS = (
     "性能优化", "前端", "后端", "全栈", "数据分析", "项目管理", "团队协作",
@@ -32,7 +34,7 @@ _EN_STOPWORDS = {
     "to", "of", "in", "on", "at", "as", "is", "be", "we", "an", "by",
 }
 
-# 同义词组：每组内的任一关键词命中视为全部命中。
+# 同义词组:每组内的任一关键词命中视为全部命中。
 _SYNONYM_GROUPS: tuple[tuple[str, ...], ...] = (
     ("微服务", "Microservice", "microservice", "服务拆分", "服务化"),
     ("高并发", "High Concurrency", "大并发", "高吞吐"),
@@ -113,7 +115,7 @@ def extract_jd_text(resume_content: dict[str, Any]) -> str:
 
 
 def iter_bullets(resume_content: dict[str, Any]) -> Iterator[tuple[str, str, str, str]]:
-    """用于遍历经历板块下的 bullet，产出板块、条目 id、bullet id 和文本。"""
+    """用于遍历经历板块下的 bullet,产出板块、条目 id、bullet id 和文本。"""
     for section in _BULLET_SECTIONS:
         for item in resume_content.get(section) or []:
             item_id = str(item.get("id", ""))
@@ -121,7 +123,7 @@ def iter_bullets(resume_content: dict[str, Any]) -> Iterator[tuple[str, str, str
 
 
 def flatten_resume_text(resume_content: dict[str, Any]) -> str:
-    """用于把简历正文（排除 JD）压平成可搜索文本。"""
+    """用于把简历正文(排除 JD)压平成可搜索文本。"""
     return "\n".join(
         _flatten_value(value)
         for key, value in resume_content.items()
@@ -208,7 +210,7 @@ def _score_completeness(resume_content: dict[str, Any]) -> dict[str, Any]:
     checks = [
         (bool(str(personal.get("name", "")).strip()), "缺少姓名", "补充候选人姓名"),
         (_has_contact(personal), "缺少联系方式", "补充邮箱或手机号等联系方式"),
-        (bool(str(summary).strip()), "缺少个人总结", "补充 2-4 句个人总结，突出核心优势"),
+        (bool(str(summary).strip()), "缺少个人总结", "补充 2-4 句个人总结,突出核心优势"),
         (_has_any(resume_content, ("work_experience", "projects")), "缺少工作或项目经历", "补充至少一段工作或项目经历"),
         (_has_any(resume_content, ("education",)), "缺少教育经历", "补充教育经历"),
         (_has_any(resume_content, ("skills",)), "缺少技能板块", "补充技能板块并分类列出关键技能"),
@@ -233,7 +235,7 @@ def _score_quantification(resume_content: dict[str, Any]) -> dict[str, Any]:
             "item_id": item_id,
             "bullet_id": bullet_id,
             "issue": "该要点缺少量化结果",
-            "suggestion": "补充可量化的影响，如提升 X%、覆盖 N 用户、缩短到 M 秒",
+            "suggestion": "补充可量化的影响,如提升 X%、覆盖 N 用户、缩短到 M 秒",
         }
         for section, item_id, bullet_id, text in bullets
         if not _NUMBER_RE.search(text)
@@ -243,21 +245,21 @@ def _score_quantification(resume_content: dict[str, Any]) -> dict[str, Any]:
 
 
 def _score_expression(resume_content: dict[str, Any]) -> dict[str, Any]:
-    """用于衡量 bullet 表达是否使用强动作动词且长度适中。"""
+    """用于衡量 bullet 表达的结构完整性、动词强度和用词精准度。"""
     bullets = list(iter_bullets(resume_content))
     if not bullets:
         return {"key": "expression", "ratio": 0.0, "findings": []}
-    findings = [
-        {
-            "section": section,
-            "item_id": item_id,
-            "bullet_id": bullet_id,
-            "issue": _expression_issue(text),
-            "suggestion": "用强动作动词开头，控制在一行内，并说清任务-方案-结果",
-        }
-        for section, item_id, bullet_id, text in bullets
-        if _expression_issue(text)
-    ]
+    findings = []
+    for section, item_id, bullet_id, text in bullets:
+        issues = _expression_issues(text)
+        if issues:
+            findings.append({
+                "section": section,
+                "item_id": item_id,
+                "bullet_id": bullet_id,
+                "issue": issues[0],
+                "suggestion": _expression_suggestion(issues),
+            })
     ratio = (len(bullets) - len(findings)) / len(bullets)
     return {"key": "expression", "ratio": ratio, "findings": findings[:6]}
 
@@ -281,7 +283,7 @@ def _score_jd_match(resume_content: dict[str, Any], jd_text: str) -> dict[str, A
         else:
             missing.append({
                 "issue": f"JD 关键词「{keyword}」未在简历中体现",
-                "suggestion": f"如有真实经历，补充与「{keyword}」相关的事实和结果",
+                "suggestion": f"如有真实经历,补充与「{keyword}」相关的事实和结果",
                 "missing_keyword": keyword,
                 "weight": weight,
             })
@@ -298,16 +300,102 @@ def _has_contact(personal: dict[str, Any]) -> bool:
     return bool(email or phone)
 
 
-def _expression_issue(text: str) -> str:
-    """用于判断单条 bullet 的表达问题，无问题时返回空串。"""
+def _expression_issues(text: str) -> list[str]:
+    """用于返回单条 bullet 的全部表达问题,无问题时返回空列表。"""
     stripped = text.strip()
+    issues: list[str] = []
+    # 长度检查
     if len(stripped) < 8:
-        return "要点过短，信息量不足"
-    if len(stripped) > 120:
-        return "要点过长，建议拆分或精简"
-    if stripped.startswith(_WEAK_PREFIXES):
-        return "以弱动词开头，建议换成强动作动词"
-    return ""
+        issues.append("要点过短,信息量不足")
+        return issues
+    if len(stripped) > 150:
+        issues.append("要点过长,建议拆分为多条")
+    # 弱动词开头:只有弱动词后面没有具体方案和结果时才扣分
+    if stripped.startswith(_WEAK_PREFIXES) and not _has_concrete_result(stripped):
+        issues.append("以弱动词开头且缺少具体方案或结果")
+    # 结构检查:是否包含动作和结果两层信息
+    if not _has_structure(stripped):
+        issues.append("缺少「动作→结果」结构,像职责描述而非成果证据")
+    # 空洞修饰检查
+    if _has_hollow_modifier(stripped):
+        issues.append('包含空洞修饰(如"显著提升""大幅优化"),缺少具体数据支撑')
+    return issues
+
+
+def _expression_suggestion(issues: list[str]) -> str:
+    """用于根据具体问题给出针对性建议。"""
+    for issue in issues:
+        if "弱动词" in issue:
+            return "用强动作动词(设计/搭建/推动/重构)开头,或补充具体方案和结果"
+        if "结构" in issue:
+            return "改成「做了什么→怎么做的→结果如何」的结构"
+        if "空洞" in issue:
+            return '把空洞修饰替换成具体数字,如"提升40%""缩短到200ms"'
+        if "过长" in issue:
+            return "拆成多条,每条聚焦一个成果"
+    return "用强动作动词开头,说清任务-方案-结果"
+
+
+# 强动作动词:出现任何一个说明 bullet 有具体的行动内容
+_STRONG_ACTION_WORDS = (
+    "设计", "搭建", "推动", "重构", "实现", "开发", "优化", "构建",
+    "建立", "改造", "落地", "迁移", "替换", "解决", "修复", "编写",
+    "提出", "主导", "独立", "创建", "部署", "上线", "发布",
+)
+
+# 结果连接词:出现说明有动作→结果的过渡
+_RESULT_CONNECTORS = (
+    ",将", ",使", ",让", ",从", ",到", "降至", "升到", "提升",
+    "降低", "缩短", "减少", "增长", "覆盖", "支撑", "节省", "节省",
+    ",满足", ",实现", ",达到", ",解决", ",消除", ",避免",
+)
+
+# 空洞修饰:有数字修饰的形容词不算空洞
+_HOLLOW_MODIFIERS = (
+    "显著提升", "大幅优化", "明显改善", "有效提高", "极大提升",
+    "大幅提高", "显著降低", "大幅下降", "全面提升", "全面优化",
+    "极大改善", "明显提升", "有效解决", "大幅减少",
+)
+
+
+def _has_concrete_result(text: str) -> bool:
+    """用于判断弱动词开头的 bullet 是否包含具体方案和结果。"""
+    # 必须有数字或结果连接词才算有具体结果
+    has_number = bool(_NUMBER_RE.search(text))
+    has_result_connector = any(conn in text for conn in _RESULT_CONNECTORS)
+    if has_number or has_result_connector:
+        return True
+    # 弱动词后面紧跟强动词+技术方案描述（超过 15 字），说明内容足够具体
+    for prefix in _WEAK_PREFIXES:
+        if text.startswith(prefix):
+            rest = text[len(prefix):]
+            for action in _STRONG_ACTION_WORDS:
+                idx = rest.find(action)
+                if 0 <= idx <= _WEAK_STRONG_MAX_GAP and len(text) >= 12:
+                    return True
+            break
+    return False
+
+
+def _has_structure(text: str) -> bool:
+    """用于判断 bullet 是否包含动作→结果的结构。"""
+    has_action = any(word in text for word in _STRONG_ACTION_WORDS)
+    has_result = any(conn in text for conn in _RESULT_CONNECTORS) or bool(
+        _NUMBER_RE.search(text)
+    )
+    return has_action or has_result
+
+
+def _has_hollow_modifier(text: str) -> bool:
+    """用于判断是否包含无数据支撑的空洞修饰。"""
+    for modifier in _HOLLOW_MODIFIERS:
+        if modifier not in text:
+            continue
+        # 只要整个 bullet 里任何位置有数字,就不算空洞
+        if _NUMBER_RE.search(text):
+            return False
+        return True
+    return False
 
 
 def _iter_item_bullets(
@@ -326,7 +414,7 @@ def _has_any(resume_content: dict[str, Any], sections: tuple[str, ...]) -> bool:
 
 
 def _extract_jd_keywords(jd_text: str) -> list[dict[str, Any]]:
-    """用于从 JD 中提取带权重的关键词，最多 20 个。"""
+    """用于从 JD 中提取带权重的关键词,最多 20 个。"""
     keywords: list[dict[str, Any]] = []
     seen_names: set[str] = set()
     for kw in _COMMON_CN_KEYWORDS:
@@ -348,25 +436,25 @@ def _extract_jd_keywords(jd_text: str) -> list[dict[str, Any]]:
 
 
 def _infer_keyword_weight(keyword: str, jd_text: str) -> float:
-    """用于根据 JD 子句上下文推断关键词权重。必需=2.0，普通=1.0，加分=0.5。"""
+    """用于根据 JD 子句上下文推断关键词权重。必需=2.0,普通=1.0,加分=0.5。"""
     pos = jd_text.lower().find(keyword.lower())
     if pos < 0:
         return 1.0
     # 向前回溯到最近的子句分隔符
     sentence_start = 0
-    for sep in ("。", "\n", ";", "；", "•", "·", "，", ","):
+    for sep in ("。", "\n", "；", "，", ";", "•", "·", ","):
         idx = jd_text.rfind(sep, 0, pos)
         if idx >= 0:
             sentence_start = max(sentence_start, idx + 1)
     # 向后到最近的子句分隔符
     kw_end = pos + len(keyword)
     sentence_end = len(jd_text)
-    for sep in ("。", "\n", ";", "；", "•", "·", "，", ","):
+    for sep in ("。", "\n", "；", "，", ";", "•", "·", ","):
         idx = jd_text.find(sep, kw_end)
         if idx >= 0:
             sentence_end = min(sentence_end, idx)
     clause = jd_text[sentence_start:sentence_end]
-    # 优先判断加分，再判断必需
+    # 优先判断加分,再判断必需
     if _PREFERRED_PATTERNS.search(clause):
         return 0.5
     if _REQUIRED_PATTERNS.search(clause):
@@ -389,7 +477,7 @@ def _keyword_matches_resume(
     resume_text: str,
     synonym_index: dict[str, set[str]],
 ) -> bool:
-    """用于判断关键词（含同义词）是否在简历文本中命中。"""
+    """用于判断关键词(含同义词)是否在简历文本中命中。"""
     if keyword.lower() in resume_text:
         return True
     synonyms = synonym_index.get(keyword.lower())
@@ -399,7 +487,7 @@ def _keyword_matches_resume(
 
 
 def _dedupe_keywords(keywords: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """用于按关键词去重，保留权重最高的条目。"""
+    """用于按关键词去重,保留权重最高的条目。"""
     best: dict[str, dict[str, Any]] = {}
     for entry in keywords:
         key = entry["keyword"].lower()

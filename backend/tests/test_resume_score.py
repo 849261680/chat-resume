@@ -1,5 +1,7 @@
 """用于覆盖简历评分工具的确定性回归测试。"""
 
+import pytest
+
 from app.services.agent.resume_score import score_resume
 from app.tools.resume.score_resume_tool import score_resume_tool
 
@@ -30,9 +32,10 @@ def _full_resume() -> dict:
     }
 
 
-def test_full_resume_scores_high_with_all_dimensions():
+@pytest.mark.asyncio
+async def test_full_resume_scores_high_with_all_dimensions():
     """用于验证齐全且量化的简历能拿到高分并覆盖四个维度。"""
-    result = score_resume(_full_resume())
+    result = await score_resume(_full_resume())
 
     assert result["success"] is True
     assert result["total_score"] >= 85
@@ -41,7 +44,8 @@ def test_full_resume_scores_high_with_all_dimensions():
     assert keys == {"completeness", "quantification", "expression", "jd_match"}
 
 
-def test_unquantified_bullet_produces_actionable_finding():
+@pytest.mark.asyncio
+async def test_unquantified_bullet_produces_actionable_finding():
     """用于验证缺少量化的 bullet 会生成带 item_id/bullet_id 的修改建议。"""
     resume = {
         "personal_info": {"name": "李四", "email": "l@s.com"},
@@ -53,7 +57,7 @@ def test_unquantified_bullet_produces_actionable_finding():
         "skills": [{"id": "sk1", "category": "前端", "items": ["React"]}],
     }
 
-    result = score_resume(resume)
+    result = await score_resume(resume)
     quant = next(dim for dim in result["dimensions"] if dim["key"] == "quantification")
     finding = next(f for f in quant["findings"] if f["item_id"] == "work1")
 
@@ -61,7 +65,8 @@ def test_unquantified_bullet_produces_actionable_finding():
     assert "量化" in finding["suggestion"]
 
 
-def test_score_payload_prioritizes_evidence_backed_agent_actions():
+@pytest.mark.asyncio
+async def test_score_payload_prioritizes_evidence_backed_agent_actions():
     """用于验证评分结果给出证据、优先风险和下一步工具动作。"""
     resume = {
         "personal_info": {"name": "李四", "email": "l@s.com"},
@@ -74,7 +79,7 @@ def test_score_payload_prioritizes_evidence_backed_agent_actions():
         "job_application": {"jd_text": "要求 React、性能优化、TypeScript 经验。"},
     }
 
-    result = score_resume(resume)
+    result = await score_resume(resume)
     action = result["priority_actions"][0]
 
     assert result["diagnosis"]["primary_risk"]["dimension_key"] in {
@@ -90,24 +95,26 @@ def test_score_payload_prioritizes_evidence_backed_agent_actions():
     assert "再次调用 score_resume" in result["agent_next_step"]
 
 
-def test_no_jd_drops_jd_dimension_and_renormalizes():
+@pytest.mark.asyncio
+async def test_no_jd_drops_jd_dimension_and_renormalizes():
     """用于验证无 JD 时不计入 JD 维度，且权重归一到 100。"""
     resume = _full_resume()
     resume.pop("job_application")
 
-    result = score_resume(resume)
+    result = await score_resume(resume)
     keys = {dim["key"] for dim in result["dimensions"]}
 
     assert "jd_match" not in keys
     assert sum(dim["max"] for dim in result["dimensions"]) == 100
 
 
-def test_missing_jd_keyword_listed_in_findings():
+@pytest.mark.asyncio
+async def test_missing_jd_keyword_listed_in_findings():
     """用于验证 JD 中未命中的关键词进入可执行建议。"""
     resume = _full_resume()
     resume["job_application"]["jd_text"] = "要求 Python、Kafka 与 Kubernetes 经验。"
 
-    result = score_resume(resume)
+    result = await score_resume(resume)
     jd = next(dim for dim in result["dimensions"] if dim["key"] == "jd_match")
     missing = {finding["missing_keyword"] for finding in jd["findings"]}
 
@@ -115,21 +122,23 @@ def test_missing_jd_keyword_listed_in_findings():
     assert "Kubernetes" in missing
 
 
-def test_tool_wrapper_returns_score_payload():
+@pytest.mark.asyncio
+async def test_tool_wrapper_returns_score_payload():
     """用于验证工具封装返回标准评分结果结构。"""
-    result = score_resume_tool(_full_resume())
+    result = await score_resume_tool(_full_resume())
 
     assert result["success"] is True
     assert "total_score" in result
     assert isinstance(result["top_suggestions"], list)
 
 
-def test_score_resume_returns_rule_and_semantic_layers():
+@pytest.mark.asyncio
+async def test_score_resume_returns_rule_and_semantic_layers():
     """用于验证单一评分工具同时返回规则层和语义评审层。"""
     resume = _full_resume()
     resume["work_experience"][0]["highlights"][0]["text"] = "负责后端接口开发"
 
-    result = score_resume(resume)
+    result = await score_resume(resume)
 
     assert result["rule_checks"]["score"] >= 0
     assert result["semantic_review"]["status"] == "available"
@@ -144,18 +153,67 @@ def test_score_resume_returns_rule_and_semantic_layers():
     assert any(action["source"] == "semantic_review" for action in result["priority_actions"])
 
 
-def test_score_resume_falls_back_when_semantic_review_fails():
+@pytest.mark.asyncio
+async def test_score_resume_falls_back_when_semantic_review_fails():
     """用于验证语义评审异常时评分工具仍返回规则评分。"""
-
     def broken_reviewer(_resume: dict, _dimensions: list[dict]) -> dict:
         """用于模拟语义评审 provider 或解析失败。"""
         raise ValueError("bad semantic json")
 
-    result = score_resume(_full_resume(), semantic_reviewer=broken_reviewer)
+    result = await score_resume(
+        _full_resume(),
+        fallback_semantic_reviewer=broken_reviewer,
+    )
 
-    assert result["semantic_review"] == {
-        "status": "unavailable",
-        "reason": "bad semantic json",
-        "score": None,
-    }
+    assert result["semantic_review"]["status"] == "unavailable"
+    assert result["semantic_review"]["reason"] == "bad semantic json"
     assert result["total_score"] == result["rule_checks"]["score"]
+
+
+@pytest.mark.asyncio
+async def test_score_resume_uses_llm_reviewer_when_provided():
+    """用于验证传入 LLM 语义评审时优先使用 LLM 结果。"""
+    async def mock_llm_reviewer(_resume: dict, _dimensions: list[dict]) -> dict:
+        """用于模拟 LLM 语义评审成功返回。"""
+        return {
+            "status": "available",
+            "method": "llm_semantic_review",
+            "overall": {"score": 88, "level": "strong", "reason": "测试用"},
+            "dimensions": [
+                {"key": "role_fit", "score": 90, "evidence": "贴合", "risk": "low", "suggestion": "好"},
+                {"key": "project_persuasiveness", "score": 85, "evidence": "有说服力", "risk": "low", "suggestion": "好"},
+                {"key": "responsibility_depth", "score": 88, "evidence": "深度好", "risk": "low", "suggestion": "好"},
+                {"key": "impact_clarity", "score": 90, "evidence": "清晰", "risk": "low", "suggestion": "好"},
+                {"key": "interview_readiness", "score": 87, "evidence": "准备好了", "risk": "low", "suggestion": "好"},
+            ],
+            "selling_points": ["测试卖点"],
+            "weak_signals": [],
+            "interview_risks": [],
+            "priority_actions": [],
+        }
+
+    result = await score_resume(
+        _full_resume(),
+        async_semantic_reviewer=mock_llm_reviewer,
+    )
+
+    assert result["semantic_review"]["method"] == "llm_semantic_review"
+    assert result["semantic_review"]["overall"]["score"] == 88
+
+
+@pytest.mark.asyncio
+async def test_score_resume_falls_back_to_heuristic_when_llm_fails():
+    """用于验证 LLM 语义评审失败时降级到本地启发式。"""
+
+    async def broken_llm_reviewer(_resume: dict, _dimensions: list[dict]) -> dict:
+        """用于模拟 LLM 语义评审失败。"""
+        raise ValueError("LLM service unavailable")
+
+    result = await score_resume(
+        _full_resume(),
+        async_semantic_reviewer=broken_llm_reviewer,
+    )
+
+    # 应该降级到本地启发式，仍然成功
+    assert result["semantic_review"]["status"] == "available"
+    assert result["semantic_review"]["method"] == "local_semantic_heuristic"

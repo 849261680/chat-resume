@@ -2,25 +2,37 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+import logging
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 from .resume_rule_score import grade_score, score_resume_rules
 from .resume_semantic_review import review_resume_semantics
 
-SemanticReviewer = Callable[[dict[str, Any], list[dict[str, Any]]], dict[str, Any]]
+logger = logging.getLogger(__name__)
+
+SemanticReviewer = Callable[
+    [dict[str, Any], list[dict[str, Any]]], dict[str, Any]
+]
+AsyncSemanticReviewer = Callable[
+    [dict[str, Any], list[dict[str, Any]]], Awaitable[dict[str, Any]]
+]
 
 
-def score_resume(
+async def score_resume(
     resume_content: dict[str, Any],
     *,
-    semantic_reviewer: SemanticReviewer = review_resume_semantics,
+    async_semantic_reviewer: AsyncSemanticReviewer | None = None,
+    fallback_semantic_reviewer: SemanticReviewer = review_resume_semantics,
     score_history: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """用于计算整份简历的规则分、语义评审、总分和可执行修改建议。"""
     rule_checks = score_resume_rules(resume_content)
-    semantic_review = _safe_semantic_review(
-        semantic_reviewer, resume_content, rule_checks["dimensions"]
+    semantic_review = await _safe_semantic_review(
+        async_semantic_reviewer,
+        fallback_semantic_reviewer,
+        resume_content,
+        rule_checks["dimensions"],
     )
     total = _calibrated_total(rule_checks["score"], semantic_review)
     priority_actions = _merge_priority_actions(rule_checks, semantic_review)
@@ -41,14 +53,20 @@ def score_resume(
     }
 
 
-def _safe_semantic_review(
-    semantic_reviewer: SemanticReviewer,
+async def _safe_semantic_review(
+    async_reviewer: AsyncSemanticReviewer | None,
+    fallback_reviewer: SemanticReviewer,
     resume_content: dict[str, Any],
     rule_dimensions: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    """用于捕获语义评审异常并降级为规则评分。"""
+    """用于优先调用 LLM 语义评审，失败时降级为本地启发式。"""
+    if async_reviewer is not None:
+        try:
+            return await async_reviewer(resume_content, rule_dimensions)
+        except Exception as exc:
+            logger.warning("LLM 语义评审失败，降级为本地启发式: %s", exc)
     try:
-        return semantic_reviewer(resume_content, rule_dimensions)
+        return fallback_reviewer(resume_content, rule_dimensions)
     except Exception as exc:
         return {
             "status": "unavailable",
@@ -137,7 +155,10 @@ def _semantic_primary_risk(semantic_review: dict[str, Any]) -> dict[str, Any]:
     dimensions = semantic_review.get("dimensions")
     if not isinstance(dimensions, list) or not dimensions:
         return {}
-    weakest = min(_valid_actions(dimensions), key=lambda item: item.get("score", 100))
+    weakest = min(
+        [d for d in dimensions if isinstance(d, dict)],
+        key=lambda item: item.get("score", 100),
+    )
     return {
         "dimension_key": str(weakest.get("key", "semantic_review")),
         "dimension_name": "语义评审",
@@ -308,7 +329,6 @@ def _assess_convergence(
         }
     # 收敛判断：连续两轮无提升
     if improvement_from_last <= 0 and len(previous_scores) >= 1:
-        # 再检查倒数第二轮
         if len(previous_scores) >= 2 and previous_scores[-1] <= previous_scores[-2]:
             return {
                 "status": "plateaued",

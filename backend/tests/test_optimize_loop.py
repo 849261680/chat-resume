@@ -1,5 +1,7 @@
 """用于覆盖简历自动迭代优化循环相关的回归测试。"""
 
+import pytest
+
 from app.agents.resume.prompt_context import build_score_history
 from app.agents.resume.tool_execution import ResumeToolExecutionStage
 
@@ -94,7 +96,8 @@ def test_maybe_record_score_snapshot_accumulates_across_calls():
 # ---------- JD 匹配同义词和权重化测试 ----------
 
 
-def test_jd_match_hits_synonym_in_resume():
+@pytest.mark.asyncio
+async def test_jd_match_hits_synonym_in_resume():
     """用于验证简历写'服务拆分'也能匹配 JD 里的'微服务'。"""
     from app.services.agent.resume_score import score_resume
 
@@ -110,7 +113,7 @@ def test_jd_match_hits_synonym_in_resume():
         "skills": [{"id": "s1", "category": "后端", "items": ["Python"]}],
         "job_application": {"jd_text": "要求必须掌握微服务架构。"},
     }
-    result = score_resume(resume)
+    result = await score_resume(resume)
     jd_dim = next((d for d in result["dimensions"] if d["key"] == "jd_match"), None)
     assert jd_dim is not None
     # 微服务 同义词 服务拆分 命中
@@ -159,11 +162,12 @@ def test_jd_match_synonym_group_coverage():
 # ---------- 收敛判断测试 ----------
 
 
-def test_convergence_none_on_first_score():
+@pytest.mark.asyncio
+async def test_convergence_none_on_first_score():
     """用于验证首次评分时无收敛信息。"""
     from app.services.agent.resume_score import score_resume
 
-    result = score_resume({
+    result = await score_resume({
         "personal_info": {"name": "张", "email": "z@s.com"},
         "summary": {"text": "工程师。"},
         "education": [{"id": "e1", "school": "北大", "highlights": []}],
@@ -173,7 +177,8 @@ def test_convergence_none_on_first_score():
     assert result["convergence"] is None
 
 
-def test_convergence_improving_when_score_rises():
+@pytest.mark.asyncio
+async def test_convergence_improving_when_score_rises():
     """用于验证分数提升时收敛状态为 improving。"""
     from app.services.agent.resume_score import score_resume
 
@@ -189,7 +194,7 @@ def test_convergence_improving_when_score_rises():
         "skills": [{"id": "s1", "category": "后端", "items": ["Python"]}],
     }
     history = [{"total_score": 60, "grade": "D", "note": "初始"}]
-    result = score_resume(resume, score_history=history)
+    result = await score_resume(resume, score_history=history)
     conv = result["convergence"]
     assert conv is not None
     assert conv["status"] == "improving"
@@ -197,7 +202,8 @@ def test_convergence_improving_when_score_rises():
     assert conv["initial_score"] == 60
 
 
-def test_convergence_converged_at_85_plus():
+@pytest.mark.asyncio
+async def test_convergence_converged_at_85_plus():
     """用于验证分数达到 85 以上时标记为 converged。"""
     from app.services.agent.resume_score import score_resume
 
@@ -216,7 +222,7 @@ def test_convergence_converged_at_85_plus():
         "skills": [{"id": "s1", "category": "后端", "items": ["Python", "FastAPI"]}],
     }
     history = [{"total_score": 70, "grade": "C", "note": "初始"}]
-    result = score_resume(resume, score_history=history)
+    result = await score_resume(resume, score_history=history)
     if result["total_score"] >= 85:
         conv = result["convergence"]
         assert conv["status"] == "converged"
@@ -224,7 +230,8 @@ def test_convergence_converged_at_85_plus():
         assert "优秀" in conv["stop_reason"]
 
 
-def test_convergence_plateaued_after_two_flat_rounds():
+@pytest.mark.asyncio
+async def test_convergence_plateaued_after_two_flat_rounds():
     """用于验证连续两轮无提升时标记为 plateaued。"""
     from app.services.agent.resume_score import score_resume
 
@@ -244,7 +251,7 @@ def test_convergence_plateaued_after_two_flat_rounds():
         {"total_score": 55, "grade": "F", "note": "第一轮"},
         {"total_score": 55, "grade": "F", "note": "第二轮"},
     ]
-    result = score_resume(resume, score_history=history)
+    result = await score_resume(resume, score_history=history)
     conv = result["convergence"]
     if conv and conv["current_score"] <= conv["last_score"]:
         assert conv["status"] == "plateaued"

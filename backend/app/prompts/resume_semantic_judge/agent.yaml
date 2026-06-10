@@ -1,0 +1,9 @@
+version: "1.0"
+agent:
+  name: resume_semantic_judge
+  description: 整份简历的语义级评审 prompt
+  system_prompt_path: ./system.md
+  system_prompt_args: {}
+  model_defaults:
+    temperature: 0.3
+    max_tokens: 3000

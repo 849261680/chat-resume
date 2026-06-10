@@ -10,12 +10,15 @@ _TOOL_ALIASES = {
     "删除要点": "remove_bullet",
     "优化总结": "update_summary",
     "优化项目简介": "update_overview",
+    "询问信息": "ask_user",
     "update_bullet": "update_bullet",
     "add_bullet": "add_bullet",
     "remove_bullet": "remove_bullet",
     "update_summary": "update_summary",
     "update_overview": "update_overview",
+    "ask_user": "ask_user",
 }
+_CLARIFY_TOOL_NAMES = {"ask_user"}
 _GATE_FAILURE_TYPES = {"unsupported_resume_claim", "low_quality_resume_edit"}
 _CLARIFY_MARKERS = (
     "请补充",
@@ -122,11 +125,16 @@ def _actual_decision(
     """用于把轨迹压缩成执行或追问决策。"""
     if gate_failure:
         return "clarify"
-    if actual_tool_calls:
+    if actual_tool_calls and not _only_clarify_tools(actual_tool_calls):
         return "execute"
     if _looks_like_clarification(final_text):
         return "clarify"
     return "execute"
+
+
+def _only_clarify_tools(actual_tool_calls: list[str]) -> bool:
+    """用于判断工具轨迹是否只包含结构化追问。"""
+    return all(name in _CLARIFY_TOOL_NAMES for name in actual_tool_calls)
 
 
 def _looks_like_clarification(text: str) -> bool:

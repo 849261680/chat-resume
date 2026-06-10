@@ -40,6 +40,21 @@ def test_clarify_case_passes_when_agent_asks_for_missing_facts():
     assert result["actual_decision"] == "clarify"
 
 
+def test_ask_user_tool_counts_as_clarify_not_execute():
+    """用于验证结构化追问工具不会被误判为执行改写。"""
+    result = evaluate_excellent_resume_trajectory(
+        case=_case("excellent-003"),
+        trajectory={
+            "tool_calls": [{"name": "询问信息"}],
+            "final_text": "是否真实使用过 Redis 或 Kafka？如果有，请说明具体场景。",
+        },
+    )
+
+    assert result["passed"] is True
+    assert result["actual_decision"] == "clarify"
+    assert result["actual_tool_calls"] == ["ask_user"]
+
+
 def test_gate_failure_case_counts_as_clarify_trajectory():
     """用于验证事实门禁失败后回到追问也算正确轨迹。"""
     result = evaluate_excellent_resume_trajectory(

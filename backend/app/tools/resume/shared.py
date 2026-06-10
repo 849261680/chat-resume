@@ -10,9 +10,10 @@ SECTION_NAMES = {
     "education": "教育经历",
     "work_experience": "工作经历",
     "projects": "项目经历",
+    "open_source": "开源经历",
 }
 
-HIGHLIGHT_SECTIONS = {"education", "work_experience", "projects"}
+HIGHLIGHT_SECTIONS = {"education", "work_experience", "projects", "open_source"}
 
 
 def normalize_reason(reason: Any) -> str:

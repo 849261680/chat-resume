@@ -54,10 +54,10 @@ TOOL_SECTION_ENUMS: dict[str, set[str]] = {
         "open_source",
         "skills",
     },
-    "update_bullet": {"education", "work_experience", "projects"},
-    "add_bullet": {"education", "work_experience", "projects"},
-    "remove_bullet": {"education", "work_experience", "projects"},
-    "evaluate_bullet": {"education", "work_experience", "projects"},
+    "update_bullet": {"education", "work_experience", "projects", "open_source"},
+    "add_bullet": {"education", "work_experience", "projects", "open_source"},
+    "remove_bullet": {"education", "work_experience", "projects", "open_source"},
+    "evaluate_bullet": {"education", "work_experience", "projects", "open_source"},
 }
 
 TOOL_DISPLAY_NAMES = {

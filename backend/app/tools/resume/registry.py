@@ -22,7 +22,8 @@ from .update_summary_tool import update_summary
 from .upsert_job_application_tool import upsert_job_application
 from .evaluate_bullet_tool import evaluate_bullet
 
-_BULLET_SECTIONS = ["education", "work_experience", "projects"]
+_ITEM_FIELD_SECTIONS = ["education", "work_experience", "projects"]
+_BULLET_SECTIONS = ["education", "work_experience", "projects", "open_source"]
 ResumeToolResult = dict[str, Any] | Awaitable[dict[str, Any]]
 
 
@@ -205,7 +206,7 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "section": {"type": "string", "enum": _BULLET_SECTIONS},
+                    "section": {"type": "string", "enum": _ITEM_FIELD_SECTIONS},
                     "item_id": {
                         "type": "string",
                         "description": "工作/项目/教育条目的 id",
@@ -451,7 +452,7 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
                 "用 LLM 以招聘经理视角评价单条简历要点。从量化程度、动作表达、"
                 "结果影响、主导性和整体说服力五个维度打分，给出改进建议。"
                 "只读不改简历；适合用户要求评价某条要点、分析为什么某条不够好时调用。"
-                "section 只能是 education、work_experience、projects；"
+                "section 只能是 education、work_experience、projects、open_source；"
                 "item_id 和 bullet_id 必须来自当前简历 JSON。"
             ),
             "parameters": {
@@ -554,7 +555,7 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
                 "精准更新某个条目下单条 bullet 的文本。仅当新的 bullet 文本与原 bullet "
                 "存在实质内容差异时使用；如果认为当前 bullet 已合适，必须直接回复用户说明无需修改，"
                 "不要调用该工具。不得为了表达优化理由而传入原文。section 只能是 "
-                "education、work_experience、projects；item_id 和 bullet_id 必须来自当前简历 JSON。"
+                "education、work_experience、projects、open_source；item_id 和 bullet_id 必须来自当前简历 JSON。"
             ),
             "parameters": {
                 "type": "object",
@@ -597,7 +598,7 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
             "name": "add_bullet",
             "description": (
                 "向某个条目新增一条 bullet。section 只能是 education、"
-                "work_experience、projects；item_id 必须来自当前简历 JSON。"
+                "work_experience、projects、open_source；item_id 必须来自当前简历 JSON。"
                 "仅在已有 bullet 无法承载用户目标或 JD 关键词时使用，不要编造事实。"
             ),
             "parameters": {
@@ -630,7 +631,7 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
             "name": "remove_bullet",
             "description": (
                 "从某个条目删除一条 bullet。section 只能是 education、"
-                "work_experience、projects；item_id 和 bullet_id 必须来自当前简历 JSON。"
+                "work_experience、projects、open_source；item_id 和 bullet_id 必须来自当前简历 JSON。"
                 "仅在用户明确要删除或该 bullet 与目标明显冲突时使用。"
             ),
             "parameters": {

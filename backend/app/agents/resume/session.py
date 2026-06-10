@@ -135,6 +135,7 @@ def build_resume_context_summary(
         "profile": _section_summary(frontend_content, "profile"),
         "work_experience": _list_section_summary(frontend_content, "work_experience"),
         "projects": _list_section_summary(frontend_content, "projects"),
+        "open_source": _list_section_summary(frontend_content, "open_source"),
         "education": _list_section_summary(frontend_content, "education"),
         "job_application": {
             "target_title": str(job_application.get("target_title") or "")

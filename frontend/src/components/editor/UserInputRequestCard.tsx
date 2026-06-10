@@ -152,9 +152,9 @@ export default function UserInputRequestCard({
                   aria-label={t('userInputRequestSubmit')}
                   disabled={disabled || !trimmedCustomAnswer}
                   onClick={submitCustomAnswer}
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gray-950 text-white transition-colors hover:bg-black disabled:cursor-not-allowed disabled:opacity-40"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-950 text-white transition-colors hover:bg-black disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  <ArrowRightIcon className="h-6 w-6" />
+                  <ArrowRightIcon className="h-5 w-5" />
                 </button>
               )}
               {!customOpen && (

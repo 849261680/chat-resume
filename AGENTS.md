@@ -57,6 +57,7 @@ bd close <id>         # 完成任务
 - 所有任务追踪都使用 `bd`，不要使用 TodoWrite、TaskCreate 或 Markdown TODO 列表
 - 运行 `bd prime` 查看详细命令参考和会话收尾协议
 - 使用 `bd remember` 保存持久知识，不要使用 MEMORY.md 文件
+- 开始做beads任务时请将其状态改为PROG
 
 **一句话架构：** 任务存放在本地 Dolt 数据库中；同步使用 Git 远端的 `refs/dolt/data`；`.beads/issues.jsonl` 只是被动导出文件。细节和反模式见 https://github.com/gastownhall/beads/blob/main/docs/SYNC_CONCEPTS.md。
 
@@ -184,6 +185,7 @@ bv --robot-label-health | jq '.results.labels[] | select(.health_level == "criti
 
 ## MCP Agent Mail：多 Agent 工作流协作
 - 改动前请使用AGENT MAIL预约文件以避免冲突
+- 预约文件冲突时请轮询等待
 
 它是什么
 - 一个类似邮件的协作层，让编码 Agent 通过 MCP 工具和资源异步协作。

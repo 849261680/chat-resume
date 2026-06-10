@@ -2,6 +2,7 @@
 
 import sys
 from pathlib import Path
+from typing import Any, cast
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
@@ -40,16 +41,20 @@ def test_ask_user_tool_is_registered_and_auto_executed():
     """用于验证 ask_user 暴露给模型且不需要确认。"""
     tool_names = {tool["function"]["name"] for tool in RESUME_TOOLS_SCHEMA}
     agent = ResumeAgent()
+    result = cast(
+        dict[str, Any],
+        execute_resume_tool(
+            "ask_user",
+            resume_content={},
+            question="你主要负责哪部分？",
+            options=["后端", "前端"],
+        ),
+    )
 
     assert "ask_user" in tool_names
     assert "ask_user" in agent.definition.tool_profiles["resume_edit"]
     assert "ask_user" in agent.definition.auto_execute_tool_names
-    assert execute_resume_tool(
-        "ask_user",
-        resume_content={},
-        question="你主要负责哪部分？",
-        options=["后端", "前端"],
-    )["success"] is True
+    assert result["success"] is True
 
 
 def test_ask_user_schema_requires_question_wording():

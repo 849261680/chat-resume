@@ -19,11 +19,27 @@ if str(ROOT_DIR) not in sys.path:
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
+
+def load_backend_env() -> None:
+    """用于在导入 app 配置前读取 backend/.env。"""
+    env_path = BACKEND_DIR / ".env"
+    if not env_path.exists():
+        return
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            continue
+        key, value = stripped.split("=", 1)
+        os.environ.setdefault(key, value.strip().strip('"').strip("'"))
+
+
+load_backend_env()
+
 from app.agents.resume.excellent_cases import load_excellent_resume_cases  # noqa: E402
 from app.agents.resume.excellent_trajectory import (  # noqa: E402
     evaluate_excellent_resume_trajectory,
 )
-from eval.harness import build_agent, load_backend_env, run_agent_target  # noqa: E402
+from eval.harness import build_agent, run_agent_target  # noqa: E402
 
 TargetRunner = Callable[[Any, dict[str, Any]], Awaitable[dict[str, Any]]]
 

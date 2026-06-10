@@ -161,6 +161,57 @@ def test_tool_schema_has_function_dict(tool_name: str):
     assert "parameters" in tool["function"]
 
 
+def test_prompt_prefers_conservative_rewrite_when_existing_facts_are_enough():
+    """已有事实足够改写时，prompt 不应鼓励因为缺少量化指标而追问。"""
+    rendered = _render(
+        target_title="后端工程师",
+        target_company="",
+        jd_text="负责接口设计、数据库优化和稳定性建设",
+        resume_json=(
+            '{"projects":[{"id":"p1","highlights":[{"id":"b1",'
+            '"text":"用 Spring Boot 写了商品发布和搜索接口"}]}]}'
+        ),
+    )
+
+    assert "先做保守改写，不要因为缺少量化指标就追问" in rendered
+    assert "不要为了满足格式编造数字" in rendered
+    assert "不要把所有优化请求都变成追问" in rendered
+
+
+def test_prompt_blocks_unsupported_jd_keywords_before_mutation():
+    """JD 关键词没有事实支撑时，prompt 必须要求先追问再修改。"""
+    rendered = _render(
+        target_title="后端工程师",
+        target_company="",
+        jd_text="要求 Redis、Kafka、高并发系统和分布式服务治理经验",
+        resume_json=(
+            '{"projects":[{"id":"p1","highlights":[{"id":"b1",'
+            '"text":"用 Spring Boot 写了商品发布和搜索接口"}]}],'
+            '"skills":[{"items":["Spring Boot","MySQL"]}]}'
+        ),
+    )
+
+    assert "JD 核心要求的技术/角色/规模全部缺少证据" in rendered
+    assert "先调用 `ask_user`，不要在追问前调用任何修改工具" in rendered
+
+
+def test_prompt_rewrites_when_resume_supports_part_of_jd():
+    """JD 部分关键词有证据时，prompt 应先围绕已有事实改写。"""
+    rendered = _render(
+        target_title="前端工程师",
+        target_company="",
+        jd_text="强调组件化、性能优化和复杂交互",
+        resume_json=(
+            '{"work_experience":[{"id":"w1","highlights":[{"id":"b1",'
+            '"text":"重构商品详情页组件，将首屏加载时间从 2.8s 降到 1.6s"}]}],'
+            '"skills":[{"items":["Vue","组件化"]}]}'
+        ),
+    )
+
+    assert "现有事实能支持其中一部分" in rendered
+    assert "不要因为剩余关键词缺证据就放弃改写" in rendered
+
+
 # ── P1: 参数化更新类工具的 reason 字段 ─────────────────────
 
 _TOOLS_WITH_REASON_PARAM = [

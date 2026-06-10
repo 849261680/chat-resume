@@ -10,7 +10,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -20,7 +19,15 @@ EVAL_DIR = Path(__file__).resolve().parent
 if str(EVAL_DIR) not in sys.path:
     sys.path.insert(0, str(EVAL_DIR))
 
-from harness import EVAL_DIR, build_agent, load_backend_env, run_agent_target  # noqa: E402
+from harness import (  # noqa: E402
+    EVAL_DIR,
+    build_agent,
+    has_required_agent_api_key,
+    load_backend_env,
+    required_agent_api_key_name,
+    run_agent_target,
+)
+from openai_agents_standard import build_eval_run_summary  # noqa: E402
 
 
 def load_cases(filter_ids: list[str] | None = None) -> list[dict[str, Any]]:
@@ -53,7 +60,7 @@ def case_to_inputs(case: dict[str, Any]) -> dict[str, Any]:
 async def run_single_case(agent, case: dict[str, Any]) -> dict[str, Any]:
     """用于运行单个测试用例，返回本地报告格式。"""
     try:
-        result = await run_agent_target(agent, case_to_inputs(case))
+        result = await run_agent_target(agent, case_to_inputs(case), case=case)
         runtime_events = result.get("runtime_events")
         fallback_triggered = (
             isinstance(runtime_events, list)
@@ -75,6 +82,7 @@ async def run_single_case(agent, case: dict[str, Any]) -> dict[str, Any]:
             "resume_before": case_to_inputs(case)["resume"],
             "resume_after": result.get("resume_after", {}),
             "case": case,
+            "openai_agents_eval": result.get("openai_agents_eval"),
         }
     except Exception as exc:
         return {
@@ -125,9 +133,12 @@ def save_results(results: list[dict[str, Any]], output_path: str) -> None:
         "total": len(results),
         "ok": sum(1 for result in results if result["status"] == "ok"),
         "error": sum(1 for result in results if result["status"] == "error"),
+        "openai_agents_eval": build_eval_run_summary(results),
         "results": results,
     }
-    Path(output_path).write_text(
+    output_file = Path(output_path)
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    output_file.write_text(
         json.dumps(output, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
@@ -143,8 +154,8 @@ def main() -> None:
 
     load_backend_env()
     filter_ids = [item.strip() for item in args.cases.split(",")] if args.cases else None
-    if not os.environ.get("OPENROUTER_API_KEY"):
-        print("错误: 未设置 OPENROUTER_API_KEY 环境变量")
+    if not has_required_agent_api_key():
+        print(f"错误: 未设置 {required_agent_api_key_name()} 环境变量")
         sys.exit(1)
 
     results = asyncio.run(run_all(filter_ids))

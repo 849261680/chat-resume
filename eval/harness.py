@@ -8,13 +8,24 @@ import time
 from pathlib import Path
 from typing import Any
 
-BACKEND_DIR = Path(__file__).resolve().parent.parent / "backend"
+ROOT_DIR = Path(__file__).resolve().parent.parent
+BACKEND_DIR = ROOT_DIR / "backend"
 EVAL_DIR = Path(__file__).resolve().parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
+if str(EVAL_DIR) not in sys.path:
+    sys.path.insert(0, str(EVAL_DIR))
 
 from app.agents.resume.agent import ResumeAgent  # noqa: E402
+from app.infra.config import settings  # noqa: E402
+from app.runtime.openai_agents_eval import use_openai_agents_trace_config  # noqa: E402
 from app.schemas.resume import dump_resume_content_for_frontend  # noqa: E402
+from eval.openai_agents_standard import (  # noqa: E402
+    build_eval_artifact,
+    build_trace_config,
+)
 
 
 def load_backend_env() -> None:
@@ -33,6 +44,19 @@ def load_backend_env() -> None:
 def build_agent() -> ResumeAgent:
     """用于构建当前代码路径下的真实 Resume Agent。"""
     return ResumeAgent()
+
+
+def required_agent_api_key_name() -> str:
+    """用于返回当前 Agents SDK provider 需要的 API key 环境变量名。"""
+    provider = settings.OPENAI_AGENTS_PROVIDER.strip().lower()
+    if provider == "deepseek":
+        return "DEEPSEEK_API_KEY"
+    return "OPENAI_API_KEY"
+
+
+def has_required_agent_api_key() -> bool:
+    """用于判断当前 eval provider 是否具备模型调用密钥。"""
+    return bool(os.environ.get(required_agent_api_key_name()))
 
 
 def normalize_legacy_highlights(items: Any) -> list[Any]:
@@ -125,6 +149,7 @@ def infer_decision(reply: str, tools: list[str]) -> str:
 async def run_agent_target(
     agent: ResumeAgent,
     inputs: dict[str, Any],
+    case: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """用于执行本地 eval 的单条目标函数。"""
     resume = normalize_resume(inputs.get("resume"))
@@ -132,19 +157,21 @@ async def run_agent_target(
     resume = inject_job_application(resume, jd)
     message = build_message_with_jd(str(inputs.get("user_message", "")), jd)
     runtime_events: list[dict[str, Any]] = []
+    trace_config = build_trace_config(str(inputs.get("case_id", "case")))
     started_at = time.time()
-    result = await agent.runtime.run(
-        agent=agent.definition,
-        user_message=message,
-        context={"resume_content": resume, "allowed_sections": None},
-        event_callback=lambda event: runtime_events.append(dict(event)),
-    )
+    with use_openai_agents_trace_config(trace_config):
+        result = await agent.runtime.run(
+            agent=agent.definition,
+            user_message=message,
+            context={"resume_content": resume, "allowed_sections": None},
+            event_callback=lambda event: runtime_events.append(dict(event)),
+        )
     elapsed_s = round(time.time() - started_at, 2)
     reply = str(result.get("content", ""))
     tools = tool_names(result.get("tool_calls"))
     context = result.get("context")
     resume_after = context.get("resume_content", {}) if isinstance(context, dict) else {}
-    return {
+    output = {
         "case_id": inputs.get("case_id"),
         "agent_reply": reply,
         "tool_calls": tools,
@@ -153,6 +180,14 @@ async def run_agent_target(
         "resume_after": resume_after,
         "runtime_events": runtime_events,
     }
+    if case is not None:
+        output["openai_agents_eval"] = build_eval_artifact(
+            case=case,
+            inputs={**inputs, "user_message": message, "resume": resume, "jd": jd},
+            result=output,
+            trace_config=trace_config,
+        )
+    return output
 
 
 __all__ = [
@@ -160,9 +195,11 @@ __all__ = [
     "build_agent",
     "build_message_with_jd",
     "infer_decision",
+    "has_required_agent_api_key",
     "inject_job_application",
     "load_backend_env",
     "normalize_resume",
+    "required_agent_api_key_name",
     "run_agent_target",
     "tool_names",
 ]

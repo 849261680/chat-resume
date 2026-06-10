@@ -217,6 +217,32 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 并填写 `DEEPSEEK_API_KEY`。该分支使用 OpenAI-compatible Chat Completions，
 默认用 `DEEPSEEK_THINKING_TYPE=disabled` 避免工具确认后的 reasoning_content 回放错误。
 
+### Agent 评估
+
+Resume Agent 评估保留本地 `eval/` 跑法，同时输出 OpenAI Agents SDK 标准兼容产物：
+
+- `openai_agents_eval.trace`：写入 SDK `RunConfig.workflow_name`、`trace_id`、`group_id` 和 metadata，真实 OpenAI provider 运行时可在 Traces 中定位。
+- `openai_agents_eval.dataset_item`：把本地 case 转成 dataset item 形状，包含输入、期望决策、期望工具、关键词和禁止内容。
+- `openai_agents_eval.model_sample`：把 Agent 回复、工具调用和最终简历状态转成 grader sample。
+- `openai_agents_eval.grader`：提供 OpenAI Python grader 配置，用于评分决策、工具调用、关键词、禁止内容和回复形态。
+
+普通评估：
+
+```bash
+cd backend
+uv run python ../eval/run_eval.py --cases TC001 --output ../eval/results/latest.json
+```
+
+优秀简历黄金样例：
+
+```bash
+cd backend
+uv run python ../eval/run_excellent_eval.py --cases excellent-002 --output ../eval/results/excellent_latest.json
+```
+
+默认 OpenAI provider 使用 `OPENAI_API_KEY`；切到 `OPENAI_AGENTS_PROVIDER=deepseek`
+时使用 `DEEPSEEK_API_KEY`。DeepSeek 兼容分支仍可本地评分，但不会上传 OpenAI 平台 trace。
+
 可选能力按需配置：
 
 - Google 登录：`GOOGLE_OAUTH_CLIENT_ID`、`GOOGLE_OAUTH_CLIENT_SECRET`、`GOOGLE_OAUTH_REDIRECT_URI`

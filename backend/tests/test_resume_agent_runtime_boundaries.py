@@ -59,6 +59,10 @@ from app.runtime.openai_agents_adapter import (  # noqa: E402
     build_openai_agents_loop_config,
     openai_agents_chat_model_name,
 )
+from app.runtime.openai_agents_eval import (  # noqa: E402
+    OpenAIAgentsTraceConfig,
+    use_openai_agents_trace_config,
+)
 from app.runtime.contracts import AgentDefinition  # noqa: E402
 from app.services.agent.resume_agent_stream_service import (  # noqa: E402
     ResumeAgentStreamService,
@@ -782,6 +786,31 @@ def test_openai_agents_config_keeps_default_provider_label(monkeypatch: pytest.M
         config.model,
         SimpleStreamOptions(api_key="openai-key", temperature=0.2, max_tokens=128),
     ).extra_body is None
+
+
+def test_openai_agents_adapter_applies_eval_trace_config():
+    """用于验证 eval trace 配置会进入 OpenAI Agents SDK RunConfig。"""
+    adapter = OpenAIAgentsStreamAdapter()
+    model = Model(api="responses", provider="openai-agents", id="gpt-test")
+    trace_config = OpenAIAgentsTraceConfig(
+        workflow_name="chat-resume.resume-agent.eval",
+        trace_id="trace_1234567890abcdef1234567890abcdef",
+        group_id="chat-resume-eval:TC001",
+        metadata={"case_id": "TC001"},
+        trace_include_sensitive_data=False,
+    )
+
+    with use_openai_agents_trace_config(trace_config):
+        run_config = adapter.run_config(
+            model,
+            SimpleStreamOptions(api_key="openai-key", temperature=0.2, max_tokens=128),
+        )
+
+    assert run_config.workflow_name == "chat-resume.resume-agent.eval"
+    assert run_config.trace_id == "trace_1234567890abcdef1234567890abcdef"
+    assert run_config.group_id == "chat-resume-eval:TC001"
+    assert run_config.trace_metadata == {"case_id": "TC001"}
+    assert run_config.trace_include_sensitive_data is False
 
 
 def test_openai_agents_config_can_target_deepseek_provider(monkeypatch: pytest.MonkeyPatch):

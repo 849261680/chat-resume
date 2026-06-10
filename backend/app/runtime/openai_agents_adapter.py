@@ -36,6 +36,7 @@ from pi_agent_core.types import Message
 from app.agents.resume.message_conversion import convert_resume_messages_to_llm
 from app.infra.config import settings
 from app.runtime.contracts import AgentDefinition
+from app.runtime.openai_agents_eval import current_openai_agents_trace_config
 
 OPENAI_AGENTS_PROVIDER_OPENAI = "openai"
 OPENAI_AGENTS_PROVIDER_DEEPSEEK = "deepseek"
@@ -182,6 +183,12 @@ class OpenAIAgentsStreamAdapter:
 
     def run_config(self, model: Model, options: SimpleStreamOptions) -> RunConfig:
         """用于把 API key 显式交给 SDK provider。"""
+        config = self.provider_run_config(model, options)
+        self.apply_eval_trace_config(config)
+        return config
+
+    def provider_run_config(self, model: Model, options: SimpleStreamOptions) -> RunConfig:
+        """用于按 provider 创建基础 SDK RunConfig。"""
         if self.sdk_model is not None:
             return RunConfig()
         if model.provider == OPENAI_AGENTS_PROVIDER_DEEPSEEK:
@@ -195,11 +202,20 @@ class OpenAIAgentsStreamAdapter:
                 tracing_disabled=True,
             )
         if options.api_key:
-            return RunConfig(
-                model=model.id,
-                model_provider=OpenAIProvider(api_key=options.api_key),
-            )
+            return RunConfig(model=model.id, model_provider=OpenAIProvider(api_key=options.api_key))
         return RunConfig(model=model.id)
+
+    @staticmethod
+    def apply_eval_trace_config(config: RunConfig) -> None:
+        """用于把当前 eval trace 配置写入 SDK RunConfig。"""
+        trace_config = current_openai_agents_trace_config()
+        if trace_config is None:
+            return
+        config.workflow_name = trace_config.workflow_name
+        config.trace_id = trace_config.trace_id
+        config.group_id = trace_config.group_id
+        config.trace_metadata = dict(trace_config.metadata)
+        config.trace_include_sensitive_data = trace_config.trace_include_sensitive_data
 
     @staticmethod
     def function_tool(tool: Any) -> FunctionTool:

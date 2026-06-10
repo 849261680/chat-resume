@@ -39,7 +39,17 @@ from app.agents.resume.excellent_cases import load_excellent_resume_cases  # noq
 from app.agents.resume.excellent_trajectory import (  # noqa: E402
     evaluate_excellent_resume_trajectory,
 )
-from eval.harness import build_agent, run_agent_target  # noqa: E402
+from eval.harness import (  # noqa: E402
+    build_agent,
+    has_required_agent_api_key,
+    required_agent_api_key_name,
+    run_agent_target,
+)
+from eval.openai_agents_standard import (  # noqa: E402
+    build_eval_artifact,
+    build_eval_run_summary,
+    build_trace_config,
+)
 
 TargetRunner = Callable[[Any, dict[str, Any]], Awaitable[dict[str, Any]]]
 
@@ -66,6 +76,18 @@ def case_to_inputs(case: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def case_to_openai_standard_case(case: dict[str, Any]) -> dict[str, Any]:
+    """用于把优秀简历样例转成 OpenAI eval dataset 期望字段。"""
+    expected = case.get("expected_behavior")
+    expected = expected if isinstance(expected, dict) else {}
+    return {
+        **case,
+        "expected_decision": expected.get("decision"),
+        "expected_tool_calls": expected.get("expected_tool_calls", []),
+        "forbidden_content": case.get("forbidden_claims", []),
+    }
+
+
 def trajectory_from_agent_result(result: dict[str, Any]) -> dict[str, Any]:
     """用于把真实 Agent 结果转成轨迹评测输入。"""
     return {
@@ -83,11 +105,22 @@ async def run_single_case(
 ) -> dict[str, Any]:
     """用于执行单条黄金样例并附加轨迹评分。"""
     try:
-        agent_result = await target(agent, case_to_inputs(case))
+        inputs = case_to_inputs(case)
+        standard_case = case_to_openai_standard_case(case)
+        agent_result = await _run_target(target, agent, inputs, standard_case)
     except Exception as exc:
         return _error_result(case, exc)
     trajectory = trajectory_from_agent_result(agent_result)
     score = evaluate_excellent_resume_trajectory(case=case, trajectory=trajectory)
+    openai_artifact = agent_result.get("openai_agents_eval")
+    if not isinstance(openai_artifact, dict):
+        trace_config = build_trace_config(str(inputs["case_id"]))
+        openai_artifact = build_eval_artifact(
+            case=standard_case,
+            inputs=inputs,
+            result=agent_result,
+            trace_config=trace_config,
+        )
     return {
         "id": case["id"],
         "title": case.get("title", ""),
@@ -97,6 +130,7 @@ async def run_single_case(
         "agent_reply": agent_result.get("agent_reply", ""),
         "tool_calls": agent_result.get("tool_calls", []),
         "trajectory_score": score,
+        "openai_agents_eval": openai_artifact,
     }
 
 
@@ -134,6 +168,7 @@ def build_report(results: list[dict[str, Any]]) -> dict[str, Any]:
             "failed": failed,
             "pass_rate": round(passed / total, 3) if total else 0.0,
         },
+        "openai_agents_eval": build_eval_run_summary(results),
         "failures": _failure_rows(results),
         "results": results,
     }
@@ -141,7 +176,9 @@ def build_report(results: list[dict[str, Any]]) -> dict[str, Any]:
 
 def save_report(report: dict[str, Any], output_path: str) -> None:
     """用于把评估报告写入 JSON 文件。"""
-    Path(output_path).write_text(
+    output_file = Path(output_path)
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    output_file.write_text(
         json.dumps(report, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
@@ -163,8 +200,8 @@ def main() -> None:
     args = parser.parse_args()
 
     load_backend_env()
-    if not args.dry_run and not os.environ.get("OPENROUTER_API_KEY"):
-        print("错误: 未设置 OPENROUTER_API_KEY 环境变量")
+    if not args.dry_run and not has_required_agent_api_key():
+        print(f"错误: 未设置 {required_agent_api_key_name()} 环境变量")
         sys.exit(1)
 
     cases = load_cases(parse_case_ids(args.cases))
@@ -194,6 +231,18 @@ async def _dry_run_target(agent: Any, inputs: dict[str, Any]) -> dict[str, Any]:
         "elapsed_s": 0,
         "runtime_events": [],
     }
+
+
+async def _run_target(
+    target: TargetRunner,
+    agent: Any,
+    inputs: dict[str, Any],
+    standard_case: dict[str, Any],
+) -> dict[str, Any]:
+    """用于兼容默认真实 runner 和测试注入 runner。"""
+    if target is run_agent_target:
+        return await run_agent_target(agent, inputs, case=standard_case)
+    return await target(agent, inputs)
 
 
 def _tool_call_dicts(tool_calls: Any) -> list[dict[str, str]]:

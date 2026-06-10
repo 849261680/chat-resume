@@ -60,6 +60,7 @@ from app.runtime.tool_confirmation import (  # noqa: E402
 )
 
 RESUME_EDIT_TOOL_NAMES = {
+    "ask_user",
     "update_summary",
     "update_profile",
     "upsert_job_application",
@@ -76,6 +77,7 @@ RESUME_EDIT_TOOL_NAMES = {
     "read_job_post",
     "read_memory",
     "update_memory",
+    "evaluate_bullet",
 }
 
 
@@ -262,8 +264,8 @@ def test_system_prompt_does_not_mirror_active_tools():
     pi_context, state = _build_runtime_inputs(agent, "优化项目经历")
 
     assert "## 可用工具" not in pi_context.system_prompt
-    assert "update_bullet" not in pi_context.system_prompt
-    assert "score_resume" not in pi_context.system_prompt
+    # 工具名称出现在「工具选择规则」指导文本中，不是镜像工具列表
+    assert "## 工具选择规则" in pi_context.system_prompt
     assert set(state["tool_names"]) == RESUME_EDIT_TOOL_NAMES
 
 
@@ -299,13 +301,15 @@ def test_system_prompt_tool_list_matches_requested_profile():
     )
 
     assert [tool.name for tool in pi_context.tools] == [
+        "ask_user",
         "score_resume",
         "list_job_posts",
         "read_job_post",
         "read_memory",
     ]
     assert "score_resume" not in pi_context.system_prompt
-    assert "update_bullet" not in pi_context.system_prompt
+    # 工具名称出现在「工具选择规则」指导文本中，不是镜像工具列表
+    assert "## 工具选择规则" in pi_context.system_prompt
 
 
 def test_turn_context_keeps_tools_available_for_hidden_sections():
@@ -377,6 +381,7 @@ def test_resume_turn_context_builder_prepares_profiled_tools_independently():
     )
 
     assert [tool.name for tool in pi_context.tools] == [
+        "ask_user",
         "score_resume",
         "list_job_posts",
         "read_job_post",
@@ -385,6 +390,7 @@ def test_resume_turn_context_builder_prepares_profiled_tools_independently():
     assert prompts[0].role == "user"
     assert context["tool_profile"] == "read_only"
     assert context["available_tool_names"] == [
+        "ask_user",
         "score_resume",
         "list_job_posts",
         "read_job_post",
@@ -392,6 +398,7 @@ def test_resume_turn_context_builder_prepares_profiled_tools_independently():
     ]
     assert state["tool_profile"] == "read_only"
     assert state["tool_names"] == [
+        "ask_user",
         "score_resume",
         "list_job_posts",
         "read_job_post",

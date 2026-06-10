@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 _AUTO_EXECUTE_TOOL_NAMES: set[str] = {
     "ask_user",
     "score_resume",
+    "evaluate_bullet",
     "list_job_posts",
     "read_job_post",
     "read_memory",
@@ -30,8 +31,8 @@ _AUTO_EXECUTE_TOOL_NAMES: set[str] = {
 }
 _TOOL_PROFILES: dict[str, set[str]] = {
     "resume_edit": {
-        "update_summary",
         "ask_user",
+        "update_summary",
         "update_profile",
         "upsert_job_application",
         "update_item_fields",
@@ -43,15 +44,16 @@ _TOOL_PROFILES: dict[str, set[str]] = {
         "add_bullet",
         "remove_bullet",
         "score_resume",
+        "evaluate_bullet",
         "list_job_posts",
         "read_job_post",
         "read_memory",
         "update_memory",
     },
     "read_only": {
+        "ask_user",
         "score_resume",
         "list_job_posts",
-        "ask_user",
         "read_job_post",
         "read_memory",
     },

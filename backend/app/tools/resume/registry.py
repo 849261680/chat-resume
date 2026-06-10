@@ -96,10 +96,11 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
         "function": {
             "name": "hide_section",
             "description": (
-                "关闭某个简历板块的显示开关，使其在预览中隐藏。section 是模块 id："
-                "personal、summary、education、work、projects、open_source、skills。"
-                "板块内容会被保留，后续可通过 show_section 重新显示。"
-                "仅在用户明确要求隐藏某个板块时使用。"
+                "隐藏某个简历板块（只改显示开关，不删内容）。"
+                "触发条件：用户明确说'隐藏/不显示/去掉'某个板块。"
+                "section 用模块 id：personal、summary、education、work、projects、open_source、skills。"
+                "反引用 show_section 可恢复显示。"
+                "不要主动隐藏板块——只响应用户的明确指令。"
             ),
             "parameters": {
                 "type": "object",
@@ -130,10 +131,11 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
         "function": {
             "name": "show_section",
             "description": (
-                "打开某个简历板块的显示开关，使其在预览中显示。section 是模块 id："
-                "personal、summary、education、work、projects、open_source、skills。"
-                "板块内容为空时只会显示板块标题；如需有意义的内容，请配合 update_summary "
-                "等写入内容的工具。仅在用户明确要求显示某个板块时使用。"
+                "显示某个简历板块（只改显示开关，不写内容）。"
+                "触发条件：用户明确说'显示/加上/展示'某个板块。"
+                "section 用模块 id：personal、summary、education、work、projects、open_source、skills。"
+                "板块内容为空时只显示标题；如需有意义的内容，配合 update_summary 等写入工具。"
+                "不要主动显示板块——只响应用户的明确指令。"
             ),
             "parameters": {
                 "type": "object",
@@ -164,9 +166,11 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
         "function": {
             "name": "update_skills",
             "description": (
-                "更新技能板块中某个技能分类的名称和技能列表。category_id 必须来自"
-                "当前简历 JSON；mode 为 replace 或 merge。只能补充或调整简历中"
-                "已有证据或用户明确提供的技能，不得编造能力。"
+                "修改技能板块中某个技能分类的名称或技能列表。"
+                "触发条件：用户要求调整技能分类、补充技能关键词、替换技能列表。"
+                "category_id 必须来自当前简历 JSON 中已有的技能分类条目。"
+                "mode=replace 替换整个列表，mode=merge 追加不重复的技能。"
+                "约束：只能补充简历中已有证据或用户明确提供的技能，不得编造。"
             ),
             "parameters": {
                 "type": "object",
@@ -203,10 +207,12 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
         "function": {
             "name": "update_item_fields",
             "description": (
-                "更新工作、项目或教育条目的非 bullet 字段。section 只能是 "
-                "education、work_experience、projects；item_id 必须来自当前简历 JSON。"
-                "只修改 fields 中给出的白名单字段，不新增事实。is_current 是内部派生字段，"
-                "不允许直接修改。"
+                "修改工作/项目/教育条目的元数据字段（如职位、公司、项目名、学历等）。"
+                "触发条件：用户要求修改公司名、职位头衔、项目角色、学历专业等非 bullet 字段。"
+                "section 只能是 education、work_experience、projects。"
+                "item_id 必须来自当前简历 JSON 中已有的条目。"
+                "注意：这个工具不修改 bullet/亮点文本，改亮点用 update_bullet。"
+                "不允许修改 is_current（内部派生字段）。不要编造事实。"
             ),
             "parameters": {
                 "type": "object",
@@ -241,10 +247,11 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
         "function": {
             "name": "update_profile",
             "description": (
-                "更新个人信息 personal_info。默认仅支持 position、headline、"
-                "location、github、linkedin、website、links；创建或导入简历时，"
-                "如果 name、email、phone、address 来自用户输入或上传内容，必须"
-                "提供 source 后再写入。"
+                "修改个人信息（求职意向、headline、地点、链接等）。"
+                "触发条件：用户要求修改自己的求职定位、一句话介绍、地点或社交链接。"
+                "支持字段：position、headline、location、github、linkedin、website、links。"
+                "约束：不要主动修改个人信息，除非用户明确要求。"
+                "修改 name/email/phone/address 时必须提供 source（来自用户输入或上传简历）。"
             ),
             "parameters": {
                 "type": "object",
@@ -288,11 +295,11 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
         "function": {
             "name": "upsert_job_application",
             "description": (
-                "创建或更新当前简历的唯一求职目标上下文。适合用户要求修改"
-                "面试公司、投递公司、面试岗位、目标岗位或 JD 时使用；"
-                "fields 只传用户明确要求修改的 target_company、target_title "
-                "或 jd_text，未传字段保持原样；只修改 job_application，"
-                "不要修改候选人的 personal_info.position。"
+                "设置或更新简历的求职目标（目标公司、目标岗位、JD 原文）。"
+                "触发条件：用户说'我要投XX公司'、'目标岗位是XX'、'这是JD'、'更新求职目标'。"
+                "fields 只传用户明确要求修改的字段（target_company/target_title/jd_text），"
+                "未传字段保持原样。"
+                "注意：这个工具只改求职目标上下文，不修改简历内容本身。"
             ),
             "parameters": {
                 "type": "object",
@@ -330,9 +337,10 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
         "function": {
             "name": "update_summary",
             "description": (
-                "更新个人总结 summary.text。适合把整份简历的职业定位、"
-                "核心能力摘要改成更贴合目标岗位和 JD 的版本。不得编造经历、"
-                "数字、年限或结果。"
+                "修改简历的'个人总结/自我评价'板块文本。"
+                "触发条件：用户明确要求修改个人总结、自我评价、职业概述。"
+                "不要在用户只要求优化亮点或项目时主动调用此工具。"
+                "不得编造经历、数字、年限或结果。"
             ),
             "parameters": {
                 "type": "object",
@@ -355,9 +363,10 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
         "function": {
             "name": "update_overview",
             "description": (
-                "更新 projects 板块中某个项目的 overview 简介，不修改其他事实字段。"
-                "仅用于项目简介，section 必须是 projects；item_id 必须来自当前简历 JSON。"
-                "适合把项目简介改成更贴合岗位职责、关键词和结果表达的版本。"
+                "修改 projects 板块中某个项目条目的 overview 简介文本。"
+                "触发条件：用户明确要求修改某个项目的简介/概述/描述。"
+                "section 必须是 projects，item_id 必须来自当前简历 JSON。"
+                "不要在用户只要求优化 bullet 时主动调用——改亮点用 update_bullet。"
             ),
             "parameters": {
                 "type": "object",
@@ -390,9 +399,9 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
         "function": {
             "name": "list_job_posts",
             "description": (
-                "列出当前用户保存过的 JD 摘要，只读。适合用户要求查看、选择、"
-                "对比历史 JD，或没有提供 job_post_id 但希望读取某个旧 JD 时先调用。"
-                "该工具不修改简历。"
+                "列出当前用户保存过的 JD 摘要列表，只读。"
+                "触发条件：用户要求查看、选择、对比历史 JD。"
+                "不修改简历。"
             ),
             "parameters": {
                 "type": "object",
@@ -415,9 +424,9 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
         "function": {
             "name": "read_job_post",
             "description": (
-                "按 job_post_id 读取当前用户保存过的一条完整 JD，只读。适合用户要求"
-                "基于某个历史 JD、任意 JD 或指定 JD 优化简历时调用。"
-                "只能读取当前用户自己的 JD，不能读取其他用户数据。"
+                "按 job_post_id 读取一条完整 JD 原文，只读。"
+                "触发条件：用户要求基于某个历史 JD 优化简历。"
+                "不修改简历。"
             ),
             "parameters": {
                 "type": "object",
@@ -436,11 +445,11 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
         "function": {
             "name": "score_resume",
             "description": (
-                "对当前简历做单工具评分，只读。返回规则检查（完整度、量化程度、"
-                "表达质量、JD 匹配）、语义评审（岗位贴合度、项目说服力、职责深度、"
-                "结果清晰度、可面试性）、诊断证据、最高优先级动作和复评下一步。"
-                "适合用户要求给简历打分、评估质量、找出薄弱点时调用。"
-                "该工具不修改简历；拿到建议后可再调用 update_bullet 等工具优化。"
+                "对当前简历做综合评分，只读不改。"
+                "触发条件：用户要求给简历打分、评估质量、找出薄弱点。"
+                "返回规则检查（完整度、量化、表达、JD 匹配）和语义评审。"
+                "这个工具不修改简历，只返回评估结果。"
+                "不要在用户要求直接修改简历时调用——先改再评分，不要只评分不改。"
             ),
             "parameters": {
                 "type": "object",
@@ -454,10 +463,11 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
         "function": {
             "name": "evaluate_bullet",
             "description": (
-                "用 LLM 以招聘经理视角评价单条简历要点。从量化程度、动作表达、"
-                "结果影响、主导性和整体说服力五个维度打分，给出改进建议。"
-                "只读不改简历；适合用户要求评价某条要点、分析为什么某条不够好时调用。"
-                "section 只能是 education、work_experience、projects、open_source；"
+                "评价单条 bullet/亮点的质量，只读不改。"
+                "触发条件：用户要求评价、分析某条具体亮点写得好不好。"
+                "从量化程度、动作表达、结果影响、主导性和说服力五个维度打分。"
+                "不要在用户要求直接修改时调用——先改再评价，不要只评价不改。"
+                "section 只能是 education、work_experience、projects、open_source。"
                 "item_id 和 bullet_id 必须来自当前简历 JSON。"
             ),
             "parameters": {
@@ -485,8 +495,9 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
         "function": {
             "name": "read_memory",
             "description": (
-                "读取当前用户或当前简历的长期记忆。适合在优化前了解用户长期偏好、"
-                "事实约束、目标方向或已拒绝的写法。该工具只读，不修改简历。"
+                "读取用户长期记忆（偏好、约束、已拒绝的写法），只读。"
+                "触发条件：需要了解用户的长期偏好或事实约束时调用。"
+                "不修改简历。"
             ),
             "parameters": {
                 "type": "object",
@@ -510,8 +521,10 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
         "function": {
             "name": "update_memory",
             "description": (
-                "更新当前用户或当前简历的长期记忆。只能记录用户明确表达的偏好、"
-                "事实约束或目标方向；不能把推断、临时上下文或编造内容写入记忆。"
+                "记录用户明确表达的长期偏好或约束。"
+                "触发条件：用户明确表达了偏好（如'不要用量化指标'）或事实约束。"
+                "约束：只能记录用户明确表达的内容，不得推断或编造。"
+                "不要在用户只要求优化简历时主动记录——只记录用户显式表达的偏好。"
             ),
             "parameters": {
                 "type": "object",
@@ -557,10 +570,14 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
         "function": {
             "name": "update_bullet",
             "description": (
-                "精准更新某个条目下单条 bullet 的文本。仅当新的 bullet 文本与原 bullet "
-                "存在实质内容差异时使用；如果认为当前 bullet 已合适，必须直接回复用户说明无需修改，"
-                "不要调用该工具。不得为了表达优化理由而传入原文。section 只能是 "
-                "education、work_experience、projects、open_source；item_id 和 bullet_id 必须来自当前简历 JSON。"
+                "修改（重写）已有的一条 bullet/亮点文本。"
+                "触发条件：用户要求优化、重写、改写、量化某条已有的亮点或要点。"
+                "选择规则：bullet 已存在且需要改内容 → 用这个工具；"
+                "bullet 不存在需要新增 → 用 add_bullet。"
+                "section 只能是 education、work_experience、projects、open_source。"
+                "item_id 和 bullet_id 必须来自当前简历 JSON。"
+                "text 必须与原文有实质差异（新增/重写了任务、技术、结果中至少一项），"
+                "不要传入原文。"
             ),
             "parameters": {
                 "type": "object",
@@ -602,9 +619,14 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
         "function": {
             "name": "add_bullet",
             "description": (
-                "向某个条目新增一条 bullet。section 只能是 education、"
-                "work_experience、projects、open_source；item_id 必须来自当前简历 JSON。"
-                "仅在已有 bullet 无法承载用户目标或 JD 关键词时使用，不要编造事实。"
+                "新增（追加）一条 bullet/亮点到已有的工作、项目、教育或开源条目下。"
+                "触发条件：用户要求补充、添加、增加新的亮点或成果；"
+                "或 JD 中的关键能力在现有 bullet 中无法通过修改来自然融入，需要新增一条来覆盖。"
+                "选择规则：bullet 已存在要改内容 → 用 update_bullet；"
+                "bullet 不存在要新增 → 用这个工具。"
+                "section 只能是 education、work_experience、projects、open_source。"
+                "item_id 必须来自当前简历 JSON 中已有的条目。"
+                "约束：必须基于用户明确提供的事实，不得编造。"
             ),
             "parameters": {
                 "type": "object",
@@ -635,9 +657,11 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
         "function": {
             "name": "remove_bullet",
             "description": (
-                "从某个条目删除一条 bullet。section 只能是 education、"
-                "work_experience、projects、open_source；item_id 和 bullet_id 必须来自当前简历 JSON。"
-                "仅在用户明确要删除或该 bullet 与目标明显冲突时使用。"
+                "删除某条已有的 bullet/亮点。"
+                "触发条件：用户明确要求删除某条亮点、去掉某条要点。"
+                "section 只能是 education、work_experience、projects、open_source。"
+                "item_id 和 bullet_id 必须来自当前简历 JSON。"
+                "不要未经用户同意主动删除亮点。"
             ),
             "parameters": {
                 "type": "object",

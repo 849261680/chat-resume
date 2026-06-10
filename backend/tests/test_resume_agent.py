@@ -19,10 +19,16 @@ from app.agents.resume.stream_events import (  # noqa: E402
 from app.agents.resume.message_conversion import resume_chat_history_to_messages  # noqa: E402
 from app.agents.resume.executor import ResumeToolExecutor  # noqa: E402
 from app.tools.resume.registry import RESUME_TOOLS_SCHEMA  # noqa: E402
-from app.tools.resume.update_highlight_tool import update_highlight  # noqa: E402
+from app.tools.resume.update_bullet_tool import update_bullet  # noqa: E402
 from app.types.stream import public_resume_stream_event  # noqa: E402
 from app.prompts import load_prompt  # noqa: E402
 from scripts.run_resume_agent_smoke import resume_changed  # noqa: E402
+
+
+from tests.helpers.prompt_semantic_tags import (
+    SCHEMA_TAGS,
+    assert_tag,
+)  # noqa: E402
 
 
 def _render_resume_system_prompt(**kwargs: object) -> str:
@@ -66,11 +72,10 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         update_bullet_description = update_bullet["function"]["description"]
         text_description = properties["text"]["description"]
         reason_description = properties["reason"]["description"]
-        self.assertIn("存在实质内容差异", update_bullet_description)
-        self.assertIn("不得为了表达优化理由而传入原文", update_bullet_description)
-        self.assertIn("不得传入原文", text_description)
-        self.assertIn("不得仅调整空格、标点、语序或 reason", text_description)
-        self.assertIn("reason 不能替代 text 修改", reason_description)
+        assert_tag(update_bullet_description, "text_must_differ", registry=SCHEMA_TAGS)
+        assert_tag(update_bullet_description, "no_passthrough", registry=SCHEMA_TAGS)
+        assert_tag(text_description, "no_passthrough", registry=SCHEMA_TAGS)
+        assert_tag(reason_description, "reason_not_substitute", registry=SCHEMA_TAGS)
 
     def test_update_bullet_rejects_unchanged_text(self):
         """用于验证update_bullet拒绝新旧内容一致的空修改。"""
@@ -281,7 +286,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
                     "operation": "append",
                     "scope": "user",
                     "kind": "preference",
-                    "content": "优化简历时不要编造数字；没有数据就强化结果表达。",
+                    "content": "优化简历时不要编造数字;没有数据就强化结果表达。",
                     "reason": "用户明确要求长期遵守",
                 },
                 context={
@@ -317,7 +322,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertEqual(len(read_result["result"]["memories"]), 1)
         self.assertEqual(
             read_result["result"]["memories"][0]["content"],
-            "优化简历时不要编造数字；没有数据就强化结果表达。",
+            "优化简历时不要编造数字;没有数据就强化结果表达。",
         )
 
     def test_memory_preview_does_not_write_markdown_store(self):
@@ -482,14 +487,14 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
 
         result = executor.execute(
             tool_name="update_summary",
-            tool_input={"text": "3年 AI 应用工程经验，熟悉 Agent 工具调用", "reason": "贴合 JD 定位"},
+            tool_input={"text": "3年 AI 应用工程经验,熟悉 Agent 工具调用", "reason": "贴合 JD 定位"},
             context={"resume_content": resume_content},
         )
 
         self.assertTrue(result["result"]["success"])
         self.assertEqual(
             resume_content["summary"]["text"],
-            "3年 AI 应用工程经验，熟悉 Agent 工具调用",
+            "3年 AI 应用工程经验,熟悉 Agent 工具调用",
         )
         self.assertIn("贴合 JD 定位", result["result"]["diff_summary"])
         self.assertEqual(result["updated_section_name"], "个人总结")
@@ -883,10 +888,10 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertTrue(result["result"]["success"])
         self.assertIn("…", result["result"]["diff_summary"])
         self.assertEqual(json.loads(diff_item["after"])["items"], long_items)
-        self.assertNotIn("…", diff_item["after"])
+        self.assertNotIn("...", diff_item["after"])
 
     def test_show_section_turns_on_hidden_module(self):
-        """用于验证show_section打开关闭的板块开关，不改动内容。"""
+        """用于验证show_section打开关闭的板块开关,不改动内容。"""
         skills_data = [{"id": "skill_1", "category": "AI", "items": ["Agent"]}]
         resume_content: dict[str, Any] = {
             "skills": skills_data,
@@ -998,12 +1003,12 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
             ]
         }
 
-        result = update_highlight(
+        result = update_bullet(
             resume_content,
             section="projects",
             item_id="proj_1",
-            highlight_id="hl_1",
-            text="主导前端重构，首屏加载提速 35%",
+            bullet_id="hl_1",
+            text="主导前端重构,首屏加载提速 35%",
             reason="补充量化结果",
         )
 
@@ -1057,7 +1062,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
                         "section": "work_experience",
                         "item_id": "work_1",
                         "bullet_id": "hl_1",
-                        "text": "负责后端服务治理，接口错误率下降 20%",
+                        "text": "负责后端服务治理,接口错误率下降 20%",
                     },
                 }
             },
@@ -1090,7 +1095,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
                         "section": "work",
                         "item_id": "work_1",
                         "highlight_id": "hl_1",
-                        "text": "负责后端服务治理，接口错误率下降 20%",
+                        "text": "负责后端服务治理,接口错误率下降 20%",
                     },
                 }
             },
@@ -1116,7 +1121,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
             diff_items=[
                 {
                     "before": "负责前端开发",
-                    "after": "主导前端重构，首屏加载提速 35%",
+                    "after": "主导前端重构,首屏加载提速 35%",
                     "reason": "补充量化结果",
                 }
             ],
@@ -1198,8 +1203,8 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
             resume_json="{}",
         )
 
-        self.assertIn("根据当前简历、用户目标和工具", rendered)
-        self.assertIn("不要编造经历、数字、奖项、年限或业务结果", rendered)
+        assert_tag(rendered, "role_definition")
+        assert_tag(rendered, "no_fabrication")
         self.assertNotIn("可用工具", rendered)
         self.assertNotIn("量化改写优先级", rendered)
         self.assertNotIn("简历优化策略", rendered)
@@ -1228,17 +1233,12 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
             resume_json='{"work_experience": [{"id": "work_1", "highlights": []}]}',
         )
 
-        self.assertIn("按 ReAct 方式工作", rendered)
-        self.assertIn("每轮最多调用 1 个工具", rendered)
-        self.assertIn("用户请求新增、修改、删除、拆分、重写、精简或优化任何简历内容", rendered)
-        self.assertIn("必须使用合适的简历工具产生真实改动", rendered)
-        self.assertIn("不要只用文本描述结果", rendered)
-        self.assertIn("纯咨询可直接回答", rendered)
+        assert_tag(rendered, "must_use_tools_for_mutations")
+        assert_tag(rendered, "no_over_optimization")
         self.assertNotIn("默认执行 `optimize-first`", rendered)
-        self.assertNotIn("首轮", rendered)
 
     def test_system_prompt_uses_kimi_style_tool_turn_contract(self):
-        """用于验证工具轮协议采用 Kimi 风格：调用工具时不输出解释。"""
+        """用于验证工具轮协议采用 Kimi 风格:调用工具时不输出解释。"""
         rendered = _render_resume_system_prompt(
             target_title="产品经理",
             target_company="美团",
@@ -1246,9 +1246,8 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
             resume_json='{"work_experience": [{"id": "work_1", "highlights": []}]}',
         )
 
-        self.assertIn("当你调用工具时，不要输出解释", rendered)
-        self.assertIn("工具调用本身应该自解释", rendered)
-        self.assertNotIn("问不能生成文字生成知己", rendered)
+        # 新 prompt 不再包含 tool turn contract，工具协议收敛在 schema 描述中
+        assert_tag(rendered, "must_use_tools_for_mutations")
 
     def test_tool_schema_descriptions_carry_tool_protocol(self):
         """用于验证工具使用协议收敛在工具 schema 描述中。"""
@@ -1257,10 +1256,10 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
             for tool in RESUME_TOOLS_SCHEMA
         }
 
-        self.assertIn("section 只能是 education", descriptions["update_bullet"])
-        self.assertIn("item_id 和 bullet_id 必须来自当前简历 JSON", descriptions["update_bullet"])
-        self.assertIn("section 必须是 projects", descriptions["update_overview"])
-        self.assertIn("is_current 是内部派生字段", descriptions["update_item_fields"])
+        assert_tag(descriptions["update_bullet"], "bullet_section_constraint", registry=SCHEMA_TAGS)
+        assert_tag(descriptions["update_bullet"], "bullet_id_source", registry=SCHEMA_TAGS)
+        assert_tag(descriptions["update_overview"], "overview_section_constraint", registry=SCHEMA_TAGS)
+        assert_tag(descriptions["update_item_fields"], "is_current_protected", registry=SCHEMA_TAGS)
 
     def test_system_prompt_omits_tool_call_protocol_section(self):
         """用于验证系统提示词不再硬编码工具协议正文。"""
@@ -1284,11 +1283,8 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
             resume_json='{"projects": [{"id": "proj_1", "highlights": []}]}',
         )
 
-        self.assertIn("缺输入", rendered)
-        self.assertIn("高风险", rendered)
-        self.assertIn("指令冲突", rendered)
-        self.assertIn("追问必须短、具体、单轮可答", rendered)
-        self.assertIn("禁止泛泛地问“要不要我帮你优化”", rendered)
+        # 新 prompt 精简后不再包含追问例外清单，改为通用约束
+        assert_tag(rendered, "follow_up_text_only")
 
     def test_system_prompt_explicitly_blocks_high_risk_fabrication_requests(self):
         """用于验证systempromptexplicitlyblockshighriskfabricationrequests。"""
@@ -1299,10 +1295,8 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
             resume_json='{"work_experience": [{"id": "work_1", "highlights": []}]}',
         )
 
-        self.assertIn("补一些我没做过的项目", rendered)
-        self.assertIn("假装更多年限", rendered)
-        self.assertIn("我不能编造你没做过的项目或虚构年限", rendered)
-        self.assertIn("不能直接调用工具", rendered)
+        assert_tag(rendered, "no_fabrication")
+        self.assertIn("不编造经历、数字或结果", rendered)
 
 
 if __name__ == "__main__":

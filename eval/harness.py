@@ -169,8 +169,7 @@ async def run_agent_target(
     elapsed_s = round(time.time() - started_at, 2)
     reply = str(result.get("content", ""))
     tools = tool_names(result.get("tool_calls"))
-    context = result.get("context")
-    resume_after = context.get("resume_content", {}) if isinstance(context, dict) else {}
+    resume_after = resume_after_from_result(result, runtime_events)
     output = {
         "case_id": inputs.get("case_id"),
         "agent_reply": reply,
@@ -190,6 +189,30 @@ async def run_agent_target(
     return output
 
 
+def resume_after_from_result(
+    result: dict[str, Any],
+    runtime_events: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """用于从最终结果或工具事件中恢复最新简历内容。"""
+    final_context = result.get("context")
+    resume_after = _resume_from_context(final_context)
+    if resume_after:
+        return resume_after
+    for event in reversed(runtime_events):
+        resume_after = _resume_from_context(event.get("context"))
+        if resume_after:
+            return resume_after
+    return {}
+
+
+def _resume_from_context(context: Any) -> dict[str, Any]:
+    """用于从 runtime context 中读取 resume_content。"""
+    if not isinstance(context, dict):
+        return {}
+    resume = context.get("resume_content")
+    return resume if isinstance(resume, dict) else {}
+
+
 __all__ = [
     "EVAL_DIR",
     "build_agent",
@@ -200,6 +223,7 @@ __all__ = [
     "load_backend_env",
     "normalize_resume",
     "required_agent_api_key_name",
+    "resume_after_from_result",
     "run_agent_target",
     "tool_names",
 ]

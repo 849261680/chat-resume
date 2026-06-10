@@ -92,6 +92,7 @@ def test_run_single_case_scores_fake_agent_result():
             "tool_calls": ["update_bullet"],
             "elapsed_s": 0.01,
             "runtime_events": [],
+            "skip_final_resume_quality": True,
         }
 
     result = asyncio.run(run_single_case(agent=object(), case=case, target=fake_target))
@@ -127,9 +128,19 @@ def test_build_report_summarizes_pass_rate_and_failures():
         "passed": 1,
         "failed": 1,
         "pass_rate": 0.5,
+        "final_resume_quality": {
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "average_score": None,
+        },
     }
     assert report["failures"] == [
-        {"id": "excellent-002", "failure_codes": ["unexpected_decision"]}
+        {
+            "id": "excellent-002",
+            "failure_codes": ["unexpected_decision"],
+            "final_resume_quality": {},
+        }
     ]
 
 

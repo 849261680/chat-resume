@@ -39,6 +39,7 @@ from app.agents.resume.excellent_cases import load_excellent_resume_cases  # noq
 from app.agents.resume.excellent_trajectory import (  # noqa: E402
     evaluate_excellent_resume_trajectory,
 )
+from app.agents.resume.final_resume_quality import score_final_resume_quality  # noqa: E402
 from eval.harness import (  # noqa: E402
     build_agent,
     has_required_agent_api_key,
@@ -112,6 +113,12 @@ async def run_single_case(
         return _error_result(case, exc)
     trajectory = trajectory_from_agent_result(agent_result)
     score = evaluate_excellent_resume_trajectory(case=case, trajectory=trajectory)
+    final_quality = _score_final_quality(
+        case=case,
+        inputs=inputs,
+        agent_result=agent_result,
+    )
+    passed = score["passed"] and final_quality["passed"]
     openai_artifact = agent_result.get("openai_agents_eval")
     if not isinstance(openai_artifact, dict):
         trace_config = build_trace_config(str(inputs["case_id"]))
@@ -125,11 +132,12 @@ async def run_single_case(
         "id": case["id"],
         "title": case.get("title", ""),
         "status": "ok",
-        "passed": score["passed"],
+        "passed": passed,
         "elapsed_s": agent_result.get("elapsed_s", 0),
         "agent_reply": agent_result.get("agent_reply", ""),
         "tool_calls": agent_result.get("tool_calls", []),
         "trajectory_score": score,
+        "final_resume_quality": final_quality,
         "openai_agents_eval": openai_artifact,
     }
 
@@ -167,6 +175,7 @@ def build_report(results: list[dict[str, Any]]) -> dict[str, Any]:
             "passed": passed,
             "failed": failed,
             "pass_rate": round(passed / total, 3) if total else 0.0,
+            "final_resume_quality": _final_quality_summary(results),
         },
         "openai_agents_eval": build_eval_run_summary(results),
         "failures": _failure_rows(results),
@@ -230,7 +239,35 @@ async def _dry_run_target(agent: Any, inputs: dict[str, Any]) -> dict[str, Any]:
         "tool_calls": tools,
         "elapsed_s": 0,
         "runtime_events": [],
+        "skip_final_resume_quality": True,
     }
+
+
+def _score_final_quality(
+    *,
+    case: dict[str, Any],
+    inputs: dict[str, Any],
+    agent_result: dict[str, Any],
+) -> dict[str, Any]:
+    """用于在执行类样例中评估最终简历成品质量。"""
+    expected = case.get("expected_behavior")
+    expected = expected if isinstance(expected, dict) else {}
+    applicable = (
+        expected.get("decision") == "execute"
+        and not agent_result.get("skip_final_resume_quality")
+    )
+    resume_after = agent_result.get("resume_after")
+    if not isinstance(resume_after, dict) or not resume_after:
+        resume_after = inputs["resume"]
+    jd = inputs.get("jd")
+    jd_text = jd.get("description", "") if isinstance(jd, dict) else ""
+    return score_final_resume_quality(
+        resume_before=inputs["resume"],
+        resume_after=resume_after,
+        jd_text=jd_text,
+        user_message=str(inputs.get("user_message", "")),
+        applicable=applicable,
+    )
 
 
 async def _run_target(
@@ -261,6 +298,7 @@ def _error_result(case: dict[str, Any], exc: Exception) -> dict[str, Any]:
         "passed": False,
         "error": str(exc),
         "trajectory_score": {"failure_codes": ["execution_error"]},
+        "final_resume_quality": {"applicable": False, "failure_codes": []},
     }
 
 
@@ -271,11 +309,49 @@ def _failure_rows(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if result.get("passed") is True:
             continue
         score = result.get("trajectory_score", {})
+        quality = result.get("final_resume_quality", {})
         rows.append({
             "id": result.get("id"),
-            "failure_codes": score.get("failure_codes", []),
+            "failure_codes": _combined_failure_codes(score, quality),
+            "final_resume_quality": quality,
         })
     return rows
+
+
+def _combined_failure_codes(
+    trajectory_score: dict[str, Any],
+    final_quality: dict[str, Any],
+) -> list[str]:
+    """用于合并轨迹评分和最终质量评分失败码。"""
+    trajectory_codes = trajectory_score.get("failure_codes", [])
+    quality_codes = final_quality.get("failure_codes", [])
+    codes = [str(code) for code in trajectory_codes if str(code)]
+    codes.extend(f"final_quality:{code}" for code in quality_codes if str(code))
+    return codes
+
+
+def _final_quality_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
+    """用于汇总最终简历质量评分。"""
+    scores = [
+        quality["score"]
+        for quality in (result.get("final_resume_quality") for result in results)
+        if isinstance(quality, dict)
+        and quality.get("applicable") is not False
+        and isinstance(quality.get("score"), (int, float))
+    ]
+    passed = sum(
+        1
+        for result in results
+        if isinstance(result.get("final_resume_quality"), dict)
+        and result["final_resume_quality"].get("applicable") is not False
+        and result["final_resume_quality"].get("passed") is True
+    )
+    return {
+        "total": len(scores),
+        "passed": passed,
+        "failed": len(scores) - passed,
+        "average_score": round(sum(scores) / len(scores), 1) if scores else None,
+    }
 
 
 def _print_case_result(result: dict[str, Any]) -> None:

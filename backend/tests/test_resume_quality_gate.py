@@ -69,3 +69,30 @@ def test_quality_gate_allows_facts_present_in_user_message():
     )
 
     assert gate["passed"] is True
+
+
+def test_quality_gate_blocks_keyword_stuffing_without_improvement():
+    """用于验证只堆 JD 关键词但没有优秀度提升时会被拦截。"""
+    result = {
+        "success": True,
+        "diff_items": [
+            {
+                "before": '{"id":"b1","text":"用 Spring Boot 写了商品发布和搜索接口"}',
+                "after": '{"id":"b1","text":"负责 Spring Boot、MySQL、后端、接口、数据库优化相关工作"}',
+                "reason": "覆盖 JD 关键词",
+            }
+        ],
+    }
+
+    gate = evaluate_resume_edit_quality(
+        resume_content=_resume_with_basic_project(),
+        tool_name="update_bullet",
+        tool_input={"text": "负责 Spring Boot、MySQL、后端、接口、数据库优化相关工作"},
+        preview_result=result,
+        user_message="帮我改得更贴后端 JD",
+    )
+
+    assert gate["passed"] is False
+    assert gate["error_type"] == "low_quality_resume_edit"
+    assert "堆关键词" in gate["message"]
+    assert "具体" in gate["message"]

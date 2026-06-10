@@ -43,6 +43,49 @@ _EDIT_TOOLS = {
     "add_bullet",
     "remove_bullet",
 }
+_QUALITY_EDIT_TOOLS = {"update_bullet", "add_bullet", "update_overview", "update_summary"}
+_WEAK_PREFIXES = ("负责", "参与", "协助", "帮助", "配合", "完成")
+_ACTION_WORDS = (
+    "设计",
+    "搭建",
+    "推动",
+    "重构",
+    "实现",
+    "开发",
+    "优化",
+    "构建",
+    "建立",
+    "改造",
+    "落地",
+    "迁移",
+    "解决",
+    "修复",
+    "主导",
+)
+_RESULT_WORDS = (
+    "提升",
+    "降低",
+    "缩短",
+    "减少",
+    "增长",
+    "覆盖",
+    "支撑",
+    "降到",
+    "从",
+    "节省",
+)
+_KEYWORD_STUFFING_TERMS = (
+    "后端",
+    "前端",
+    "接口",
+    "数据库",
+    "数据库优化",
+    "系统",
+    "高并发",
+    "分布式",
+    "微服务",
+    "稳定性",
+)
 
 
 def evaluate_resume_edit_quality(
@@ -66,7 +109,16 @@ def evaluate_resume_edit_quality(
     source_text = _source_text(resume_content, preview_result, user_message)
     unsupported = _unsupported_claims(after_text, source_text)
     if not unsupported:
-        return _passed()
+        quality_issue = _quality_issue(tool_name, after_text)
+        if quality_issue is None:
+            return _passed()
+        return {
+            "passed": False,
+            "error_type": "low_quality_resume_edit",
+            "recoverable": True,
+            "quality_issue": quality_issue,
+            "message": quality_issue,
+        }
     return {
         "passed": False,
         "error_type": "unsupported_resume_claim",
@@ -78,6 +130,38 @@ def evaluate_resume_edit_quality(
             + "。请先向用户确认这些事实，或改成只基于已有事实的表达。"
         ),
     }
+
+
+def _quality_issue(tool_name: str, after_text: str) -> str | None:
+    """用于判断候选改写是否具备优秀简历的最低表达质量。"""
+    if tool_name not in _QUALITY_EDIT_TOOLS:
+        return None
+    text = " ".join(after_text.split())
+    if not text:
+        return None
+    if _looks_like_keyword_stuffing(text):
+        return "这次改写主要是在堆关键词，没有把经历写具体；请补充动作、方案和可面试追问的结果证据。"
+    if _starts_weak_without_result(text):
+        return "这次改写仍以弱动词开头且缺少具体结果；请改成更具体的动作、方案和结果。"
+    return None
+
+
+def _looks_like_keyword_stuffing(text: str) -> bool:
+    """用于识别缺少动作结果、只罗列岗位关键词的候选 bullet。"""
+    matched_terms = [term for term in _KEYWORD_STUFFING_TERMS if term in text]
+    has_many_terms = len(matched_terms) >= 3
+    has_action = any(word in text for word in _ACTION_WORDS)
+    has_result = any(word in text for word in _RESULT_WORDS) or bool(_NUMBER_CLAIM_RE.search(text))
+    return has_many_terms and not (has_action and has_result)
+
+
+def _starts_weak_without_result(text: str) -> bool:
+    """用于识别仍停留在泛泛职责描述的候选 bullet。"""
+    if not text.startswith(_WEAK_PREFIXES):
+        return False
+    has_result = any(word in text for word in _RESULT_WORDS) or bool(_NUMBER_CLAIM_RE.search(text))
+    has_action = any(word in text for word in _ACTION_WORDS)
+    return not (has_action and has_result)
 
 
 def _passed() -> dict[str, Any]:
@@ -165,6 +249,8 @@ def _text_from_value(value: Any) -> str:
             return _text_from_value(parsed)
         return value
     if isinstance(value, dict):
+        if isinstance(value.get("text"), str):
+            return value["text"]
         return "\n".join(_text_from_value(item) for item in value.values())
     if isinstance(value, list):
         return "\n".join(_text_from_value(item) for item in value)

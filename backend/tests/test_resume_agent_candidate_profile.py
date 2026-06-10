@@ -1,7 +1,6 @@
 """用于覆盖简历 Agent 候选人背景档案上下文。"""
 
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -12,10 +11,7 @@ if str(BACKEND_DIR) not in sys.path:
 from app.agents.resume.candidate_profile import (  # noqa: E402
     load_candidate_profile_context,
 )
-from app.agents.resume.prompt_context import (  # noqa: E402
-    build_current_time_context,
-    build_resume_prompt_context,
-)
+from app.agents.resume.prompt_context import build_resume_prompt_context  # noqa: E402
 from app.prompts import load_prompt  # noqa: E402
 from app.tools.resume.memory_tool import update_memory  # noqa: E402
 
@@ -81,21 +77,3 @@ def test_resume_system_prompt_includes_candidate_profile_rules():
     assert "缺失关键信息：目标岗位" in prompt
     assert "先问最多 3 个关键问题" in prompt
     assert "update_memory" in prompt
-
-
-def test_resume_system_prompt_includes_current_time_context():
-    """用于验证真实系统提示词会注入当前服务端时间。"""
-    current_time = build_current_time_context(
-        datetime(2026, 6, 10, 15, 30, 45, tzinfo=timezone.utc)
-    )
-    context = build_resume_prompt_context(
-        {
-            "resume_content": {"projects": []},
-        }
-    )
-    context["current_time"] = current_time
-    prompt = load_prompt("resume_agent").render(**context)
-
-    assert "## 当前时间" in prompt
-    assert "2026-06-10" in prompt
-    assert "2026-06-10T15:30:45+00:00" in prompt

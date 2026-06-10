@@ -398,7 +398,7 @@ export default function ResumeEditPage() {
   // 用于把询问卡片的选择转换成下一轮用户消息。
   const submitUserInputRequest = useCallback((answer: string) => {
     if (!userInputRequest) return
-    const message = `针对 Agent 的问题：${userInputRequest.question}\n我的回答：${answer}`
+    const message = `Q: ${userInputRequest.question}\nA: ${answer}`
     void dispatchMessage(message)
   }, [dispatchMessage, userInputRequest])
 

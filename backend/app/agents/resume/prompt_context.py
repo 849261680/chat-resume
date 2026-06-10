@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import json
+from datetime import datetime
 from typing import Any
 
 from app.schemas.resume import dump_resume_content_for_frontend
@@ -89,7 +90,22 @@ def build_resume_prompt_context(context: dict[str, Any]) -> dict[str, Any]:
         ),
         "score_history": score_history,
         "candidate_profile": str(context.get("candidate_profile", "") or ""),
+        "current_time": build_current_time_context(),
     }
+
+
+def build_current_time_context(now: datetime | None = None) -> str:
+    """用于生成注入给 Agent 的当前服务端时间说明。"""
+    if now is None:
+        current = datetime.now().astimezone()
+    else:
+        current = now if now.tzinfo else now.astimezone()
+    timezone_name = current.tzname() or "local"
+    return (
+        f"- 当前日期：{current.date().isoformat()}\n"
+        f"- 当前时间：{current.isoformat(timespec='seconds')}\n"
+        f"- 当前时区：{timezone_name}"
+    )
 
 
 def build_score_history(
@@ -113,6 +129,7 @@ def build_score_history(
 
 __all__ = [
     "build_resume_prompt_context",
+    "build_current_time_context",
     "build_module_visibility",
     "build_score_history",
     "strip_redundant_fields",

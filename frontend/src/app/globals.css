@@ -568,13 +568,13 @@
   text-underline-offset: 2px;
 }
 
-/* 思考中动效：从左往右的高对比扫光 */
+/* 思考中动效：可见亮带从左往右扫过文字 */
 @keyframes thinking-shimmer {
   0% {
-    background-position: -120% center;
+    background-position: 120% center;
   }
   100% {
-    background-position: 120% center;
+    background-position: -120% center;
   }
 }
 

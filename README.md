@@ -4,7 +4,7 @@
 
 Chat Resume 是一个展示 Agent 工程能力的 AI 求职工作台：从上传简历、解析目标 JD、结构化工具调用、用户确认式 diff 修改，到导出和语音模拟面试，串成一条完整求职闭环。
 
-- 自定义 ReAct runtime
+- OpenAI Agents SDK 驱动的 ReAct runtime
 - 结构化 tool calling
 - Human-in-the-loop diff confirmation gate
 - SSE 流式工具事件
@@ -121,7 +121,7 @@ frontend e2e: 55 passed
 Frontend (Next.js / React)
   -> FastAPI HTTP API
   -> ResumeAgentStreamService
-  -> PiAgentRuntime
+  -> OpenAI Agents SDK ResumeAgentRuntime
   -> Resume Tools
   -> Tool Confirmation Gate
   -> ResumeService / AgentSessionStore
@@ -132,7 +132,7 @@ Frontend (Next.js / React)
 
 - 前端：Next.js 16.2、React 18、TypeScript、Tailwind CSS、next-intl
 - 后端：FastAPI、SQLAlchemy 2、Pydantic v2、Alembic、uv
-- Agent：pi-agent-core
+- Agent：OpenAI Agents SDK
 - 语音：火山引擎实时语音对话
 - 测试：pytest、Playwright
 
@@ -141,7 +141,7 @@ Frontend (Next.js / React)
 ```text
 backend/app/entrypoints/http/  # FastAPI 路由
 backend/app/agents/resume/     # 简历 Agent 定义和提示词上下文
-backend/app/runtime/           # pi-agent-core 运行时适配、确认和恢复
+backend/app/runtime/           # OpenAI Agents SDK 运行时适配、确认和恢复
 backend/app/tools/resume/      # 简历工具
 backend/app/services/          # 业务服务
 backend/app/state/             # Agent session 存储和 SSE 回放
@@ -194,6 +194,8 @@ eval/                          # Agent eval 脚本和用例
 # backend/.env
 DATABASE_URL=sqlite:///./chat_resume.db
 SECRET_KEY=your-secret-key-here
+OPENAI_API_KEY=
+OPENAI_AGENTS_MODEL=gpt-5.5
 OPENROUTER_API_KEY=
 OPENROUTER_API_BASE=https://openrouter.ai/api/v1
 OPENROUTER_MODEL=deepseek/deepseek-v4-pro

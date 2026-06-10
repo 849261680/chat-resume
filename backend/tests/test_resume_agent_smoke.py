@@ -884,10 +884,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
                                 "section": "work_experience",
                                 "item_id": "work_1",
                                 "bullet_id": "hl_1",
-                                "text": (
-                                    "维护多个后台服务，支撑日活 10 万用户，"
-                                    "并完成接口性能优化"
-                                ),
+                                "text": "维护多个后台服务，负责内部系统开发",
                             },
                         )
                     ],
@@ -926,7 +923,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(
             resume["work_experience"][0]["highlights"][0]["text"],
-            "维护多个后台服务，支撑日活 10 万用户，并完成接口性能优化",
+            "维护多个后台服务，负责内部系统开发",
         )
         self.assertEqual(agent.runtime.stream_fn.calls, 2)
 
@@ -964,7 +961,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
 
         events = []
         async for event in agent.optimize_stream(
-            user_message="继续拆分工作经历 bullet",
+            user_message="继续拆分工作经历 bullet，补充 RAG 记忆检索增强长程上下文",
             resume_content=resume,
             conversation_history=[],
             confirmation_queue=confirmation_queue,
@@ -1286,7 +1283,7 @@ class ResumeAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
                             "section": "work_experience",
                             "item_id": "work_1",
                             "bullet_id": "hl_1",
-                            "text": "维护多个后台服务，支撑日活 10 万用户",
+                            "text": "维护多个后台服务，负责内部系统开发",
                             "reason": "补充业务规模",
                         },
                         call_id="call_pi_1",
@@ -1313,7 +1310,7 @@ class ResumeAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(any(event.get("tool_confirmed") for event in events))
         self.assertEqual(
             resume["work_experience"][0]["highlights"][0]["text"],
-            "维护多个后台服务，支撑日活 10 万用户",
+            "维护多个后台服务，负责内部系统开发",
         )
         self.assertEqual(agent.runtime.stream_fn.calls, 2)
 
@@ -1333,7 +1330,7 @@ class ResumeAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
                                         "section": "work_experience",
                                         "item_id": "work_1",
                                         "bullet_id": "hl_1",
-                                        "text": "维护多个后台服务，支撑日活 10 万用户",
+                                        "text": "维护多个后台服务，负责内部系统开发",
                                         "reason": "补充业务规模",
                                     },
                                     call_id="call_pi_preamble",
@@ -1374,7 +1371,7 @@ class ResumeAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
                 "section": "work_experience",
                 "item_id": "work_1",
                 "bullet_id": "hl_1",
-                "text": "维护多个后台服务，支撑日活 10 万用户",
+                "text": "维护多个后台服务，负责内部系统开发",
                 "reason": "补充业务规模",
             },
             call_id="call_pi_early",
@@ -1603,7 +1600,7 @@ class ResumeAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
                             "section": "work_experience",
                             "item_id": "work_1",
                             "bullet_id": "hl_1",
-                            "text": "维护多个后台服务，支撑日活 10 万用户",
+                            "text": "维护多个后台服务，负责内部系统开发",
                             "reason": "补充业务规模",
                         },
                         call_id="call_pi_trace",

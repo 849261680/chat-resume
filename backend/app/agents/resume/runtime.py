@@ -1,4 +1,4 @@
-"""用于组装 Resume Agent 的 pi-agent-core 运行时适配器。"""
+"""用于组装 Resume Agent 的 OpenAI Agents SDK 运行时适配器。"""
 
 from __future__ import annotations
 
@@ -15,8 +15,10 @@ from app.agents.resume.stream_adapter import ResumeReActStreamAdapter
 from app.agents.resume.tool_execution import ResumeToolExecutionStage
 from app.agents.resume.turn_context import ResumeTurnContextBuilder
 from app.runtime.contracts import AgentDefinition, RuntimeEventCallback
-from app.runtime.openrouter_adapter import openrouter_chat_model_name
-from app.runtime.pi_agent_openrouter import stream_openrouter
+from app.runtime.openai_agents_adapter import (
+    openai_agents_chat_model_name,
+    stream_openai_agents,
+)
 from app.runtime.tool_confirmation import ToolConfirmationPolicy
 from app.types.stream import ResumeStreamEvent
 
@@ -30,7 +32,7 @@ class ResumeAgentRuntime:
         confirmation_policy: ToolConfirmationPolicy | None = None,
     ):
         """用于初始化 Resume Agent 运行时依赖图。"""
-        self.stream_fn = ResumeReActStreamAdapter(stream_fn or stream_openrouter)
+        self.stream_fn = ResumeReActStreamAdapter(stream_fn or stream_openai_agents)
         self.tool_stage = ResumeToolExecutionStage(
             confirmation_policy=confirmation_policy or ToolConfirmationPolicy()
         )
@@ -39,7 +41,7 @@ class ResumeAgentRuntime:
             tool_stage=self.tool_stage,
         )
         self.lifecycle = ResumeRunLifecycle(
-            model_name_provider=openrouter_chat_model_name,
+            model_name_provider=openai_agents_chat_model_name,
         )
         self.turn_context_builder = ResumeTurnContextBuilder(
             tool_stage=self.tool_stage,
@@ -48,7 +50,7 @@ class ResumeAgentRuntime:
             agent_loop=self.agent_loop,
             turn_context_builder=self.turn_context_builder,
             lifecycle=self.lifecycle,
-            model_name_provider=openrouter_chat_model_name,
+            model_name_provider=openai_agents_chat_model_name,
         )
 
     async def run(

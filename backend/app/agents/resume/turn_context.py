@@ -20,10 +20,9 @@ from pi_agent_core.types import Message
 from app.agents.resume.tool_execution import ResumeToolExecutionStage
 from app.runtime.contracts import AgentDefinition, RuntimeEventCallback
 from app.agents.resume.message_conversion import (
-    convert_resume_messages_to_llm,
     resume_chat_history_to_messages,
 )
-from app.runtime.openrouter_adapter import build_openrouter_loop_config
+from app.runtime.openai_agents_adapter import build_openai_agents_loop_config
 
 class ResumeTurnContextBuilder:
     """用于按 Pi Harness 的 turn-state 边界准备模型上下文和工具。"""
@@ -79,10 +78,7 @@ class ResumeTurnContextBuilder:
         stream_state["tool_names"] = self.tool_names_from_schemas(tools_schema)
         stream_state["prompt_chars"] = len(system_prompt)
         prompts: list[Message] = [UserMessage(content=[TextContent(text=user_message)])]
-        config = build_openrouter_loop_config(
-            agent,
-            convert_to_llm=convert_resume_messages_to_llm,
-        )
+        config = build_openai_agents_loop_config(agent)
         return pi_context, prompts, config
 
     def build_tools(

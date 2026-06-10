@@ -6,7 +6,7 @@ import asyncio
 import inspect
 import logging
 import sys
-from collections.abc import Mapping
+from collections.abc import AsyncIterator, Mapping
 from dataclasses import fields
 from pathlib import Path
 from types import SimpleNamespace
@@ -15,6 +15,8 @@ from typing import Any
 import pytest
 from pi_agent_core import (
     AgentContext,
+    AgentTool,
+    AgentToolSchema,
     AssistantMessage,
     SimpleStreamOptions,
     StreamDoneEvent,
@@ -31,6 +33,12 @@ from pi_agent_core import (
     UserMessage,
 )
 from pi_agent_core.types import Message, Model, StreamResult
+from openai.types.responses import (
+    ResponseFunctionToolCall,
+    ResponseOutputMessage,
+    ResponseOutputText,
+)
+from openai.types.responses.response_prompt_param import ResponsePromptParam
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
@@ -46,6 +54,10 @@ from app.agents.resume.turn_context import ResumeTurnContextBuilder  # noqa: E40
 from app.infra.config import settings  # noqa: E402
 from app.agents.resume.message_conversion import convert_resume_messages_to_llm  # noqa: E402
 from app.runtime.openrouter_adapter import build_openrouter_config  # noqa: E402
+from app.runtime.openai_agents_adapter import (  # noqa: E402
+    OpenAIAgentsStreamAdapter,
+    openai_agents_chat_model_name,
+)
 from app.runtime.contracts import AgentDefinition  # noqa: E402
 from app.services.agent.resume_agent_stream_service import (  # noqa: E402
     ResumeAgentStreamService,
@@ -58,6 +70,14 @@ from app.runtime.tool_confirmation import (  # noqa: E402
     ToolConfirmationPolicy,
     wait_for_tool_confirmation,
 )
+from agents.agent_output import AgentOutputSchemaBase  # noqa: E402
+from agents.handoffs import Handoff  # noqa: E402
+from agents.items import ModelResponse, TResponseInputItem  # noqa: E402
+from agents.model_settings import ModelSettings  # noqa: E402
+from agents.models.interface import Model as OpenAIAgentsModel  # noqa: E402
+from agents.models.interface import ModelTracing  # noqa: E402
+from agents.tool import Tool  # noqa: E402
+from agents.usage import Usage as OpenAIAgentsUsage  # noqa: E402
 
 RESUME_EDIT_TOOL_NAMES = {
     "ask_user",
@@ -230,6 +250,95 @@ def fake_loop_tool_call(
         content=[ToolCall(id=call_id, name=name, arguments=args)],
         stop_reason="toolUse",
     )
+
+
+def fake_sdk_message(text: str) -> ResponseOutputMessage:
+    """用于构造 OpenAI Agents SDK 文本响应。"""
+    return ResponseOutputMessage(
+        id="msg_1",
+        type="message",
+        role="assistant",
+        status="completed",
+        content=[
+            ResponseOutputText(
+                type="output_text",
+                text=text,
+                annotations=[],
+                logprobs=[],
+            )
+        ],
+    )
+
+
+def fake_sdk_tool_call(name: str, arguments: str = "{}") -> ResponseFunctionToolCall:
+    """用于构造 OpenAI Agents SDK 函数工具调用。"""
+    return ResponseFunctionToolCall(
+        type="function_call",
+        name=name,
+        call_id="call_sdk_1",
+        arguments=arguments,
+        status="completed",
+    )
+
+
+class FakeOpenAIAgentsModel(OpenAIAgentsModel):
+    """用于在测试中替代真实 OpenAI 模型。"""
+
+    def __init__(self, output: list[Any]):
+        """用于保存预设 SDK output。"""
+        self.output = output
+        self.inputs: list[str | list[TResponseInputItem]] = []
+        self.tools: list[list[Tool]] = []
+
+    async def get_response(
+        self,
+        system_instructions: str | None,
+        input: str | list[TResponseInputItem],
+        model_settings: ModelSettings,
+        tools: list[Tool],
+        output_schema: AgentOutputSchemaBase | None,
+        handoffs: list[Handoff],
+        tracing: ModelTracing,
+        *,
+        previous_response_id: str | None,
+        conversation_id: str | None,
+        prompt: ResponsePromptParam | None,
+    ) -> ModelResponse:
+        """用于返回预设 SDK 响应并记录输入。"""
+        del (
+            system_instructions,
+            model_settings,
+            output_schema,
+            handoffs,
+            tracing,
+            previous_response_id,
+            conversation_id,
+            prompt,
+        )
+        self.inputs.append(input)
+        self.tools.append(tools)
+        return ModelResponse(
+            output=self.output,
+            usage=OpenAIAgentsUsage(input_tokens=11, output_tokens=7, total_tokens=18),
+            response_id="resp_test",
+        )
+
+    def stream_response(
+        self,
+        system_instructions: str | None,
+        input: str | list[TResponseInputItem],
+        model_settings: ModelSettings,
+        tools: list[Tool],
+        output_schema: AgentOutputSchemaBase | None,
+        handoffs: list[Handoff],
+        tracing: ModelTracing,
+        *,
+        previous_response_id: str | None,
+        conversation_id: str | None,
+        prompt: ResponsePromptParam | None,
+    ) -> AsyncIterator[Any]:
+        """用于防止测试误走真实 streaming。"""
+        raise NotImplementedError
 
 
 def _build_runtime_inputs(agent: ResumeAgent, user_message: str) -> tuple[Any, dict[str, Any]]:
@@ -575,6 +684,85 @@ async def test_resume_react_stream_adapter_keeps_one_tool_call_per_turn():
 
     assert isinstance(result, AssistantMessage)
     assert [block.id for block in result.content if isinstance(block, ToolCall)] == ["call_1"]
+
+
+@pytest.mark.asyncio
+async def test_openai_agents_adapter_returns_text_message_from_sdk_agent():
+    """用于验证 OpenAI Agents SDK adapter 可返回普通文本消息。"""
+    sdk_model = FakeOpenAIAgentsModel([fake_sdk_message("这是 OpenAI Agents 回复。")])
+    adapter = OpenAIAgentsStreamAdapter(sdk_model=sdk_model)
+    context = AgentContext(
+        system_prompt="你是简历优化 Agent。",
+        messages=[UserMessage(content=[TextContent(text="分析这份简历")])],
+        tools=[],
+    )
+
+    response = await adapter(
+        Model(api="responses", provider="openai-agents", id="test-model"),
+        context,
+        SimpleStreamOptions(api_key="test-key", temperature=0.2, max_tokens=128),
+    )
+    result = response["result"]()
+    if inspect.isawaitable(result):
+        result = await result
+
+    assert isinstance(result, AssistantMessage)
+    assert result.provider == "openai-agents"
+    assert result.usage.total_tokens == 18
+    assert [block.text for block in result.content if isinstance(block, TextContent)] == [
+        "这是 OpenAI Agents 回复。"
+    ]
+    assert sdk_model.inputs
+
+
+@pytest.mark.asyncio
+async def test_openai_agents_adapter_interrupts_function_tools_for_confirmation_gate():
+    """用于验证 SDK 工具调用先中断，再交给现有确认门执行。"""
+    sdk_model = FakeOpenAIAgentsModel([
+        fake_sdk_tool_call("update_bullet", '{"section":"projects"}')
+    ])
+    adapter = OpenAIAgentsStreamAdapter(sdk_model=sdk_model)
+    context = AgentContext(
+        system_prompt="你是简历优化 Agent。",
+        messages=[UserMessage(content=[TextContent(text="优化项目 bullet")])],
+        tools=[
+            AgentTool(
+                name="update_bullet",
+                description="更新已有简历要点。",
+                parameters=AgentToolSchema(
+                    type="object",
+                    properties={"section": {"type": "string"}},
+                    required=["section"],
+                ),
+                execute=lambda *_args: None,  # type: ignore[arg-type]
+            )
+        ],
+    )
+
+    response = await adapter(
+        Model(api="responses", provider="openai-agents", id="test-model"),
+        context,
+        SimpleStreamOptions(api_key="test-key", temperature=0.2, max_tokens=128),
+    )
+    result = response["result"]()
+    if inspect.isawaitable(result):
+        result = await result
+
+    assert isinstance(result, AssistantMessage)
+    tool_calls = [block for block in result.content if isinstance(block, ToolCall)]
+    assert [(call.id, call.name, call.arguments) for call in tool_calls] == [
+        ("call_sdk_1", "update_bullet", {"section": "projects"})
+    ]
+    assert sdk_model.tools
+    assert sdk_model.tools[0][0].name == "update_bullet"
+    assert getattr(sdk_model.tools[0][0], "needs_approval") is True
+
+
+def test_openai_agents_model_name_comes_from_settings(monkeypatch: pytest.MonkeyPatch):
+    """用于验证 Resume Agent 主聊天模型读取 OpenAI Agents 配置。"""
+    monkeypatch.setattr(settings, "OPENAI_AGENTS_MODEL", "gpt-test")
+
+    assert openai_agents_chat_model_name() == "gpt-test"
 
 
 def test_allowed_tool_call_uses_normal_detection_trace(

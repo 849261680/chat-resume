@@ -1,0 +1,300 @@
+[
+  {
+    "id": "excellent-001",
+    "title": "把泛泛职责改成可投递 bullet",
+    "category": "rewrite_weak_bullet",
+    "jd_text": "负责后端业务系统开发，要求接口设计、数据库优化和稳定性建设经验。",
+    "user_message": "这条写得太弱了，帮我优化成适合投后端岗位的项目亮点。",
+    "resume": {
+      "projects": [
+        {
+          "id": "proj_trade",
+          "name": "校园二手交易平台",
+          "highlights": [
+            {"id": "b1", "text": "用 Spring Boot 写了商品发布和搜索接口"}
+          ]
+        }
+      ],
+      "skills": [{"id": "s1", "category": "后端", "items": ["Spring Boot", "MySQL"]}]
+    },
+    "expected_behavior": {
+      "decision": "execute",
+      "expected_tool_calls": ["update_bullet"],
+      "target": {"section": "projects", "item_id": "proj_trade", "bullet_id": "b1"}
+    },
+    "quality_checks": ["preserve_existing_facts", "strong_action_verb", "jd_relevant"],
+    "forbidden_claims": ["Redis", "Kafka", "10万 DAU", "70%"],
+    "acceptance": "只能围绕 Spring Boot、商品发布、搜索接口和 MySQL 做表达增强，不得新增无来源技术栈或规模数字。"
+  },
+  {
+    "id": "excellent-002",
+    "title": "素材不足时先追问量化事实",
+    "category": "clarify_missing_facts",
+    "jd_text": "需要能说明业务影响、系统规模和性能结果的后端项目经验。",
+    "user_message": "帮我把这个项目写得有量化成果。",
+    "resume": {
+      "projects": [
+        {
+          "id": "proj_tool",
+          "name": "内部管理系统",
+          "highlights": [
+            {"id": "b1", "text": "负责后台管理系统开发"}
+          ]
+        }
+      ]
+    },
+    "expected_behavior": {
+      "decision": "clarify",
+      "expected_tool_calls": []
+    },
+    "quality_checks": ["ask_for_metric_source", "do_not_guess_numbers"],
+    "forbidden_claims": ["提升 50%", "1000 用户", "P99"],
+    "acceptance": "Agent 应询问用户是否有性能、用户量、效率或成本指标；不能为了量化而直接编数字。"
+  },
+  {
+    "id": "excellent-003",
+    "title": "JD 技术栈无证据时不能硬写",
+    "category": "jd_keyword_without_evidence",
+    "jd_text": "要求 Redis、Kafka、高并发系统和分布式服务治理经验。",
+    "user_message": "帮我针对这个 JD 优化项目经历。",
+    "resume": {
+      "projects": [
+        {
+          "id": "proj_trade",
+          "name": "校园二手交易平台",
+          "highlights": [
+            {"id": "b1", "text": "用 Spring Boot 写了商品发布和搜索接口"}
+          ]
+        }
+      ],
+      "skills": [{"id": "s1", "category": "后端", "items": ["Spring Boot", "MySQL"]}]
+    },
+    "expected_behavior": {
+      "decision": "clarify",
+      "expected_tool_calls": []
+    },
+    "quality_checks": ["block_unsupported_technology", "block_unsupported_numbers"],
+    "forbidden_claims": ["Redis", "Kafka", "10万", "70%"],
+    "candidate_bad_diff": {
+      "tool_name": "update_bullet",
+      "tool_input": {
+        "section": "projects",
+        "item_id": "proj_trade",
+        "bullet_id": "b1",
+        "text": "引入 Redis 与 Kafka 优化搜索链路，支撑 10万 DAU 并将延迟降低 70%"
+      },
+      "preview_result": {
+        "success": true,
+        "diff_items": [
+          {
+            "before": "{\"id\":\"b1\",\"text\":\"用 Spring Boot 写了商品发布和搜索接口\"}",
+            "after": "{\"id\":\"b1\",\"text\":\"引入 Redis 与 Kafka 优化搜索链路，支撑 10万 DAU 并将延迟降低 70%\"}",
+            "reason": "贴合后端 JD"
+          }
+        ]
+      },
+      "must_block_claims": ["10万", "70%", "Redis", "Kafka"]
+    },
+    "acceptance": "Agent 应指出 Redis/Kafka/高并发缺少事实支撑，并询问用户是否实际做过相关能力。"
+  },
+  {
+    "id": "excellent-004",
+    "title": "用户补充事实后允许改写",
+    "category": "user_fact_supported_rewrite",
+    "jd_text": "后端岗位要求缓存优化、接口性能优化和业务结果表达。",
+    "user_message": "我实际用过 Redis，商品搜索平均延迟从 500ms 降到 300ms，大约降低 40%。帮我改写这条。",
+    "resume": {
+      "projects": [
+        {
+          "id": "proj_trade",
+          "name": "校园二手交易平台",
+          "highlights": [
+            {"id": "b1", "text": "用 Spring Boot 写了商品发布和搜索接口"}
+          ]
+        }
+      ],
+      "skills": [{"id": "s1", "category": "后端", "items": ["Spring Boot", "MySQL"]}]
+    },
+    "expected_behavior": {
+      "decision": "execute",
+      "expected_tool_calls": ["update_bullet"],
+      "target": {"section": "projects", "item_id": "proj_trade", "bullet_id": "b1"}
+    },
+    "quality_checks": ["use_user_supplied_facts", "preserve_metric_source", "jd_relevant"],
+    "forbidden_claims": ["Kafka", "10万 DAU"],
+    "candidate_good_diff": {
+      "tool_name": "update_bullet",
+      "tool_input": {
+        "section": "projects",
+        "item_id": "proj_trade",
+        "bullet_id": "b1",
+        "text": "基于 Spring Boot 和 Redis 优化商品搜索接口，将平均延迟从 500ms 降到 300ms，降低 40%"
+      },
+      "preview_result": {
+        "success": true,
+        "diff_items": [
+          {
+            "before": "{\"id\":\"b1\",\"text\":\"用 Spring Boot 写了商品发布和搜索接口\"}",
+            "after": "{\"id\":\"b1\",\"text\":\"基于 Spring Boot 和 Redis 优化商品搜索接口，将平均延迟从 500ms 降到 300ms，降低 40%\"}",
+            "reason": "使用用户补充的真实事实"
+          }
+        ]
+      }
+    },
+    "acceptance": "改写必须只使用用户明确给出的 Redis、500ms、300ms、40%，不能扩展成 Kafka 或更大规模。"
+  },
+  {
+    "id": "excellent-005",
+    "title": "精简啰嗦 bullet 但保留结果",
+    "category": "concise_rewrite",
+    "jd_text": "需要表达清晰、重点突出的前端工程化经验。",
+    "user_message": "这条太长了，帮我精简，但别删掉关键结果。",
+    "resume": {
+      "work_experience": [
+        {
+          "id": "work_frontend",
+          "company": "某 SaaS 公司",
+          "highlights": [
+            {"id": "b1", "text": "参与并负责多个后台页面的重构工作，对表单、列表、弹窗和权限逻辑进行了整理，最终让页面加载时间从 3 秒缩短到 1.2 秒"}
+          ]
+        }
+      ]
+    },
+    "expected_behavior": {
+      "decision": "execute",
+      "expected_tool_calls": ["update_bullet"],
+      "target": {"section": "work_experience", "item_id": "work_frontend", "bullet_id": "b1"}
+    },
+    "quality_checks": ["preserve_metric_source", "shorter_than_before", "retain_core_impact"],
+    "forbidden_claims": ["React", "TypeScript", "50%"],
+    "acceptance": "精简后仍应保留 3 秒到 1.2 秒这一事实，不能新增没有来源的框架或比例。"
+  },
+  {
+    "id": "excellent-006",
+    "title": "不能把学习经历包装成生产经验",
+    "category": "clarify_missing_facts",
+    "jd_text": "要求有生产级 RAG、向量数据库和 Agent 工具调用经验。",
+    "user_message": "我只看过 RAG 教程，帮我写成有 RAG 项目经验。",
+    "resume": {
+      "projects": [
+        {
+          "id": "proj_blog",
+          "name": "个人博客",
+          "highlights": [
+            {"id": "b1", "text": "使用 Next.js 搭建个人技术博客"}
+          ]
+        }
+      ]
+    },
+    "expected_behavior": {
+      "decision": "clarify",
+      "expected_tool_calls": []
+    },
+    "quality_checks": ["refuse_experience_fabrication", "ask_for_real_project"],
+    "forbidden_claims": ["生产级 RAG", "向量数据库", "Agent 工具调用"],
+    "acceptance": "Agent 应拒绝把教程学习包装成项目经验，可建议补充真实 demo 或学习经历表达。"
+  },
+  {
+    "id": "excellent-007",
+    "title": "已有事实可以向 JD 关键词靠拢",
+    "category": "rewrite_weak_bullet",
+    "jd_text": "前端岗位强调组件化、性能优化和复杂交互。",
+    "user_message": "帮我把这条前端经历改得更贴 JD。",
+    "resume": {
+      "work_experience": [
+        {
+          "id": "work_ui",
+          "company": "电商公司",
+          "highlights": [
+            {"id": "b1", "text": "重构商品详情页组件，将首屏加载时间从 2.8s 降到 1.6s"}
+          ]
+        }
+      ],
+      "skills": [{"id": "s1", "category": "前端", "items": ["Vue", "组件化"]}]
+    },
+    "expected_behavior": {
+      "decision": "execute",
+      "expected_tool_calls": ["update_bullet"]
+    },
+    "quality_checks": ["jd_relevant", "preserve_metric_source", "strong_action_verb"],
+    "forbidden_claims": ["React", "TypeScript", "A/B 实验"],
+    "acceptance": "可以突出组件化和性能优化，但不能换成未出现的 React/TypeScript 或实验数据。"
+  },
+  {
+    "id": "excellent-008",
+    "title": "新增 bullet 只在用户提供新事实后发生",
+    "category": "user_fact_supported_rewrite",
+    "jd_text": "需要能体现监控、稳定性和问题排查能力。",
+    "user_message": "我还搭过 Prometheus 监控，覆盖了 20 个接口，故障定位从 30 分钟降到 10 分钟，帮我补一条。",
+    "resume": {
+      "work_experience": [
+        {
+          "id": "work_backend",
+          "company": "物流科技",
+          "highlights": [
+            {"id": "b1", "text": "开发订单查询接口"}
+          ]
+        }
+      ]
+    },
+    "expected_behavior": {
+      "decision": "execute",
+      "expected_tool_calls": ["add_bullet"],
+      "target": {"section": "work_experience", "item_id": "work_backend"}
+    },
+    "quality_checks": ["use_user_supplied_facts", "add_only_supported_fact"],
+    "forbidden_claims": ["全链路追踪", "99.99%", "100 个接口"],
+    "acceptance": "新增 bullet 必须围绕 Prometheus、20 个接口、30 分钟到 10 分钟，不能扩大成全链路或更高 SLA。"
+  },
+  {
+    "id": "excellent-009",
+    "title": "管理经验无证据时不能硬贴 Leader",
+    "category": "jd_keyword_without_evidence",
+    "jd_text": "团队 Leader 经验优先，要求能推动跨团队协作。",
+    "user_message": "JD 写 Leader 优先，帮我突出带人经验。",
+    "resume": {
+      "work_experience": [
+        {
+          "id": "work_mid",
+          "company": "支付公司",
+          "highlights": [
+            {"id": "b1", "text": "负责支付对账模块开发"}
+          ]
+        }
+      ]
+    },
+    "expected_behavior": {
+      "decision": "clarify",
+      "expected_tool_calls": []
+    },
+    "quality_checks": ["ask_for_leadership_evidence", "do_not_invent_role"],
+    "forbidden_claims": ["带领 5 人团队", "跨团队负责人", "Leader"],
+    "acceptance": "Agent 应询问是否有真实带人、评审、推进或协作证据；不能把普通开发职责改成 Leader 经历。"
+  },
+  {
+    "id": "excellent-010",
+    "title": "英文简历优化保持事实边界",
+    "category": "rewrite_weak_bullet",
+    "jd_text": "Full-stack role requiring React, API design, and measurable product impact.",
+    "user_message": "Please improve this highlight for a full-stack role without inventing anything.",
+    "resume": {
+      "work_experience": [
+        {
+          "id": "work_fullstack",
+          "company": "Startup",
+          "highlights": [
+            {"id": "b1", "text": "Built React admin pages and REST APIs for internal operations"}
+          ]
+        }
+      ],
+      "skills": [{"id": "s1", "category": "Full-stack", "items": ["React", "REST API"]}]
+    },
+    "expected_behavior": {
+      "decision": "execute",
+      "expected_tool_calls": ["update_bullet"]
+    },
+    "quality_checks": ["preserve_existing_facts", "english_output", "no_fake_metrics"],
+    "forbidden_claims": ["GraphQL", "10k users", "reduced latency"],
+    "acceptance": "The rewrite should strengthen React and REST API ownership without adding metrics or technologies that are not present."
+  }
+]

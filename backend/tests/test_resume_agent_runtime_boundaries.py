@@ -56,6 +56,7 @@ from app.agents.resume.message_conversion import convert_resume_messages_to_llm 
 from app.runtime.openrouter_adapter import build_openrouter_config  # noqa: E402
 from app.runtime.openai_agents_adapter import (  # noqa: E402
     OpenAIAgentsStreamAdapter,
+    build_openai_agents_loop_config,
     openai_agents_chat_model_name,
 )
 from app.runtime.contracts import AgentDefinition  # noqa: E402
@@ -76,6 +77,7 @@ from agents.items import ModelResponse, TResponseInputItem  # noqa: E402
 from agents.model_settings import ModelSettings  # noqa: E402
 from agents.models.interface import Model as OpenAIAgentsModel  # noqa: E402
 from agents.models.interface import ModelTracing  # noqa: E402
+from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel  # noqa: E402
 from agents.tool import Tool  # noqa: E402
 from agents.usage import Usage as OpenAIAgentsUsage  # noqa: E402
 
@@ -763,6 +765,78 @@ def test_openai_agents_model_name_comes_from_settings(monkeypatch: pytest.Monkey
     monkeypatch.setattr(settings, "OPENAI_AGENTS_MODEL", "gpt-test")
 
     assert openai_agents_chat_model_name() == "gpt-test"
+
+
+def test_openai_agents_config_keeps_default_provider_label(monkeypatch: pytest.MonkeyPatch):
+    """用于验证默认 OpenAI 分支保留既有 provider 标识。"""
+    monkeypatch.setattr(settings, "OPENAI_AGENTS_PROVIDER", "openai")
+    monkeypatch.setattr(settings, "OPENAI_AGENTS_MODEL", "gpt-test")
+    monkeypatch.setattr(settings, "OPENAI_API_KEY", "openai-key")
+
+    config = build_openai_agents_loop_config(ResumeAgent().definition)
+
+    assert config.model.provider == "openai-agents"
+    assert config.model.api == "responses"
+    assert config.api_key == "openai-key"
+
+
+def test_openai_agents_config_can_target_deepseek_provider(monkeypatch: pytest.MonkeyPatch):
+    """用于验证 DeepSeek 分支走 Chat Completions-compatible 配置。"""
+    monkeypatch.setattr(settings, "OPENAI_AGENTS_PROVIDER", "deepseek")
+    monkeypatch.setattr(settings, "OPENAI_AGENTS_MODEL", "deepseek-v4-pro")
+    monkeypatch.setattr(settings, "DEEPSEEK_API_KEY", "deepseek-key")
+    monkeypatch.setattr(settings, "DEEPSEEK_API_BASE", "https://api.deepseek.com")
+
+    config = build_openai_agents_loop_config(ResumeAgent().definition)
+
+    assert config.model.provider == "deepseek"
+    assert config.model.api == "chat_completions"
+    assert config.model.id == "deepseek-v4-pro"
+    assert config.api_key == "deepseek-key"
+
+
+def test_openai_agents_adapter_uses_chat_completions_for_deepseek(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """用于验证 DeepSeek provider 使用 Chat Completions 并关闭 tracing。"""
+    monkeypatch.setattr(settings, "DEEPSEEK_API_BASE", "https://api.deepseek.com")
+    adapter = OpenAIAgentsStreamAdapter()
+    model = Model(api="chat_completions", provider="deepseek", id="deepseek-v4-pro")
+
+    run_config = adapter.run_config(
+        model,
+        SimpleStreamOptions(api_key="deepseek-key", temperature=0.2, max_tokens=128),
+    )
+    resolved_model = run_config.model_provider.get_model(model.id)
+
+    assert run_config.tracing_disabled is True
+    assert isinstance(resolved_model, OpenAIChatCompletionsModel)
+    assert str(resolved_model._client.base_url) == "https://api.deepseek.com"
+
+
+def test_openai_agents_function_tool_keeps_deepseek_safe_skill_schema():
+    """用于验证 SDK 工具 schema 保持 DeepSeek 可接受的 skills 参数名。"""
+    agent = ResumeAgent()
+    state = _new_test_stream_state()
+    pi_context, _prompts, _config = _build_test_turn_inputs(
+        agent,
+        user_message="补充技能",
+        context={
+            "resume_content": {
+                "skills": [{"id": "skill_1", "category": "AI", "items": ["Agent"]}]
+            },
+            "tool_profile": "resume_edit",
+        },
+        state=state,
+    )
+    update_skills = next(tool for tool in pi_context.tools if tool.name == "update_skills")
+
+    function_tool = OpenAIAgentsStreamAdapter.function_tool(update_skills)
+
+    properties = function_tool.params_json_schema["properties"]
+    assert "skills" in properties
+    assert "items" not in properties
+    assert function_tool.params_json_schema["required"] == ["category_id", "skills"]
 
 
 def test_allowed_tool_call_uses_normal_detection_trace(

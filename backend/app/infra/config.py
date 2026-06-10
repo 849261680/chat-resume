@@ -107,7 +107,10 @@ class Settings(BaseSettings):
 
     # OpenAI Agents SDK
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+    OPENAI_AGENTS_PROVIDER: str = os.getenv("OPENAI_AGENTS_PROVIDER", "openai")
     OPENAI_AGENTS_MODEL: str = os.getenv("OPENAI_AGENTS_MODEL", "gpt-5.5")
+    DEEPSEEK_API_KEY: str = os.getenv("DEEPSEEK_API_KEY", "")
+    DEEPSEEK_API_BASE: str = os.getenv("DEEPSEEK_API_BASE", "https://api.deepseek.com")
 
     # OpenRouter API
     OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")

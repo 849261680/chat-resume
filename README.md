@@ -194,8 +194,11 @@ eval/                          # Agent eval 脚本和用例
 # backend/.env
 DATABASE_URL=sqlite:///./chat_resume.db
 SECRET_KEY=your-secret-key-here
+OPENAI_AGENTS_PROVIDER=openai
 OPENAI_API_KEY=
 OPENAI_AGENTS_MODEL=gpt-5.5
+DEEPSEEK_API_KEY=
+DEEPSEEK_API_BASE=https://api.deepseek.com
 OPENROUTER_API_KEY=
 OPENROUTER_API_BASE=https://openrouter.ai/api/v1
 OPENROUTER_MODEL=deepseek/deepseek-v4-pro
@@ -207,6 +210,10 @@ BACKEND_CORS_ORIGINS=http://localhost:3000,https://localhost:3000
 # frontend/.env.local
 NEXT_PUBLIC_API_URL=http://localhost:8000
 ```
+
+将简历优化 Agent 切到 DeepSeek 官方 API 时，设置
+`OPENAI_AGENTS_PROVIDER=deepseek`、`OPENAI_AGENTS_MODEL=deepseek-v4-pro`，
+并填写 `DEEPSEEK_API_KEY`。该分支使用 OpenAI-compatible Chat Completions。
 
 可选能力按需配置：
 

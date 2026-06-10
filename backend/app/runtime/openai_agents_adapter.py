@@ -37,18 +37,31 @@ from app.agents.resume.message_conversion import convert_resume_messages_to_llm
 from app.infra.config import settings
 from app.runtime.contracts import AgentDefinition
 
+OPENAI_AGENTS_PROVIDER_OPENAI = "openai"
+OPENAI_AGENTS_PROVIDER_DEEPSEEK = "deepseek"
+OPENAI_AGENTS_MODEL_PROVIDER_OPENAI = "openai-agents"
+
+
+def normalized_openai_agents_provider() -> str:
+    """用于规范化 OpenAI Agents SDK 的模型供应商配置。"""
+    provider = settings.OPENAI_AGENTS_PROVIDER.strip().lower()
+    if provider == OPENAI_AGENTS_PROVIDER_DEEPSEEK:
+        return OPENAI_AGENTS_PROVIDER_DEEPSEEK
+    return OPENAI_AGENTS_PROVIDER_OPENAI
+
 
 def build_openai_agents_loop_config(
     agent: AgentDefinition,
 ) -> AgentLoopConfig:
     """用于创建现有 ReAct loop 可消费的 OpenAI Agents SDK 配置。"""
+    provider = normalized_openai_agents_provider()
     return AgentLoopConfig(
         model=Model(
-            api="responses",
-            provider="openai-agents",
+            api="chat_completions" if provider == OPENAI_AGENTS_PROVIDER_DEEPSEEK else "responses",
+            provider=model_provider_name(provider),
             id=settings.OPENAI_AGENTS_MODEL,
         ),
-        api_key=settings.OPENAI_API_KEY,
+        api_key=provider_api_key(provider),
         temperature=agent.prompt_spec.model_defaults.get("temperature", 0.3),
         max_tokens=agent.prompt_spec.model_defaults.get("max_tokens", 1500),
         convert_to_llm=convert_resume_messages_to_llm,
@@ -58,6 +71,20 @@ def build_openai_agents_loop_config(
 def openai_agents_chat_model_name() -> str:
     """用于返回当前 OpenAI Agents SDK 聊天模型名称。"""
     return settings.OPENAI_AGENTS_MODEL
+
+
+def provider_api_key(provider: str) -> str:
+    """用于按 provider 读取对应 API key。"""
+    if provider == OPENAI_AGENTS_PROVIDER_DEEPSEEK:
+        return settings.DEEPSEEK_API_KEY
+    return settings.OPENAI_API_KEY
+
+
+def model_provider_name(provider: str) -> str:
+    """用于保持 OpenAI 默认 provider 标识并暴露 DeepSeek 分支。"""
+    if provider == OPENAI_AGENTS_PROVIDER_DEEPSEEK:
+        return OPENAI_AGENTS_PROVIDER_DEEPSEEK
+    return OPENAI_AGENTS_MODEL_PROVIDER_OPENAI
 
 
 async def stream_openai_agents(
@@ -141,6 +168,16 @@ class OpenAIAgentsStreamAdapter:
         """用于把 API key 显式交给 SDK provider。"""
         if self.sdk_model is not None:
             return RunConfig()
+        if model.provider == OPENAI_AGENTS_PROVIDER_DEEPSEEK:
+            return RunConfig(
+                model=model.id,
+                model_provider=OpenAIProvider(
+                    api_key=options.api_key,
+                    base_url=settings.DEEPSEEK_API_BASE,
+                    use_responses=False,
+                ),
+                tracing_disabled=True,
+            )
         if options.api_key:
             return RunConfig(
                 model=model.id,

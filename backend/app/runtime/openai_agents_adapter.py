@@ -87,6 +87,16 @@ def model_provider_name(provider: str) -> str:
     return OPENAI_AGENTS_MODEL_PROVIDER_OPENAI
 
 
+def deepseek_extra_body(model: Model) -> dict[str, Any] | None:
+    """用于关闭 DeepSeek thinking mode 以避免工具回放缺失 reasoning_content。"""
+    if model.provider != OPENAI_AGENTS_PROVIDER_DEEPSEEK:
+        return None
+    thinking_type = settings.DEEPSEEK_THINKING_TYPE.strip().lower()
+    if thinking_type not in {"enabled", "disabled"}:
+        thinking_type = "disabled"
+    return {"thinking": {"type": thinking_type}}
+
+
 async def stream_openai_agents(
     model: Model,
     context: AgentContext,
@@ -156,12 +166,18 @@ class OpenAIAgentsStreamAdapter:
             name="Resume optimizer",
             instructions=context.system_prompt,
             model=self.sdk_model or model.id,
-            model_settings=ModelSettings(
-                temperature=options.temperature,
-                max_tokens=options.max_tokens,
-                parallel_tool_calls=False,
-            ),
+            model_settings=self.model_settings(model, options),
             tools=[self.function_tool(tool) for tool in context.tools],
+        )
+
+    @staticmethod
+    def model_settings(model: Model, options: SimpleStreamOptions) -> ModelSettings:
+        """用于创建 provider-aware 的 SDK 模型参数。"""
+        return ModelSettings(
+            temperature=options.temperature,
+            max_tokens=options.max_tokens,
+            parallel_tool_calls=False,
+            extra_body=deepseek_extra_body(model),
         )
 
     def run_config(self, model: Model, options: SimpleStreamOptions) -> RunConfig:

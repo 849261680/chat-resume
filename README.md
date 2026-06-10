@@ -199,6 +199,7 @@ OPENAI_API_KEY=
 OPENAI_AGENTS_MODEL=gpt-5.5
 DEEPSEEK_API_KEY=
 DEEPSEEK_API_BASE=https://api.deepseek.com
+DEEPSEEK_THINKING_TYPE=disabled
 OPENROUTER_API_KEY=
 OPENROUTER_API_BASE=https://openrouter.ai/api/v1
 OPENROUTER_MODEL=deepseek/deepseek-v4-pro
@@ -213,7 +214,8 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 
 将简历优化 Agent 切到 DeepSeek 官方 API 时，设置
 `OPENAI_AGENTS_PROVIDER=deepseek`、`OPENAI_AGENTS_MODEL=deepseek-v4-pro`，
-并填写 `DEEPSEEK_API_KEY`。该分支使用 OpenAI-compatible Chat Completions。
+并填写 `DEEPSEEK_API_KEY`。该分支使用 OpenAI-compatible Chat Completions，
+默认用 `DEEPSEEK_THINKING_TYPE=disabled` 避免工具确认后的 reasoning_content 回放错误。
 
 可选能力按需配置：
 

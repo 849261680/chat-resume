@@ -778,6 +778,10 @@ def test_openai_agents_config_keeps_default_provider_label(monkeypatch: pytest.M
     assert config.model.provider == "openai-agents"
     assert config.model.api == "responses"
     assert config.api_key == "openai-key"
+    assert OpenAIAgentsStreamAdapter.model_settings(
+        config.model,
+        SimpleStreamOptions(api_key="openai-key", temperature=0.2, max_tokens=128),
+    ).extra_body is None
 
 
 def test_openai_agents_config_can_target_deepseek_provider(monkeypatch: pytest.MonkeyPatch):
@@ -800,6 +804,7 @@ def test_openai_agents_adapter_uses_chat_completions_for_deepseek(
 ):
     """用于验证 DeepSeek provider 使用 Chat Completions 并关闭 tracing。"""
     monkeypatch.setattr(settings, "DEEPSEEK_API_BASE", "https://api.deepseek.com")
+    monkeypatch.setattr(settings, "DEEPSEEK_THINKING_TYPE", "disabled")
     adapter = OpenAIAgentsStreamAdapter()
     model = Model(api="chat_completions", provider="deepseek", id="deepseek-v4-pro")
 
@@ -812,6 +817,25 @@ def test_openai_agents_adapter_uses_chat_completions_for_deepseek(
     assert run_config.tracing_disabled is True
     assert isinstance(resolved_model, OpenAIChatCompletionsModel)
     assert str(resolved_model._client.base_url) == "https://api.deepseek.com"
+    assert adapter.model_settings(
+        model,
+        SimpleStreamOptions(api_key="deepseek-key", temperature=0.2, max_tokens=128),
+    ).extra_body == {"thinking": {"type": "disabled"}}
+
+
+def test_openai_agents_adapter_falls_back_to_disabled_deepseek_thinking(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """用于验证非法 DeepSeek thinking 配置不会重新触发默认 thinking mode。"""
+    monkeypatch.setattr(settings, "DEEPSEEK_THINKING_TYPE", "invalid")
+    model = Model(api="chat_completions", provider="deepseek", id="deepseek-v4-pro")
+
+    model_settings = OpenAIAgentsStreamAdapter.model_settings(
+        model,
+        SimpleStreamOptions(api_key="deepseek-key", temperature=0.2, max_tokens=128),
+    )
+
+    assert model_settings.extra_body == {"thinking": {"type": "disabled"}}
 
 
 def test_openai_agents_function_tool_keeps_deepseek_safe_skill_schema():

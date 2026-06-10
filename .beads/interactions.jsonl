@@ -288,3 +288,4 @@
 {"id":"int-7239eac7","kind":"field_change","created_at":"2026-06-09T14:53:28.379161Z","actor":"宇宙熊Yzx","issue_id":"cr-f1ag","extra":{"field":"status","new_value":"closed","old_value":"open","reason":"完成：系统提示词增强+分数历史追踪+收敛判断"}}
 {"id":"int-12c12c01","kind":"field_change","created_at":"2026-06-09T14:53:38.370122Z","actor":"宇宙熊Yzx","issue_id":"cr-s8p2","extra":{"field":"status","new_value":"closed","old_value":"open","reason":"完成：JD匹配升级到同义词+权重化评分"}}
 {"id":"int-ac24193c","kind":"field_change","created_at":"2026-06-09T14:53:49.435521Z","actor":"宇宙熊Yzx","issue_id":"cr-vxru","extra":{"field":"status","new_value":"closed","old_value":"open","reason":"完成：收敛判断逻辑已集成到score_resume"}}
+{"id":"int-3eca286f","kind":"field_change","created_at":"2026-06-10T14:00:59.187703Z","actor":"宇宙熊Yzx","issue_id":"cr-62n4","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"已建立 10 条优秀简历 Agent 黄金样例，并用自动测试校验字段完整、场景覆盖和事实门禁行为"}}

@@ -63,11 +63,6 @@ export default function UserInputRequestCard({
       <div className="flex items-start gap-3 px-5 pb-4 pt-5">
         <div className="min-w-0 flex-1">
           <div className="text-[15px] font-semibold leading-5 text-gray-950">{request.question}</div>
-          {request.context && (
-            <div className="mt-1 text-xs leading-5 text-gray-500">
-              {request.context}
-            </div>
-          )}
         </div>
         <div className="flex shrink-0 items-center gap-1.5 text-gray-500">
           <button

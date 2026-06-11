@@ -207,7 +207,7 @@ def _source_text(
     user_message: str,
 ) -> str:
     """用于汇总可作为事实来源的原简历、改前 diff 和用户本轮输入。"""
-    chunks = [_text_from_value(resume_content), _user_fact_text(user_message)]
+    chunks = [_text_from_value(_resume_fact_body(resume_content)), _user_fact_text(user_message)]
     diff_items = preview_result.get("diff_items")
     if isinstance(diff_items, list):
         chunks.extend(
@@ -233,8 +233,26 @@ def _unsupported_claims(after_text: str, source_text: str) -> list[str]:
         + _extract_tech_terms(after_text)
         + _extract_capability_claims(after_text)
     )
-    return _dedupe([claim for claim in claims if claim.lower() not in source_lower])
+    return _dedupe([claim for claim in claims if not _claim_supported(claim, source_lower)])
 
+
+
+def _claim_supported(claim: str, source_lower: str) -> bool:
+    """用于判断能力词是否能被真实来源文本支撑。"""
+    claim_lower = claim.lower()
+    if claim_lower in source_lower or _compact_fact(claim_lower) in _compact_fact(source_lower):
+        return True
+    return claim in {"稳定", "稳定性", "稳定性建设"} and _has_stability_evidence(source_lower)
+
+def _has_stability_evidence(source_lower: str) -> bool:
+    """用于识别监控和故障定位事实对稳定性表达的支撑。"""
+    evidence_terms = ("prometheus", "监控", "故障", "告警", "定位", "排查")
+    return any(term in source_lower for term in evidence_terms)
+
+
+def _compact_fact(value: str) -> str:
+    """用于忽略数字和单位之间的空白差异。"""
+    return "".join(value.split())
 
 def _extract_number_claims(text: str) -> list[str]:
     """用于提取候选改写中的数字型事实。"""
@@ -259,6 +277,10 @@ def _user_fact_text(user_message: str) -> str:
     if marker not in user_message:
         return user_message
     return user_message.split(marker, 1)[0]
+
+def _resume_fact_body(resume_content: dict[str, Any]) -> dict[str, Any]:
+    """用于移除不应作为经历事实来源的投递元数据。"""
+    return {key: value for key, value in resume_content.items() if key != "job_application"}
 
 
 def _text_from_value(value: Any) -> str:

@@ -438,6 +438,11 @@ class ResumeToolExecutionStage:
         )
         if quality_failure is None:
             return None
+        quality_failure = self.auto_clarification_for_quality_failure(
+            quality_failure=quality_failure,
+            tool_name=tool_name,
+            tool_input=tool_input,
+        )
         self.trace_tool_executed(
             agent,
             run_id,
@@ -816,6 +821,65 @@ class ResumeToolExecutionStage:
             "qr_image": None,
             "updated_section_name": None,
         }
+    @staticmethod
+    def auto_clarification_for_quality_failure(
+        *,
+        quality_failure: dict[str, Any],
+        tool_name: str,
+        tool_input: dict[str, Any],
+    ) -> dict[str, Any]:
+        """用于把免确认阶段的无来源事实拦截转成结构化追问。"""
+        result = quality_failure.get("result")
+        if not isinstance(result, dict):
+            return quality_failure
+        error = result.get("error")
+        if not isinstance(error, dict) or error.get("type") != "unsupported_resume_claim":
+            return quality_failure
+        claims = [str(item) for item in result.get("unsupported_claims", []) if str(item)]
+        question = ResumeToolExecutionStage.unsupported_claim_question(claims)
+        return {
+            "tool_name": "ask_user",
+            "result": {
+                "success": True,
+                "terminate": True,
+                "message": question,
+                "user_input_request": {
+                    "question": question,
+                    "options": ResumeToolExecutionStage.unsupported_claim_options(claims),
+                    "category": ResumeToolExecutionStage.ask_category(tool_input),
+                    "context": "为了避免把 JD 要求写成没有证据的经历事实，需要先确认这些能力是否真实发生。",
+                    "allow_custom": True,
+                },
+                "blocked_tool": tool_name,
+                "unsupported_claims": claims,
+            },
+            "display_message": question,
+            "qr_image": None,
+            "updated_section_name": None,
+        }
+
+    @staticmethod
+    def unsupported_claim_question(claims: list[str]) -> str:
+        """用于生成无来源能力事实的追问问题。"""
+        if not claims:
+            return "这段经历是否有真实可证明的补充事实可写进简历？"
+        return f"这段经历是否真实包含这些事实：{'、'.join(claims[:4])}？"
+
+    @staticmethod
+    def unsupported_claim_options(claims: list[str]) -> list[str]:
+        """用于生成无来源能力事实的追问选项。"""
+        options = [f"确认做过：{claim}" for claim in claims[:3]]
+        options.append("没有做过，按已有事实保守改写")
+        return options
+
+    @staticmethod
+    def ask_category(tool_input: dict[str, Any]) -> str:
+        """用于按编辑板块选择 ask_user 的信息类别。"""
+        section = tool_input.get("section")
+        if section in {"work_experience", "projects", "education"}:
+            return str(section)
+        return "other"
+
 
     def trace_tool_executed(
         self,

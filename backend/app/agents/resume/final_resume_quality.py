@@ -99,6 +99,9 @@ _ROLE_TERMS = (
     "JD",
     "diff",
 )
+_ROLE_ALIASES = {
+    "性能": ("加载时间", "首屏", "延迟", "响应时间", "耗时"),
+}
 _CAPABILITY_CLAIMS = (
     "索引优化",
     "数据库优化",
@@ -128,7 +131,7 @@ def score_final_resume_quality(
 
     source_text = _collect_text([_resume_body(resume_before), user_message])
     after_text = _collect_text(_resume_body(resume_after))
-    highlights = _resume_highlights(resume_after)
+    highlights = _scored_highlights(resume_before, resume_after)
     unsupported = _unsupported_claims(after_text, source_text)
     dimensions = {
         "role_fit": _score_role_fit(after_text, jd_text),
@@ -205,7 +208,7 @@ def _score_role_fit(after_text: str, jd_text: str) -> dict[str, Any]:
     wanted = [term for term in _ROLE_TERMS if term.lower() in jd_text.lower()]
     if not wanted:
         return {"score": 80, "passed": True, "matched": [], "required": []}
-    matched = [term for term in wanted if term.lower() in after_text.lower()]
+    matched = [term for term in wanted if _role_term_matches(term, after_text)]
     ratio = len(matched) / len(wanted)
     return {
         "score": round(min(100, 50 + ratio * 50)),
@@ -213,6 +216,15 @@ def _score_role_fit(after_text: str, jd_text: str) -> dict[str, Any]:
         "matched": matched,
         "required": wanted,
     }
+def _role_term_matches(term: str, after_text: str) -> bool:
+    """用于判断岗位关键词是否被正文或等价证据命中。"""
+    lowered = after_text.lower()
+    if term.lower() in lowered:
+        return True
+    aliases = _ROLE_ALIASES.get(term, ())
+    return any(alias.lower() in lowered for alias in aliases)
+
+
 
 
 def _score_star_strength(highlights: list[str]) -> dict[str, Any]:
@@ -284,8 +296,16 @@ def _has_evidence(text: str) -> bool:
 def _is_interview_ready(text: str) -> bool:
     """用于判断单条亮点是否具备可追问的技术链路。"""
     has_action = any(word in text for word in _ACTION_WORDS)
-    has_context = "，" in text or "," in text or "、" in text
+    has_context = _has_context_connector(text)
     return has_action and has_context and len(text) >= 45
+def _has_context_connector(text: str) -> bool:
+    """用于识别中文标点或英文连接词提供的动作链路。"""
+    if "，" in text or "," in text or "、" in text:
+        return True
+    lowered = text.lower()
+    return any(f" {word} " in lowered for word in ("to", "that", "and", "for"))
+
+
 
 
 def _has_tech(text: str) -> bool:
@@ -302,8 +322,26 @@ def _unsupported_claims(after_text: str, source_text: str) -> list[str]:
         + _extract_tech_terms(after_text)
         + _extract_capability_claims(after_text)
     )
-    return _dedupe([claim for claim in claims if claim.lower() not in source_lower])
+    return _dedupe([claim for claim in claims if not _claim_supported(claim, source_lower)])
 
+
+
+def _claim_supported(claim: str, source_lower: str) -> bool:
+    """用于判断最终简历事实是否可由来源文本支撑。"""
+    claim_lower = claim.lower()
+    if claim_lower in source_lower or _compact_fact(claim_lower) in _compact_fact(source_lower):
+        return True
+    return claim in {"稳定性", "稳定性建设"} and _has_stability_evidence(source_lower)
+
+def _has_stability_evidence(source_lower: str) -> bool:
+    """用于识别监控和故障定位事实对稳定性表达的支撑。"""
+    evidence_terms = ("prometheus", "监控", "故障", "告警", "定位", "排查")
+    return any(term in source_lower for term in evidence_terms)
+
+
+def _compact_fact(value: str) -> str:
+    """用于忽略数字和单位之间的空白差异。"""
+    return "".join(value.split())
 
 def _extract_number_claims(text: str) -> list[str]:
     """用于提取数字型事实。"""
@@ -320,6 +358,17 @@ def _extract_capability_claims(text: str) -> list[str]:
     """用于提取容易被 JD 诱导编造的能力型事实。"""
     lowered = text.lower()
     return [claim for claim in _CAPABILITY_CLAIMS if claim.lower() in lowered]
+
+
+def _scored_highlights(
+    resume_before: dict[str, Any],
+    resume_after: dict[str, Any],
+) -> list[str]:
+    """用于优先评分本轮新增或改写的亮点文本。"""
+    after_highlights = _resume_highlights(resume_after)
+    before_highlights = set(_resume_highlights(resume_before))
+    changed = [text for text in after_highlights if text not in before_highlights]
+    return changed or after_highlights
 
 
 def _resume_highlights(resume: dict[str, Any]) -> list[str]:

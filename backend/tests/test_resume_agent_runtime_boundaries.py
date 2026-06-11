@@ -1158,7 +1158,7 @@ async def test_resume_tool_execution_stage_blocks_unsupported_claims_before_conf
 
 @pytest.mark.asyncio
 async def test_auto_execute_stage_blocks_unsupported_claims_before_mutation():
-    """用于验证免确认工具也会先过事实门禁再真正修改简历。"""
+    """用于验证免确认工具遇到无来源事实时先转成结构化追问且不修改简历。"""
     agent = ResumeAgent()
     stage = ResumeToolExecutionStage()
     resume = {
@@ -1200,9 +1200,12 @@ async def test_auto_execute_stage_blocks_unsupported_claims_before_mutation():
         stream_state={"visible_tool_call_ids": set(), "chunk_index": 0, "response_parts": []},
     )
 
-    assert result.details["success"] is False
-    assert result.details["error"]["type"] == "unsupported_resume_claim"
+    assert result.details["success"] is True
+    assert result.details["terminate"] is True
+    assert result.details["user_input_request"]["category"] == "projects"
     assert "索引优化" in result.details["message"]
+    assert executed_tools[0]["name"] == "ask_user"
+    assert executed_tools[0]["success"] is True
     assert resume["projects"][0]["highlights"][0]["text"] == "用 Spring Boot 写了商品发布和搜索接口"
 
 

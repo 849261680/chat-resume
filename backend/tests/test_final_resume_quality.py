@@ -149,6 +149,33 @@ def test_single_strong_bullet_can_pass_bullet_scoped_quality_gate():
     assert result["passed"] is True
     assert "Agent" not in result["fact_check"]["unsupported_claims"]
 
+def test_role_fit_counts_performance_evidence_aliases():
+    """用于验证加载时间等证据可命中 JD 中的性能要求。"""
+    before = {
+        "work_experience": [
+            {
+                "highlights": [
+                    {"text": "重构商品详情页组件，将首屏加载时间从 2.8s 降到 1.6s"}
+                ]
+            }
+        ],
+        "skills": [{"category": "前端", "items": ["Vue", "组件化"]}],
+    }
+    after = deepcopy(before)
+    after["work_experience"][0]["highlights"][0]["text"] = (
+        "重构商品详情页前端组件，拆分复杂交互模块并优化首屏加载链路，将首屏加载时间从 2.8s 降至 1.6s"
+    )
+
+    result = score_final_resume_quality(
+        resume_before=before,
+        resume_after=after,
+        jd_text="前端岗位强调组件化、性能优化和复杂交互。",
+    )
+
+    assert result["dimensions"]["role_fit"]["passed"] is True
+    assert "性能" in result["dimensions"]["role_fit"]["matched"]
+
+
 
 def test_spring_boot_counts_as_technical_evidence():
     """用于验证 Spring Boot 经历可计入技术证据密度。"""
@@ -206,6 +233,35 @@ def test_generated_ids_do_not_count_as_unsupported_number_claims():
     assert "1895" not in result["fact_check"]["unsupported_claims"]
     assert "65" not in result["fact_check"]["unsupported_claims"]
 
+def test_added_strong_bullet_is_scored_without_penalizing_unchanged_weak_bullet():
+    """用于验证新增亮点样例只评分本轮新增的高质量 bullet。"""
+    before = {
+        "work_experience": [
+            {
+                "id": "work_backend",
+                "highlights": [{"id": "b1", "text": "开发订单查询接口"}],
+            }
+        ]
+    }
+    after = deepcopy(before)
+    after["work_experience"][0]["highlights"].append(
+        {
+            "id": "b2",
+            "text": "搭建 Prometheus 监控体系，覆盖 20 个核心接口，将故障定位时间从 30 分钟缩短至 10 分钟",
+        }
+    )
+
+    result = score_final_resume_quality(
+        resume_before=before,
+        resume_after=after,
+        jd_text="需要能体现监控、稳定性和问题排查能力。",
+        user_message="我还搭过 Prometheus 监控，覆盖了 20 个接口，故障定位从 30 分钟降到 10 分钟",
+    )
+
+    assert result["passed"] is True
+    assert result["dimensions"]["star_strength"]["total"] == 1
+
+
 
 def test_excellent_005_expert_rewrite_passes_final_quality_gate():
     """用于验证 excellent-005 专家答案能通过最终质量门槛。"""
@@ -256,6 +312,32 @@ def test_excellent_005_rewrite_with_fabricated_stack_fails_fact_check():
 
     assert result["passed"] is False
     assert {"React", "TypeScript", "50%"} <= set(result["fact_check"]["unsupported_claims"])
+
+def test_english_rewrite_without_comma_is_interview_ready():
+    """用于验证英文连接词也能形成可追问的技术链路。"""
+    before = {
+        "work_experience": [
+            {
+                "highlights": [
+                    {"text": "Built React admin pages and REST APIs for internal operations"}
+                ]
+            }
+        ],
+        "skills": [{"category": "Full-stack", "items": ["React", "REST API"]}],
+    }
+    after = deepcopy(before)
+    after["work_experience"][0]["highlights"][0]["text"] = (
+        "Designed and delivered React admin interfaces and REST APIs that streamlined internal operations and improved team workflow efficiency"
+    )
+
+    result = score_final_resume_quality(
+        resume_before=before,
+        resume_after=after,
+        jd_text="Full-stack role requiring React, API design, and measurable product impact.",
+    )
+
+    assert result["dimensions"]["interview_readiness"]["passed"] is True
+
 
 
 def test_excellent_011_expert_rewrite_passes_final_quality_gate():

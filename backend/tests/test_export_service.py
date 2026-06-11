@@ -243,7 +243,7 @@ def test_render_pdf_with_playwright_uses_expected_page_settings(tmp_path, monkey
     assert captured["viewport"] == {"width": 1280, "height": 1810}
     assert captured["goto"] == {
         "url": "https://frontend.example.com/resume/print?data=abc",
-        "wait_until": "networkidle",
+        "wait_until": "domcontentloaded",
     }
     assert render_events == [
         ("wait_for_selector", '[data-resume-print-ready="true"]', {"state": "attached"}),

@@ -233,7 +233,7 @@ class ExportService:
                         f"{json.dumps(storage_payload)}"
                         ");"
                     )
-                await page.goto(print_url, wait_until="networkidle")
+                await page.goto(print_url, wait_until="domcontentloaded")
                 await page.wait_for_selector('[data-resume-print-ready="true"]', state="attached")
                 await page.wait_for_selector("#resume-export-content .resume-page")
                 await page.emulate_media(media="print")

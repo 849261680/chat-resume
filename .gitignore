@@ -112,6 +112,7 @@ cover/
 example/
 
 # Local agent tooling
+.mcp.json
 .agents/
 .antigravitycli/
 .codex/

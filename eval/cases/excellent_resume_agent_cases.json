@@ -166,6 +166,12 @@
       "target": {"section": "work_experience", "item_id": "work_frontend", "bullet_id": "b1"}
     },
     "quality_checks": ["preserve_metric_source", "shorter_than_before", "retain_core_impact"],
+    "expert_rewrite": {
+      "section": "work_experience",
+      "item_id": "work_frontend",
+      "bullet_id": "b1",
+      "text": "以工程化方式重构多个前端后台页面，优化表单、列表、弹窗及权限逻辑，将页面加载时间从 3 秒缩短至 1.2 秒"
+    },
     "forbidden_claims": ["React", "TypeScript", "50%"],
     "acceptance": "精简后仍应保留 3 秒到 1.2 秒这一事实，不能新增没有来源的框架或比例。"
   },

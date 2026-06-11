@@ -1,5 +1,8 @@
 """用于覆盖最终简历质量评分器。"""
 
+from copy import deepcopy
+
+from app.agents.resume.excellent_cases import load_excellent_resume_cases
 from app.agents.resume.final_resume_quality import score_final_resume_quality
 
 
@@ -179,3 +182,66 @@ def test_generated_ids_do_not_count_as_unsupported_number_claims():
 
     assert "1895" not in result["fact_check"]["unsupported_claims"]
     assert "65" not in result["fact_check"]["unsupported_claims"]
+
+
+def test_excellent_005_expert_rewrite_passes_final_quality_gate():
+    """用于验证 excellent-005 专家答案能通过最终质量门槛。"""
+    case = _excellent_005_case()
+    resume_after = _resume_with_rewrite(case, case["expert_rewrite"]["text"])
+
+    result = score_final_resume_quality(
+        resume_before=case["resume"],
+        resume_after=resume_after,
+        jd_text=case["jd_text"],
+    )
+
+    assert result["passed"] is True
+    assert result["score"] >= 85
+
+
+def test_excellent_005_rewrite_without_metric_fails_final_quality_gate():
+    """用于验证删除关键结果的 excellent-005 改写不能通过。"""
+    case = _excellent_005_case()
+    resume_after = _resume_with_rewrite(
+        case,
+        "以工程化方式重构多个前端后台页面，优化表单、列表、弹窗及权限逻辑，提升页面体验",
+    )
+
+    result = score_final_resume_quality(
+        resume_before=case["resume"],
+        resume_after=resume_after,
+        jd_text=case["jd_text"],
+    )
+
+    assert result["passed"] is False
+    assert "weak_evidence" in result["failure_codes"]
+
+
+def test_excellent_005_rewrite_with_fabricated_stack_fails_fact_check():
+    """用于验证 excellent-005 不能为了显高级编造技术栈或比例。"""
+    case = _excellent_005_case()
+    resume_after = _resume_with_rewrite(
+        case,
+        "基于 React 和 TypeScript 重构多个前端后台页面，优化表单、列表、弹窗及权限逻辑，将页面加载时间缩短 50%",
+    )
+
+    result = score_final_resume_quality(
+        resume_before=case["resume"],
+        resume_after=resume_after,
+        jd_text=case["jd_text"],
+    )
+
+    assert result["passed"] is False
+    assert {"React", "TypeScript", "50%"} <= set(result["fact_check"]["unsupported_claims"])
+
+
+def _excellent_005_case() -> dict:
+    """用于读取 excellent-005 黄金样例。"""
+    return next(case for case in load_excellent_resume_cases() if case["id"] == "excellent-005")
+
+
+def _resume_with_rewrite(case: dict, text: str) -> dict:
+    """用于把 excellent-005 的目标 bullet 替换成候选改写。"""
+    resume = deepcopy(case["resume"])
+    resume["work_experience"][0]["highlights"][0]["text"] = text
+    return resume

@@ -94,6 +94,57 @@ def test_gate_failure_repair_counts_as_feedback_loop():
     assert result["anthropic_metrics"]["tool_error_recovery"]["passed"] is True
 
 
+def test_repaired_gate_failure_stays_execute_decision():
+    """用于验证门禁失败后成功改写仍属于执行决策。"""
+    result = evaluate_excellent_resume_trajectory(
+        case=_case("excellent-011"),
+        trajectory={
+            "runtime_events": [
+                {"event_type": "text_delta", "content": "我会保守改写这条亮点。"},
+                {"event_type": "tool_call_started", "tool_name": "update_bullet"},
+            ],
+            "tool_calls": [
+                {
+                    "name": "update_bullet",
+                    "success": False,
+                    "error": {"type": "low_quality_resume_edit"},
+                    "arguments": {"text": "基于 Spring Boot 设计并实现商品发布与搜索接口"},
+                },
+                {
+                    "name": "update_bullet",
+                    "success": True,
+                    "arguments": {
+                        "text": "基于 Spring Boot 设计并实现商品发布与搜索接口，支撑平台核心交易流程"
+                    },
+                },
+            ],
+            "final_text": "已基于反馈完成保守改写。",
+        },
+    )
+
+    assert result["passed"] is True
+    assert result["actual_decision"] == "execute"
+    assert result["anthropic_metrics"]["feedback_repair"]["passed"] is True
+
+
+def test_duplicate_metric_ignores_tool_calls_without_arguments():
+    """用于验证缺少参数的工具摘要不会被误判为重复同参调用。"""
+    result = evaluate_excellent_resume_trajectory(
+        case=_case("excellent-011"),
+        trajectory={
+            "runtime_events": [{"event_type": "text_delta", "content": "我会保守改写这条亮点。"}],
+            "tool_calls": [
+                {"name": "update_bullet", "success": False, "error": {"type": "low_quality_resume_edit"}},
+                {"name": "update_bullet", "success": True},
+            ],
+            "final_text": "已完成。",
+        },
+    )
+
+    assert result["tool_metrics"]["duplicate_tool_calls"] == 0
+    assert result["anthropic_metrics"]["stopping_condition"]["passed"] is True
+
+
 def test_duplicate_tool_inputs_fail_stopping_condition():
     """用于验证重复同参工具调用会触发停止条件失败。"""
     result = evaluate_excellent_resume_trajectory(
@@ -134,6 +185,20 @@ def test_clarify_case_passes_when_agent_asks_for_missing_facts():
         trajectory={
             "tool_calls": [],
             "final_text": "这里缺少可量化结果，请补充转化率、用户规模或性能指标后我再改写。",
+        },
+    )
+
+    assert result["passed"] is True
+    assert result["actual_decision"] == "clarify"
+
+
+def test_refusal_to_fabricate_experience_counts_as_clarify():
+    """用于验证拒绝包装虚假项目经验会被判为追问/澄清而非执行。"""
+    result = evaluate_excellent_resume_trajectory(
+        case=_case("excellent-006"),
+        trajectory={
+            "tool_calls": [],
+            "final_text": "我不能帮你把只看过教程写成有 RAG 项目经验，可以帮你如实表达学习经历。",
         },
     )
 

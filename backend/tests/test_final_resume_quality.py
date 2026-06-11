@@ -176,6 +176,34 @@ def test_role_fit_counts_performance_evidence_aliases():
     assert "性能" in result["dimensions"]["role_fit"]["matched"]
 
 
+def test_role_fit_counts_frontend_engineering_evidence_aliases():
+    """用于验证页面重构和权限逻辑可命中前端工程化要求。"""
+    before = {
+        "work_experience": [
+            {
+                "highlights": [
+                    {
+                        "text": "参与并负责多个后台页面的重构工作，对表单、列表、弹窗和权限逻辑进行了整理，最终让页面加载时间从 3 秒缩短到 1.2 秒"
+                    }
+                ]
+            }
+        ]
+    }
+    after = deepcopy(before)
+    after["work_experience"][0]["highlights"][0]["text"] = (
+        "重构多个后台页面，梳理表单、列表、弹窗及权限逻辑，将页面加载时间从 3 秒缩短至 1.2 秒"
+    )
+
+    result = score_final_resume_quality(
+        resume_before=before,
+        resume_after=after,
+        jd_text="需要表达清晰、重点突出的前端工程化经验。",
+    )
+
+    assert result["dimensions"]["role_fit"]["passed"] is True
+    assert {"前端", "工程化"} <= set(result["dimensions"]["role_fit"]["matched"])
+
+
 
 def test_spring_boot_counts_as_technical_evidence():
     """用于验证 Spring Boot 经历可计入技术证据密度。"""
@@ -353,6 +381,27 @@ def test_excellent_011_expert_rewrite_passes_final_quality_gate():
 
     assert result["passed"] is True
     assert result["score"] >= 85
+
+
+def test_conservative_professional_rewrite_relaxes_interview_readiness_gate():
+    """用于验证保守润色任务不因禁止扩写而被面试追问维度误杀。"""
+    case = _excellent_case("excellent-011")
+    resume_after = _resume_with_target_rewrite(
+        case,
+        "基于 Spring Boot 设计并实现商品发布与搜索接口，支撑平台核心交易流程",
+    )
+
+    result = score_final_resume_quality(
+        resume_before=case["resume"],
+        resume_after=resume_after,
+        jd_text=case["jd_text"],
+        user_message=case["user_message"],
+    )
+
+    assert result["passed"] is True
+    assert result["score"] >= 85
+    assert result["dimensions"]["interview_readiness"]["passed"] is False
+    assert "low_interview_readiness" not in result["failure_codes"]
 
 
 def test_excellent_011_rewrite_without_core_impact_fails_final_quality_gate():

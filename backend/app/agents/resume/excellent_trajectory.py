@@ -35,6 +35,10 @@ _CLARIFY_MARKERS = (
     "需要你确认",
     "不能编造",
     "缺少",
+    "不能帮你",
+    "不能把",
+    "不建议",
+    "可以帮你",
 )
 _TOOL_EVENT_MARKERS = ("tool_call", "tool_result", "tool_started", "tool_completed")
 
@@ -53,6 +57,7 @@ def evaluate_excellent_resume_trajectory(
         actual_tool_calls=actual_tool_calls,
         final_text=final_text,
         gate_failure=gate_failure,
+        trajectory=trajectory,
     )
     anthropic_metrics = _anthropic_metrics(
         case=case,
@@ -147,17 +152,31 @@ def _actual_decision(
     actual_tool_calls: list[str],
     final_text: str,
     gate_failure: bool,
+    trajectory: dict[str, Any],
 ) -> str:
     """用于把轨迹压缩成执行或追问决策。"""
-    if gate_failure:
-        return "clarify"
     if actual_tool_calls and _only_clarify_tools(actual_tool_calls):
+        return "clarify"
+    if gate_failure and not _has_successful_mutation_tool(trajectory):
         return "clarify"
     if actual_tool_calls:
         return "execute"
+    if gate_failure:
+        return "clarify"
     if _looks_like_clarification(final_text):
         return "clarify"
     return "execute"
+
+
+
+def _has_successful_mutation_tool(trajectory: dict[str, Any]) -> bool:
+    """用于判断失败反馈后是否已有成功的修改工具。"""
+    for call in trajectory.get("tool_calls", []):
+        if not isinstance(call, dict):
+            continue
+        if _tool_call_name(call) in _MUTATION_TOOL_NAMES and call.get("success") is True:
+            return True
+    return False
 
 
 def _only_clarify_tools(actual_tool_calls: list[str]) -> bool:
@@ -388,6 +407,8 @@ def _duplicate_tool_call_count(trajectory: dict[str, Any]) -> int:
         if not isinstance(call, dict):
             continue
         fingerprint = _tool_fingerprint(call)
+        if fingerprint is None:
+            continue
         if fingerprint in seen:
             duplicates += 1
             continue
@@ -395,10 +416,12 @@ def _duplicate_tool_call_count(trajectory: dict[str, Any]) -> int:
     return duplicates
 
 
-def _tool_fingerprint(call: dict[str, Any]) -> str:
-    """用于生成稳定的工具调用指纹。"""
+def _tool_fingerprint(call: dict[str, Any]) -> str | None:
+    """用于生成稳定的工具调用指纹；缺少参数时不推断重复。"""
     name = _tool_call_name(call)
     args = call.get("arguments") or call.get("args") or call.get("input") or call.get("tool_input")
+    if args is None:
+        return None
     return f"{name}:{_stable_json(args)}"
 
 

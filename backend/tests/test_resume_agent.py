@@ -1212,6 +1212,18 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         assert_tag(rendered, "tool_feedback_repair")
         assert_tag(rendered, "stopping_conditions")
 
+    def test_system_prompt_requires_jd_backed_action_chain_for_bullets(self):
+        """用于验证系统提示词要求 bullet 兼顾 JD 贴合和强动作链路。"""
+        rendered = _render_resume_system_prompt(
+            target_title="前端工程师",
+            target_company="字节跳动",
+            jd_text="需要表达清晰、重点突出的前端工程化经验",
+            resume_json='{"work_experience": [{"highlights": [{"text": "重构后台页面"}]}]}',
+        )
+
+        self.assertIn("强动作动词 + 技术/方法 + 结果", rendered)
+        self.assertIn("页面/组件/交互可支撑“前端/工程化”", rendered)
+
     def test_system_prompt_does_not_expose_memory_tools(self):
         """用于验证systempromptdoesnotexposememorytools。"""
         rendered = _render_resume_system_prompt(

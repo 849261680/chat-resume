@@ -81,6 +81,15 @@ _RESULT_WORDS = (
     "streamline",
 )
 _WEAK_PREFIXES = ("负责", "参与", "协助", "帮助", "配合", "完成")
+_CONSERVATIVE_REWRITE_MARKERS = (
+    "不要新增",
+    "别新增",
+    "不新增",
+    "不要编造",
+    "别编造",
+    "专业一点",
+    "口语化",
+)
 _ROLE_TERMS = (
     "Agent",
     "Runtime",
@@ -100,7 +109,11 @@ _ROLE_TERMS = (
     "diff",
 )
 _ROLE_ALIASES = {
+    "前端": ("页面", "组件", "表单", "弹窗", "首屏"),
+    "后端": ("Spring Boot", "接口", "API", "服务"),
+    "接口": ("API", "搜索", "发布"),
     "性能": ("加载时间", "首屏", "延迟", "响应时间", "耗时"),
+    "工程化": ("权限逻辑", "表单", "列表", "弹窗", "组件化", "加载时间"),
 }
 _CAPABILITY_CLAIMS = (
     "索引优化",
@@ -141,7 +154,12 @@ def score_final_resume_quality(
         "interview_readiness": _score_interview_readiness(highlights),
     }
     score = _weighted_score(dimensions)
-    failure_codes = _failure_codes(score, dimensions, unsupported)
+    failure_codes = _failure_codes(
+        score=score,
+        dimensions=dimensions,
+        unsupported=unsupported,
+        user_message=user_message,
+    )
     return {
         "applicable": True,
         "passed": not failure_codes,
@@ -182,9 +200,11 @@ def _weighted_score(dimensions: dict[str, dict[str, Any]]) -> int:
 
 
 def _failure_codes(
+    *,
     score: int,
     dimensions: dict[str, dict[str, Any]],
     unsupported: list[str],
+    user_message: str,
 ) -> list[str]:
     """用于把维度失败压缩成报告失败码。"""
     failures = []
@@ -196,11 +216,26 @@ def _failure_codes(
         failures.append("insufficient_star")
     if not dimensions["evidence_density"]["passed"]:
         failures.append("weak_evidence")
-    if not dimensions["interview_readiness"]["passed"]:
+    if not dimensions["interview_readiness"]["passed"] and not _can_relax_interview_readiness(
+        score=score,
+        user_message=user_message,
+    ):
         failures.append("low_interview_readiness")
     if score < _TOP_RESUME_THRESHOLD:
         failures.append("final_score_below_threshold")
     return failures
+
+def _can_relax_interview_readiness(
+    *,
+    score: int,
+    user_message: str,
+) -> bool:
+    """用于避免保守润色任务因不能扩写而被面试追问维度误杀。"""
+    if score < _TOP_RESUME_THRESHOLD:
+        return False
+    return any(marker in user_message for marker in _CONSERVATIVE_REWRITE_MARKERS)
+
+
 
 
 def _score_role_fit(after_text: str, jd_text: str) -> dict[str, Any]:

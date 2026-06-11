@@ -44,7 +44,7 @@ _EDIT_TOOLS = {
     "remove_bullet",
 }
 _QUALITY_EDIT_TOOLS = {"update_bullet", "add_bullet", "update_overview", "update_summary"}
-_WEAK_PREFIXES = ("负责", "参与", "协助", "帮助", "配合", "完成")
+_WEAK_PREFIXES = ("使用", "负责", "参与", "协助", "帮助", "配合", "完成")
 _ACTION_WORDS = (
     "设计",
     "搭建",
@@ -73,6 +73,12 @@ _RESULT_WORDS = (
     "降到",
     "从",
     "节省",
+    "supported",
+    "support",
+    "streamline",
+    "streamlined",
+    "improved",
+    "reduced",
 )
 _KEYWORD_STUFFING_TERMS = (
     "后端",
@@ -156,7 +162,9 @@ def _quality_issue(tool_name: str, after_text: str) -> str | None:
     if _looks_like_keyword_stuffing(text):
         return "这次改写主要是在堆关键词，没有把经历写具体；请补充动作、方案和可面试追问的结果证据。"
     if _starts_weak_without_result(text):
-        return "这次改写仍以弱动词开头且缺少具体结果；请改成更具体的动作、方案和结果。"
+        return "这次改写仍以弱动词开头或缺少明确动作链路；请改成强动作动词 + 技术/方法 + 结果。"
+    if _lacks_result_evidence(tool_name, text):
+        return "这次改写缺少结果证据或业务价值；请保留已有事实，并补充可由原文支撑的结果表达。"
     return None
 
 
@@ -176,6 +184,14 @@ def _starts_weak_without_result(text: str) -> bool:
     has_result = any(word in text for word in _RESULT_WORDS) or bool(_NUMBER_CLAIM_RE.search(text))
     has_action = any(word in text for word in _ACTION_WORDS)
     return not (has_action and has_result)
+
+
+def _lacks_result_evidence(tool_name: str, text: str) -> bool:
+    """用于识别没有结果证据的 bullet 改写。"""
+    if tool_name not in {"update_bullet", "add_bullet"}:
+        return False
+    has_result = any(word in text for word in _RESULT_WORDS) or bool(_NUMBER_CLAIM_RE.search(text))
+    return not has_result
 
 
 def _passed() -> dict[str, Any]:

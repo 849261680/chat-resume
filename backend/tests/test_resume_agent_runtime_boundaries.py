@@ -1245,7 +1245,7 @@ async def test_resume_tool_execution_stage_blocks_low_quality_diff_before_confir
             "section": "projects",
             "item_id": "proj_1",
             "bullet_id": "hl_1",
-            "text": "负责 Spring Boot、MySQL、后端、接口、数据库优化相关工作",
+            "text": "负责 Spring Boot、MySQL、后端、接口、系统相关工作",
             "reason": "覆盖 JD 关键词",
         },
         context={
@@ -1270,6 +1270,125 @@ async def test_resume_tool_execution_stage_blocks_low_quality_diff_before_confir
     assert resume["projects"][0]["highlights"][0]["text"] == "用 Spring Boot 写了商品发布和搜索接口"
     assert not any(event.get("tool_pending") for event in events)
     assert any(event.get("tool_call_failed") for event in events)
+
+
+@pytest.mark.asyncio
+async def test_resume_tool_execution_stage_blocks_weak_action_chain_before_confirmation():
+    """用于验证有结果但缺少强动作链路的改写会被要求重写。"""
+    agent = ResumeAgent()
+    stage = ResumeToolExecutionStage()
+    resume = {
+        "projects": [
+            {
+                "id": "proj_1",
+                "name": "校园二手交易平台",
+                "highlights": [{"id": "hl_1", "text": "用 Spring Boot 写了商品发布和搜索接口"}],
+            }
+        ],
+        "skills": [{"id": "skill_1", "category": "后端", "items": ["Spring Boot", "MySQL"]}],
+    }
+    confirmation_queue: asyncio.Queue[bool] = asyncio.Queue()
+    confirmation_queue.put_nowait(True)
+    event_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+    stream_state = {
+        "visible_tool_call_ids": set(),
+        "confirmed_diff_items": [],
+        "confirmation_wait_ms": 0.0,
+        "chunk_index": 0,
+        "response_parts": [],
+    }
+    executed_tools: list[dict[str, Any]] = []
+
+    result = await stage.execute_tool_result(
+        agent=agent.definition,
+        run_id="run_weak_action_gate",
+        call_id="call_weak_action_gate",
+        tool_name="update_bullet",
+        tool_input={
+            "section": "projects",
+            "item_id": "proj_1",
+            "bullet_id": "hl_1",
+            "text": "使用 Redis 缓存商品搜索热点数据，将搜索接口平均延迟从 500ms 降至 300ms，响应速度提升约 40%",
+            "reason": "使用用户补充的真实事实",
+        },
+        context={
+            "resume_content": resume,
+            "allowed_sections": {"projects"},
+            "user_message": "我实际用过 Redis，商品搜索平均延迟从 500ms 降到 300ms，大约降低 40%。",
+        },
+        confirmation_queue=confirmation_queue,
+        event_queue=event_queue,
+        event_callback=None,
+        executed_tools=executed_tools,
+        stream_state=stream_state,
+    )
+
+    events: list[dict[str, Any]] = []
+    while not event_queue.empty():
+        events.append(event_queue.get_nowait())
+
+    assert result.details["success"] is False
+    assert result.details["error"]["type"] == "low_quality_resume_edit"
+    assert "强动作动词" in result.details["message"]
+    assert resume["projects"][0]["highlights"][0]["text"] == "用 Spring Boot 写了商品发布和搜索接口"
+    assert not any(event.get("tool_pending") for event in events)
+
+
+@pytest.mark.asyncio
+async def test_resume_tool_execution_stage_blocks_resultless_bullet_before_confirmation():
+    """用于验证缺少结果证据的 bullet 改写会被要求补充业务价值。"""
+    agent = ResumeAgent()
+    stage = ResumeToolExecutionStage()
+    resume = {
+        "projects": [
+            {
+                "id": "proj_1",
+                "name": "校园二手交易平台",
+                "highlights": [{"id": "hl_1", "text": "用 Spring Boot 写了商品发布和搜索接口"}],
+            }
+        ],
+        "skills": [{"id": "skill_1", "category": "后端", "items": ["Spring Boot", "MySQL"]}],
+    }
+    confirmation_queue: asyncio.Queue[bool] = asyncio.Queue()
+    confirmation_queue.put_nowait(True)
+    event_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+    stream_state = {
+        "visible_tool_call_ids": set(),
+        "confirmed_diff_items": [],
+        "confirmation_wait_ms": 0.0,
+        "chunk_index": 0,
+        "response_parts": [],
+    }
+    executed_tools: list[dict[str, Any]] = []
+
+    result = await stage.execute_tool_result(
+        agent=agent.definition,
+        run_id="run_resultless_gate",
+        call_id="call_resultless_gate",
+        tool_name="update_bullet",
+        tool_input={
+            "section": "projects",
+            "item_id": "proj_1",
+            "bullet_id": "hl_1",
+            "text": "基于 Spring Boot 设计并实现商品发布与搜索接口",
+            "reason": "去掉口语化表达",
+        },
+        context={
+            "resume_content": resume,
+            "allowed_sections": {"projects"},
+            "user_message": "这条写得太口语化了，帮我改得专业一点，不要新增没写过的东西。",
+        },
+        confirmation_queue=confirmation_queue,
+        event_queue=event_queue,
+        event_callback=None,
+        executed_tools=executed_tools,
+        stream_state=stream_state,
+    )
+
+    assert result.details["success"] is False
+    assert result.details["error"]["type"] == "low_quality_resume_edit"
+    assert "结果证据" in result.details["message"]
+    assert resume["projects"][0]["highlights"][0]["text"] == "用 Spring Boot 写了商品发布和搜索接口"
 
 
 @pytest.mark.asyncio

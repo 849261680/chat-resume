@@ -186,8 +186,8 @@ def test_generated_ids_do_not_count_as_unsupported_number_claims():
 
 def test_excellent_005_expert_rewrite_passes_final_quality_gate():
     """用于验证 excellent-005 专家答案能通过最终质量门槛。"""
-    case = _excellent_005_case()
-    resume_after = _resume_with_rewrite(case, case["expert_rewrite"]["text"])
+    case = _excellent_case("excellent-005")
+    resume_after = _resume_with_target_rewrite(case, case["expert_rewrite"]["text"])
 
     result = score_final_resume_quality(
         resume_before=case["resume"],
@@ -201,8 +201,8 @@ def test_excellent_005_expert_rewrite_passes_final_quality_gate():
 
 def test_excellent_005_rewrite_without_metric_fails_final_quality_gate():
     """用于验证删除关键结果的 excellent-005 改写不能通过。"""
-    case = _excellent_005_case()
-    resume_after = _resume_with_rewrite(
+    case = _excellent_case("excellent-005")
+    resume_after = _resume_with_target_rewrite(
         case,
         "以工程化方式重构多个前端后台页面，优化表单、列表、弹窗及权限逻辑，提升页面体验",
     )
@@ -219,8 +219,8 @@ def test_excellent_005_rewrite_without_metric_fails_final_quality_gate():
 
 def test_excellent_005_rewrite_with_fabricated_stack_fails_fact_check():
     """用于验证 excellent-005 不能为了显高级编造技术栈或比例。"""
-    case = _excellent_005_case()
-    resume_after = _resume_with_rewrite(
+    case = _excellent_case("excellent-005")
+    resume_after = _resume_with_target_rewrite(
         case,
         "基于 React 和 TypeScript 重构多个前端后台页面，优化表单、列表、弹窗及权限逻辑，将页面加载时间缩短 50%",
     )
@@ -235,13 +235,95 @@ def test_excellent_005_rewrite_with_fabricated_stack_fails_fact_check():
     assert {"React", "TypeScript", "50%"} <= set(result["fact_check"]["unsupported_claims"])
 
 
-def _excellent_005_case() -> dict:
-    """用于读取 excellent-005 黄金样例。"""
-    return next(case for case in load_excellent_resume_cases() if case["id"] == "excellent-005")
+def test_excellent_001_expert_rewrite_passes_final_quality_gate():
+    """用于验证 excellent-001 专家答案能通过最终质量门槛。"""
+    case = _excellent_case("excellent-001")
+    resume_after = _resume_with_target_rewrite(case, case["expert_rewrite"]["text"])
+
+    result = score_final_resume_quality(
+        resume_before=case["resume"],
+        resume_after=resume_after,
+        jd_text=case["jd_text"],
+    )
+
+    assert result["passed"] is True
+    assert result["score"] >= 85
 
 
-def _resume_with_rewrite(case: dict, text: str) -> dict:
-    """用于把 excellent-005 的目标 bullet 替换成候选改写。"""
+def test_excellent_001_rewrite_without_core_impact_fails_final_quality_gate():
+    """用于验证 excellent-001 删除后端业务价值后不能通过。"""
+    case = _excellent_case("excellent-001")
+    resume_after = _resume_with_target_rewrite(
+        case,
+        "使用 Spring Boot 完成商品发布和搜索接口开发",
+    )
+
+    result = score_final_resume_quality(
+        resume_before=case["resume"],
+        resume_after=resume_after,
+        jd_text=case["jd_text"],
+    )
+
+    assert result["passed"] is False
+    assert "weak_evidence" in result["failure_codes"]
+
+
+def test_excellent_001_rewrite_with_fabricated_claims_fails_fact_check():
+    """用于验证 excellent-001 不能编造技术栈、规模或比例。"""
+    case = _excellent_case("excellent-001")
+    resume_after = _resume_with_target_rewrite(
+        case,
+        "基于 Redis 和 Kafka 重构商品搜索链路，将接口延迟降低 70%，支撑 10万 DAU",
+    )
+
+    result = score_final_resume_quality(
+        resume_before=case["resume"],
+        resume_after=resume_after,
+        jd_text=case["jd_text"],
+    )
+
+    assert result["passed"] is False
+    assert {"Redis", "Kafka", "70%"} <= set(result["fact_check"]["unsupported_claims"])
+
+
+def test_excellent_001_rewrite_with_unsupported_jd_capabilities_fails_fact_check():
+    """用于验证 excellent-001 不能把 JD 能力词包装成无来源事实。"""
+    case = _excellent_case("excellent-001")
+    resume_after = _resume_with_target_rewrite(
+        case,
+        "基于 Spring Boot 设计并实现商品发布与搜索接口，完成 MySQL 索引优化，保障核心交易链路的稳定性",
+    )
+
+    result = score_final_resume_quality(
+        resume_before=case["resume"],
+        resume_after=resume_after,
+        jd_text=case["jd_text"],
+    )
+
+    assert result["passed"] is False
+    assert {"索引优化", "稳定性"} <= set(result["fact_check"]["unsupported_claims"])
+
+
+def _excellent_case(case_id: str) -> dict:
+    """用于按 ID 读取优秀简历黄金样例。"""
+    return next(case for case in load_excellent_resume_cases() if case["id"] == case_id)
+
+
+def _resume_with_target_rewrite(case: dict, text: str) -> dict:
+    """用于把黄金样例的目标 bullet 替换成候选改写。"""
     resume = deepcopy(case["resume"])
-    resume["work_experience"][0]["highlights"][0]["text"] = text
-    return resume
+    target = case["expert_rewrite"]
+    for item in resume[target["section"]]:
+        if item.get("id") == target["item_id"]:
+            _rewrite_highlight(item, target["bullet_id"], text)
+            return resume
+    raise AssertionError(f"missing target item: {target['item_id']}")
+
+
+def _rewrite_highlight(item: dict, bullet_id: str, text: str) -> None:
+    """用于替换单个经历条目的指定 bullet 文本。"""
+    for highlight in item["highlights"]:
+        if highlight.get("id") == bullet_id:
+            highlight["text"] = text
+            return
+    raise AssertionError(f"missing target bullet: {bullet_id}")

@@ -95,6 +95,15 @@ _ROLE_TERMS = (
     "JD",
     "diff",
 )
+_CAPABILITY_CLAIMS = (
+    "索引优化",
+    "数据库优化",
+    "性能优化",
+    "稳定性建设",
+    "稳定性",
+    "服务治理",
+    "生产级",
+)
 _TOP_RESUME_THRESHOLD = 85
 
 
@@ -279,9 +288,13 @@ def _has_tech(text: str) -> bool:
 
 
 def _unsupported_claims(after_text: str, source_text: str) -> list[str]:
-    """用于找出最终简历中没有来源支撑的数字和技术栈。"""
+    """用于找出最终简历中没有来源支撑的事实主张。"""
     source_lower = source_text.lower()
-    claims = _extract_number_claims(after_text) + _extract_tech_terms(after_text)
+    claims = (
+        _extract_number_claims(after_text)
+        + _extract_tech_terms(after_text)
+        + _extract_capability_claims(after_text)
+    )
     return _dedupe([claim for claim in claims if claim.lower() not in source_lower])
 
 
@@ -294,6 +307,12 @@ def _extract_tech_terms(text: str) -> list[str]:
     """用于提取技术栈事实。"""
     lowered = text.lower()
     return [term for term in _TECH_TERMS if term.lower() in lowered]
+
+
+def _extract_capability_claims(text: str) -> list[str]:
+    """用于提取容易被 JD 诱导编造的能力型事实。"""
+    lowered = text.lower()
+    return [claim for claim in _CAPABILITY_CLAIMS if claim.lower() in lowered]
 
 
 def _resume_highlights(resume: dict[str, Any]) -> list[str]:

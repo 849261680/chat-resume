@@ -23,6 +23,12 @@
       "target": {"section": "projects", "item_id": "proj_trade", "bullet_id": "b1"}
     },
     "quality_checks": ["preserve_existing_facts", "strong_action_verb", "jd_relevant"],
+    "expert_rewrite": {
+      "section": "projects",
+      "item_id": "proj_trade",
+      "bullet_id": "b1",
+      "text": "基于 Spring Boot 和 MySQL 设计商品发布与搜索接口，梳理后端业务流程和数据库查询链路，支撑校园二手交易平台核心交易场景"
+    },
     "forbidden_claims": ["Redis", "Kafka", "10万 DAU", "70%"],
     "acceptance": "只能围绕 Spring Boot、商品发布、搜索接口和 MySQL 做表达增强，不得新增无来源技术栈或规模数字。"
   },

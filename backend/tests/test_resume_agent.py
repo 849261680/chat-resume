@@ -1208,6 +1208,9 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertNotIn("可用工具", rendered)
         self.assertNotIn("量化改写优先级", rendered)
         self.assertNotIn("简历优化策略", rendered)
+        assert_tag(rendered, "explicit_planning")
+        assert_tag(rendered, "tool_feedback_repair")
+        assert_tag(rendered, "stopping_conditions")
 
     def test_system_prompt_does_not_expose_memory_tools(self):
         """用于验证systempromptdoesnotexposememorytools。"""

@@ -212,6 +212,24 @@ def test_prompt_rewrites_when_resume_supports_part_of_jd():
     assert "不要因为剩余关键词缺证据就放弃改写" in rendered
 
 
+def test_prompt_preserves_facts_and_adds_supported_role_terms_when_concise_rewriting():
+    """精简已有 bullet 时，应保留事实并融入可支撑岗位词。"""
+    rendered = _render(
+        target_title="前端工程师",
+        target_company="",
+        jd_text="需要表达清晰、重点突出的前端工程化经验。",
+        resume_json=(
+            '{"work_experience":[{"id":"work_frontend","highlights":[{"id":"b1",'
+            '"text":"参与并负责多个后台页面的重构工作，对表单、列表、弹窗和权限逻辑进行了整理，'
+            '最终让页面加载时间从 3 秒缩短到 1.2 秒"}]}]}'
+        ),
+    )
+
+    assert "精简或优化已有 bullet" in rendered
+    assert "前端工程化" in rendered
+    assert "3 秒缩短至 1.2 秒" in rendered
+
+
 # ── P1: 参数化更新类工具的 reason 字段 ─────────────────────
 
 _TOOLS_WITH_REASON_PARAM = [

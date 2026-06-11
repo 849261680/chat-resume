@@ -86,6 +86,20 @@ _KEYWORD_STUFFING_TERMS = (
     "微服务",
     "稳定性",
 )
+_CAPABILITY_CLAIMS = (
+    "索引优化",
+    "数据库优化",
+    "数据库查询优化",
+    "查询优化",
+    "性能优化",
+    "参数校验",
+    "稳定性建设",
+    "稳定性",
+    "稳定",
+    "服务治理",
+    "生产级",
+)
+
 
 
 def evaluate_resume_edit_quality(
@@ -193,7 +207,7 @@ def _source_text(
     user_message: str,
 ) -> str:
     """用于汇总可作为事实来源的原简历、改前 diff 和用户本轮输入。"""
-    chunks = [_text_from_value(resume_content), user_message]
+    chunks = [_text_from_value(resume_content), _user_fact_text(user_message)]
     diff_items = preview_result.get("diff_items")
     if isinstance(diff_items, list):
         chunks.extend(
@@ -212,20 +226,14 @@ def _source_text(
 
 
 def _unsupported_claims(after_text: str, source_text: str) -> list[str]:
-    """用于找出候选文本中没有来源支撑的数字和技术栈。"""
+    """用于找出候选文本中没有来源支撑的数字、技术栈和能力主张。"""
     source_lower = source_text.lower()
-    claims = []
-    claims.extend(
-        claim
-        for claim in _extract_number_claims(after_text)
-        if claim.lower() not in source_lower
+    claims = (
+        _extract_number_claims(after_text)
+        + _extract_tech_terms(after_text)
+        + _extract_capability_claims(after_text)
     )
-    claims.extend(
-        term
-        for term in _extract_tech_terms(after_text)
-        if term.lower() not in source_lower
-    )
-    return _dedupe(claims)
+    return _dedupe([claim for claim in claims if claim.lower() not in source_lower])
 
 
 def _extract_number_claims(text: str) -> list[str]:
@@ -237,6 +245,20 @@ def _extract_tech_terms(text: str) -> list[str]:
     """用于提取候选改写中的技术栈和关键能力事实。"""
     lowered = text.lower()
     return [term for term in _TECH_TERMS if term.lower() in lowered]
+
+
+def _extract_capability_claims(text: str) -> list[str]:
+    """用于提取容易被 JD 诱导编造的能力型事实。"""
+    lowered = text.lower()
+    return [claim for claim in _CAPABILITY_CLAIMS if claim.lower() in lowered]
+
+
+def _user_fact_text(user_message: str) -> str:
+    """用于移除用户消息里粘贴的 JD，避免把岗位要求当经历事实。"""
+    marker = "【目标岗位JD】"
+    if marker not in user_message:
+        return user_message
+    return user_message.split(marker, 1)[0]
 
 
 def _text_from_value(value: Any) -> str:

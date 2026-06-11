@@ -14,6 +14,7 @@ _TECH_TERMS = (
     "K8s",
     "Docker",
     "Spring Cloud",
+    "Spring Boot",
     "Dubbo",
     "MySQL",
     "PostgreSQL",
@@ -75,6 +76,9 @@ _RESULT_WORDS = (
     "reduced",
     "increased",
     "supported",
+    "reducing",
+    "improving",
+    "streamline",
 )
 _WEAK_PREFIXES = ("负责", "参与", "协助", "帮助", "配合", "完成")
 _ROLE_TERMS = (

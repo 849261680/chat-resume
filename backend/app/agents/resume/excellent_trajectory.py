@@ -95,13 +95,14 @@ def _trajectory_text(trajectory: dict[str, Any]) -> str:
 
 def _has_gate_failure(trajectory: dict[str, Any]) -> bool:
     """用于识别事实或质量门禁触发后的失败工具调用。"""
-    for call in trajectory.get("tool_calls", []):
-        if not isinstance(call, dict):
+    checked_items = list(trajectory.get("tool_calls", []))
+    checked_items.extend(trajectory.get("runtime_events", []))
+    for item in checked_items:
+        if not isinstance(item, dict):
             continue
-        if call.get("success") is not False:
+        if item.get("success") is not False and not item.get("tool_call_failed"):
             continue
-        error_type = _error_type(call)
-        if error_type in _GATE_FAILURE_TYPES:
+        if _error_type(item) in _GATE_FAILURE_TYPES:
             return True
     return False
 
@@ -111,6 +112,11 @@ def _error_type(call: dict[str, Any]) -> str:
     error = call.get("error")
     if isinstance(error, dict) and isinstance(error.get("type"), str):
         return error["type"]
+    result = call.get("result")
+    if isinstance(result, dict):
+        result_error = result.get("error")
+        if isinstance(result_error, dict) and isinstance(result_error.get("type"), str):
+            return result_error["type"]
     if isinstance(call.get("error_type"), str):
         return call["error_type"]
     return ""

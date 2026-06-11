@@ -150,6 +150,29 @@ def test_single_strong_bullet_can_pass_bullet_scoped_quality_gate():
     assert "Agent" not in result["fact_check"]["unsupported_claims"]
 
 
+def test_spring_boot_counts_as_technical_evidence():
+    """用于验证 Spring Boot 经历可计入技术证据密度。"""
+    resume = {
+        "projects": [
+            {
+                "highlights": [
+                    {
+                        "text": "基于 Spring Boot 设计并实现商品发布与搜索接口，支撑校园二手交易平台核心业务流转"
+                    }
+                ]
+            }
+        ]
+    }
+
+    result = score_final_resume_quality(
+        resume_before=resume,
+        resume_after=resume,
+        jd_text="强调后端业务系统和接口设计经验。",
+    )
+
+    assert result["dimensions"]["evidence_density"]["passed"] is True
+
+
 def test_generated_ids_do_not_count_as_unsupported_number_claims():
     """用于验证结构化 id 中的数字不会被当成简历事实。"""
     before = {
@@ -235,9 +258,9 @@ def test_excellent_005_rewrite_with_fabricated_stack_fails_fact_check():
     assert {"React", "TypeScript", "50%"} <= set(result["fact_check"]["unsupported_claims"])
 
 
-def test_excellent_001_expert_rewrite_passes_final_quality_gate():
-    """用于验证 excellent-001 专家答案能通过最终质量门槛。"""
-    case = _excellent_case("excellent-001")
+def test_excellent_011_expert_rewrite_passes_final_quality_gate():
+    """用于验证 excellent-011 专家答案能通过最终质量门槛。"""
+    case = _excellent_case("excellent-011")
     resume_after = _resume_with_target_rewrite(case, case["expert_rewrite"]["text"])
 
     result = score_final_resume_quality(
@@ -250,9 +273,9 @@ def test_excellent_001_expert_rewrite_passes_final_quality_gate():
     assert result["score"] >= 85
 
 
-def test_excellent_001_rewrite_without_core_impact_fails_final_quality_gate():
-    """用于验证 excellent-001 删除后端业务价值后不能通过。"""
-    case = _excellent_case("excellent-001")
+def test_excellent_011_rewrite_without_core_impact_fails_final_quality_gate():
+    """用于验证 excellent-011 删除后端业务价值后不能通过。"""
+    case = _excellent_case("excellent-011")
     resume_after = _resume_with_target_rewrite(
         case,
         "使用 Spring Boot 完成商品发布和搜索接口开发",
@@ -268,9 +291,9 @@ def test_excellent_001_rewrite_without_core_impact_fails_final_quality_gate():
     assert "weak_evidence" in result["failure_codes"]
 
 
-def test_excellent_001_rewrite_with_fabricated_claims_fails_fact_check():
-    """用于验证 excellent-001 不能编造技术栈、规模或比例。"""
-    case = _excellent_case("excellent-001")
+def test_excellent_011_rewrite_with_fabricated_claims_fails_fact_check():
+    """用于验证 excellent-011 不能编造技术栈、规模或比例。"""
+    case = _excellent_case("excellent-011")
     resume_after = _resume_with_target_rewrite(
         case,
         "基于 Redis 和 Kafka 重构商品搜索链路，将接口延迟降低 70%，支撑 10万 DAU",
@@ -286,9 +309,39 @@ def test_excellent_001_rewrite_with_fabricated_claims_fails_fact_check():
     assert {"Redis", "Kafka", "70%"} <= set(result["fact_check"]["unsupported_claims"])
 
 
-def test_excellent_001_rewrite_with_unsupported_jd_capabilities_fails_fact_check():
-    """用于验证 excellent-001 不能把 JD 能力词包装成无来源事实。"""
-    case = _excellent_case("excellent-001")
+
+
+def test_english_rewrite_with_source_backed_product_impact_passes_final_gate():
+    """用于验证英文无量化改写可用来源里的业务影响通过质量门禁。"""
+    before = {
+        "work_experience": [
+            {
+                "id": "work_fullstack",
+                "company": "Startup",
+                "highlights": [
+                    {"id": "b1", "text": "Built React admin pages and REST APIs for internal operations"}
+                ],
+            }
+        ],
+        "skills": [{"id": "s1", "category": "Full-stack", "items": ["React", "REST API"]}],
+    }
+    after = deepcopy(before)
+    after["work_experience"][0]["highlights"][0]["text"] = (
+        "Designed and built React admin interfaces and REST APIs to streamline "
+        "internal operations, reducing manual workflows and improving team efficiency"
+    )
+
+    result = score_final_resume_quality(
+        resume_before=before,
+        resume_after=after,
+        jd_text="Full-stack role requiring React, API design, and measurable product impact.",
+    )
+
+    assert result["passed"] is True
+    assert result["score"] >= 85
+def test_excellent_011_rewrite_with_unsupported_jd_capabilities_fails_fact_check():
+    """用于验证 excellent-011 不能把 JD 能力词包装成无来源事实。"""
+    case = _excellent_case("excellent-011")
     resume_after = _resume_with_target_rewrite(
         case,
         "基于 Spring Boot 设计并实现商品发布与搜索接口，完成 MySQL 数据库查询优化与参数校验，保障核心交易链路的稳定性",

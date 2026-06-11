@@ -1157,6 +1157,56 @@ async def test_resume_tool_execution_stage_blocks_unsupported_claims_before_conf
 
 
 @pytest.mark.asyncio
+async def test_auto_execute_stage_blocks_unsupported_claims_before_mutation():
+    """用于验证免确认工具也会先过事实门禁再真正修改简历。"""
+    agent = ResumeAgent()
+    stage = ResumeToolExecutionStage()
+    resume = {
+        "projects": [
+            {
+                "id": "proj_1",
+                "name": "校园二手交易平台",
+                "highlights": [{"id": "hl_1", "text": "用 Spring Boot 写了商品发布和搜索接口"}],
+            }
+        ],
+        "skills": [{"id": "skill_1", "category": "后端", "items": ["Spring Boot", "MySQL"]}],
+    }
+    executed_tools: list[dict[str, Any]] = []
+
+    result = await stage.execute_tool_result(
+        agent=agent.definition,
+        run_id="run_auto_quality_gate",
+        call_id="call_auto_quality_gate",
+        tool_name="update_bullet",
+        tool_input={
+            "section": "projects",
+            "item_id": "proj_1",
+            "bullet_id": "hl_1",
+            "text": "基于 Spring Boot 设计并实现商品发布与搜索 RESTful 接口，结合 MySQL 完成商品表结构设计与索引优化，保障核心查询链路稳定高效",
+            "reason": "贴合后端 JD",
+        },
+        context={
+            "resume_content": resume,
+            "allowed_sections": {"projects"},
+            "user_message": (
+                "帮我优化成适合投后端岗位的项目亮点。\n\n"
+                "【目标岗位JD】负责接口设计、数据库优化和稳定性建设经验。"
+            ),
+        },
+        confirmation_queue=None,
+        event_queue=asyncio.Queue(),
+        event_callback=None,
+        executed_tools=executed_tools,
+        stream_state={"visible_tool_call_ids": set(), "chunk_index": 0, "response_parts": []},
+    )
+
+    assert result.details["success"] is False
+    assert result.details["error"]["type"] == "unsupported_resume_claim"
+    assert "索引优化" in result.details["message"]
+    assert resume["projects"][0]["highlights"][0]["text"] == "用 Spring Boot 写了商品发布和搜索接口"
+
+
+@pytest.mark.asyncio
 async def test_resume_tool_execution_stage_blocks_low_quality_diff_before_confirmation():
     """用于验证低质量关键词堆叠不会进入用户确认卡。"""
     agent = ResumeAgent()

@@ -155,6 +155,22 @@ class ResumeToolExecutionStage:
             tool_started_at=tool_started_at,
             stream_state=stream_state,
         )
+        auto_quality_failure = await self.maybe_block_auto_execute_tool(
+            agent=agent,
+            run_id=run_id,
+            call_id=call_id,
+            tool_name=tool_name,
+            tool_input=tool_input,
+            tool_call=tool_call,
+            context=context,
+            event_queue=event_queue,
+            event_callback=event_callback,
+            executed_tools=executed_tools,
+            needs_confirmation=needs_confirmation,
+            tool_started_at=tool_started_at,
+        )
+        if isinstance(auto_quality_failure, str):
+            return auto_quality_failure
         if isinstance(preview, str):
             return preview
         return await self.run_confirmed_tool(
@@ -386,6 +402,65 @@ class ResumeToolExecutionStage:
             ),
         )
         return json.dumps(rejected, ensure_ascii=False)
+
+    async def maybe_block_auto_execute_tool(
+        self,
+        *,
+        agent: AgentDefinition,
+        run_id: str,
+        call_id: str,
+        tool_name: str,
+        tool_input: dict[str, Any],
+        tool_call: dict[str, Any],
+        context: dict[str, Any],
+        event_queue: asyncio.Queue[Any] | None,
+        event_callback: RuntimeEventCallback | None,
+        executed_tools: list[dict[str, Any]],
+        needs_confirmation: bool,
+        tool_started_at: float,
+    ) -> str | None:
+        """用于在免确认工具真正落库前执行同一套质量门禁。"""
+        if needs_confirmation:
+            return None
+        preview_context = dict(context)
+        preview_context["resume_content"] = deepcopy(context.get("resume_content"))
+        preview_context["dry_run"] = True
+        preview_result = await self.call_tool_executor(
+            agent=agent,
+            tool_call=tool_call,
+            context=preview_context,
+        )
+        quality_failure = self.quality_gate_failure(
+            tool_name=tool_name,
+            tool_input=tool_input,
+            context=context,
+            preview_result=preview_result,
+        )
+        if quality_failure is None:
+            return None
+        self.trace_tool_executed(
+            agent,
+            run_id,
+            call_id,
+            tool_name,
+            quality_failure,
+            tool_started_at,
+        )
+        quality_result = quality_failure["result"]
+        executed_tools.append(self.executed_tool_summary(quality_failure, quality_result))
+        await self.publish_tool_result(
+            call_id=call_id,
+            tool_name=tool_name,
+            tool_result=quality_failure,
+            result=quality_result,
+            display_message=quality_failure.get("display_message"),
+            event_queue=event_queue,
+            event_callback=event_callback,
+            executed_tools=executed_tools,
+            context=context,
+            needs_confirmation=False,
+        )
+        return json.dumps(quality_result, ensure_ascii=False)
 
     async def run_confirmed_tool(
         self,

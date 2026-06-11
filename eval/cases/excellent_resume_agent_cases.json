@@ -1,10 +1,36 @@
 [
   {
     "id": "excellent-001",
-    "title": "把泛泛职责改成可投递 bullet",
-    "category": "rewrite_weak_bullet",
+    "title": "面向 JD 但缺关键事实时先追问",
+    "category": "clarify_missing_facts",
     "jd_text": "负责后端业务系统开发，要求接口设计、数据库优化和稳定性建设经验。",
     "user_message": "这条写得太弱了，帮我优化成适合投后端岗位的项目亮点。",
+    "resume": {
+      "projects": [
+        {
+          "id": "proj_trade",
+          "name": "校园二手交易平台",
+          "highlights": [
+            {"id": "b1", "text": "用 Spring Boot 写了商品发布和搜索接口"}
+          ]
+        }
+      ],
+      "skills": [{"id": "s1", "category": "后端", "items": ["Spring Boot", "MySQL"]}]
+    },
+    "expected_behavior": {
+      "decision": "clarify",
+      "expected_tool_calls": ["ask_user"]
+    },
+    "quality_checks": ["ask_for_missing_jd_evidence", "do_not_guess_capabilities"],
+    "forbidden_claims": ["Redis", "Kafka", "10万 DAU", "70%"],
+    "acceptance": "Agent 应先询问是否真实做过数据库优化、稳定性建设或量化结果；不能把 JD 能力词直接写进简历。"
+  },
+  {
+    "id": "excellent-011",
+    "title": "已有事实足够时做保守表达增强",
+    "category": "rewrite_weak_bullet",
+    "jd_text": "强调后端业务系统和接口设计经验。",
+    "user_message": "这条写得太口语化了，帮我改得专业一点，不要新增没写过的东西。",
     "resume": {
       "projects": [
         {

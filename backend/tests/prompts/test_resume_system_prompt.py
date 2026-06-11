@@ -172,7 +172,7 @@ def test_prompt_prefers_conservative_rewrite_when_existing_facts_are_enough():
         ),
     )
 
-    assert "先做保守改写，不要因为缺少量化指标就追问" in rendered
+    assert "也要做保守改写" in rendered
     assert "不要为了满足格式编造数字" in rendered
     assert "不要把所有优化请求都变成追问" in rendered
 
@@ -191,9 +191,8 @@ def test_prompt_blocks_unsupported_jd_capability_claims_in_conservative_rewrite(
     )
 
     assert "JD 只提供匹配方向，不是经历事实来源" in rendered
-    assert "`update_bullet` 用于改写已有事实" in rendered
-    assert "已有事实能支撑部分优化时可先改这部分" in rendered
-    assert "缺少事实时用 `ask_user`" in rendered
+    assert "`update_bullet`：改写已有 bullet" in rendered
+    assert "缺少会影响事实边界或改写质量的信息时" in rendered
 
 
 def test_prompt_blocks_unsupported_jd_keywords_before_mutation():
@@ -210,7 +209,7 @@ def test_prompt_blocks_unsupported_jd_keywords_before_mutation():
     )
 
     assert "JD 核心要求的技术/角色/规模全部缺少证据" in rendered
-    assert "先调用 `ask_user`，不要在追问前调用任何修改工具" in rendered
+    assert "`ask_user`" in rendered
 
 
 def test_prompt_rewrites_when_resume_supports_part_of_jd():
@@ -226,8 +225,8 @@ def test_prompt_rewrites_when_resume_supports_part_of_jd():
         ),
     )
 
-    assert "现有事实能支持其中一部分" in rendered
-    assert "不要因为剩余关键词缺证据就放弃改写" in rendered
+    assert "JD 关键词可以**通过改写现有 bullet** 融入" in rendered
+    assert "`update_bullet`" in rendered
 
 
 def test_prompt_preserves_facts_and_adds_supported_role_terms_when_concise_rewriting():

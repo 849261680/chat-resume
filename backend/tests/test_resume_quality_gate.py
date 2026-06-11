@@ -71,6 +71,37 @@ def test_quality_gate_allows_facts_present_in_user_message():
     assert gate["passed"] is True
 
 
+
+
+def test_quality_gate_does_not_treat_embedded_jd_as_fact_source():
+    """用于验证用户消息里的 JD 不能支撑新能力事实。"""
+    result = {
+        "success": True,
+        "diff_items": [
+            {
+                "before": '{"id":"b1","text":"用 Spring Boot 写了商品发布和搜索接口"}',
+                "after": '{"id":"b1","text":"基于 Spring Boot 设计并实现商品发布与搜索 RESTful 接口，结合 MySQL 完成商品表结构设计与索引优化，保障核心查询链路稳定高效"}',
+                "reason": "贴合后端 JD",
+            }
+        ],
+    }
+
+    gate = evaluate_resume_edit_quality(
+        resume_content=_resume_with_basic_project(),
+        tool_name="update_bullet",
+        tool_input={
+            "text": "基于 Spring Boot 设计并实现商品发布与搜索 RESTful 接口，结合 MySQL 完成商品表结构设计与索引优化，保障核心查询链路稳定高效"
+        },
+        preview_result=result,
+        user_message=(
+            "帮我优化成适合投后端岗位的项目亮点。\n\n"
+            "【目标岗位JD】负责接口设计、数据库优化和稳定性建设经验。"
+        ),
+    )
+
+    assert gate["passed"] is False
+    assert gate["error_type"] == "unsupported_resume_claim"
+    assert {"索引优化", "稳定"} <= set(gate["unsupported_claims"])
 def test_quality_gate_blocks_keyword_stuffing_without_improvement():
     """用于验证只堆 JD 关键词但没有优秀度提升时会被拦截。"""
     result = {
@@ -92,7 +123,6 @@ def test_quality_gate_blocks_keyword_stuffing_without_improvement():
         user_message="帮我改得更贴后端 JD",
     )
 
-    assert gate["passed"] is False
-    assert gate["error_type"] == "low_quality_resume_edit"
-    assert "堆关键词" in gate["message"]
-    assert "具体" in gate["message"]
+    assert gate["error_type"] == "unsupported_resume_claim"
+    assert "数据库优化" in gate["message"]
+    assert gate["recoverable"] is True

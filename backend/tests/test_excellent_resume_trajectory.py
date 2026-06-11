@@ -14,7 +14,7 @@ def _case(case_id: str) -> dict:
 def test_execute_case_requires_expected_tool_call():
     """用于验证执行型样例必须调用期望的简历编辑工具。"""
     result = evaluate_excellent_resume_trajectory(
-        case=_case("excellent-001"),
+        case=_case("excellent-011"),
         trajectory={
             "tool_calls": [{"name": "优化要点", "success": True}],
             "final_text": "已基于原始经历改写，聚焦动作、方案和已有结果。",
@@ -24,6 +24,21 @@ def test_execute_case_requires_expected_tool_call():
     assert result["passed"] is True
     assert result["actual_decision"] == "execute"
     assert result["actual_tool_calls"] == ["update_bullet"]
+
+
+def test_jd_case_with_missing_evidence_requires_ask_user():
+    """用于验证 JD 关键能力缺证据时应先用 ask_user 追问。"""
+    result = evaluate_excellent_resume_trajectory(
+        case=_case("excellent-001"),
+        trajectory={
+            "tool_calls": [{"name": "询问信息"}],
+            "final_text": "是否真实做过数据库优化或稳定性建设？如果有，请补充具体做法和结果。",
+        },
+    )
+
+    assert result["passed"] is True
+    assert result["actual_decision"] == "clarify"
+    assert result["actual_tool_calls"] == ["ask_user"]
 
 
 def test_clarify_case_passes_when_agent_asks_for_missing_facts():
@@ -68,6 +83,27 @@ def test_gate_failure_case_counts_as_clarify_trajectory():
                 }
             ],
             "final_text": "这次会引入原简历没有的 Redis 和 Kafka，请确认是否真实使用过。",
+        },
+    )
+
+    assert result["passed"] is True
+    assert result["actual_decision"] == "clarify"
+    assert result["gate_failure"] is True
+
+
+def test_runtime_event_gate_failure_counts_as_clarify_trajectory():
+    """用于验证运行时门禁失败事件能把先失败后追问判为追问轨迹。"""
+    result = evaluate_excellent_resume_trajectory(
+        case=_case("excellent-001"),
+        trajectory={
+            "tool_calls": [{"name": "优化要点"}, {"name": "询问信息"}],
+            "runtime_events": [
+                {
+                    "tool_call_failed": True,
+                    "result": {"error": {"type": "unsupported_resume_claim"}},
+                }
+            ],
+            "final_text": "商品搜索接口有没有做过数据库索引优化？",
         },
     )
 

@@ -1261,6 +1261,16 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         assert_tag(descriptions["update_overview"], "overview_section_constraint", registry=SCHEMA_TAGS)
         assert_tag(descriptions["update_item_fields"], "is_current_protected", registry=SCHEMA_TAGS)
 
+    def test_tool_schema_descriptions_omit_prompt_routing_labels(self):
+        """用于验证工具描述不重复系统提示词中的路由规则。"""
+        descriptions = [
+            tool["function"]["description"]
+            for tool in RESUME_TOOLS_SCHEMA
+        ]
+
+        self.assertFalse(any("触发条件" in description for description in descriptions))
+        self.assertFalse(any("选择规则" in description for description in descriptions))
+
     def test_system_prompt_omits_tool_call_protocol_section(self):
         """用于验证系统提示词不再硬编码工具协议正文。"""
         rendered = _render_resume_system_prompt(

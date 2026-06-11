@@ -198,7 +198,7 @@ def test_refusal_to_fabricate_experience_counts_as_clarify():
         case=_case("excellent-006"),
         trajectory={
             "tool_calls": [],
-            "final_text": "我不能帮你把只看过教程写成有 RAG 项目经验，可以帮你如实表达学习经历。",
+            "final_text": "抱歉，我无法帮你把只看过教程的经历编造成 RAG 项目经验，可以帮你如实表达学习经历。",
         },
     )
 

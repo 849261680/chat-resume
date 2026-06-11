@@ -60,8 +60,8 @@ ANTHROPIC_EVAL_METHODOLOGY = {
         "Define task-specific measurable success criteria",
         "Run real agent loops with tool calls and tool results",
         "Grade verifiable outcomes instead of preferred wording",
-        "Collect trajectory, tool efficiency, error recovery, latency, and split metrics",
-        "Keep held-out cases separate from prompt/tool tuning cases",
+        "Collect trajectory, tool efficiency, error recovery, latency, split metrics, and repeated-trial reliability",
+        "Keep held-out cases separate from prompt/tool tuning cases and surface eval suite saturation",
     ],
     "dimensions": [
         "task_fidelity",
@@ -123,6 +123,8 @@ async def run_single_case(
     agent: Any,
     case: dict[str, Any],
     target: TargetRunner = run_agent_target,
+    trial_index: int = 1,
+    trial_count: int = 1,
 ) -> dict[str, Any]:
     """用于执行单条黄金样例并附加轨迹评分。"""
     try:
@@ -150,6 +152,9 @@ async def run_single_case(
         )
     return {
         "id": case["id"],
+        "trial_id": f"{case['id']}:{trial_index}",
+        "trial_index": trial_index,
+        "trial_count": trial_count,
         "title": case.get("title", ""),
         "status": "ok",
         "passed": passed,
@@ -168,15 +173,24 @@ async def run_all(
     cases: list[dict[str, Any]],
     dry_run: bool = False,
     target: TargetRunner = run_agent_target,
+    trials: int = 1,
 ) -> list[dict[str, Any]]:
-    """用于批量运行优秀简历黄金样例。"""
+    """用于按样例和试验次数批量运行优秀简历黄金样例。"""
     agent = None if dry_run else build_agent()
     results = []
+    trial_count = max(1, trials)
     for case in cases:
         runner = _dry_run_target if dry_run else target
-        result = await run_single_case(agent=agent, case=case, target=runner)
-        results.append(result)
-        _print_case_result(result)
+        for trial_index in range(1, trial_count + 1):
+            result = await run_single_case(
+                agent=agent,
+                case=case,
+                target=runner,
+                trial_index=trial_index,
+                trial_count=trial_count,
+            )
+            results.append(result)
+            _print_case_result(result)
     return results
 
 
@@ -192,6 +206,7 @@ def build_report(results: list[dict[str, Any]]) -> dict[str, Any]:
         "methodology": ANTHROPIC_EVAL_METHODOLOGY,
         "summary": {
             "total": total,
+            "unique_cases": _unique_case_count(results),
             "ok": ok,
             "error": error,
             "passed": passed,
@@ -200,7 +215,10 @@ def build_report(results: list[dict[str, Any]]) -> dict[str, Any]:
             "final_resume_quality": _final_quality_summary(results),
             "anthropic_agent_eval": _anthropic_eval_summary(results),
             "dataset_splits": _dataset_split_summary(results),
+            "reliability": _reliability_summary(results),
+            "eval_suite_health": _eval_suite_health(results),
         },
+        "openai_agents_eval": build_eval_run_summary(results),
         "failures": _failure_rows(results),
         "results": results,
     }
@@ -229,6 +247,7 @@ def main() -> None:
     parser.add_argument("--cases", help="逗号分隔的样例 ID，例如 excellent-001")
     parser.add_argument("--output", default="excellent_eval_results.json")
     parser.add_argument("--dry-run", action="store_true", help="不调用真实模型")
+    parser.add_argument("--trials", type=int, default=1, help="每个样例重复运行次数")
     args = parser.parse_args()
 
     load_backend_env()
@@ -237,7 +256,7 @@ def main() -> None:
         sys.exit(1)
 
     cases = load_cases(parse_case_ids(args.cases))
-    results = asyncio.run(run_all(cases=cases, dry_run=args.dry_run))
+    results = asyncio.run(run_all(cases=cases, dry_run=args.dry_run, trials=args.trials))
     report = build_report(results)
     save_report(report, args.output)
     summary = report["summary"]
@@ -282,9 +301,12 @@ def _score_final_quality(
     """用于在执行类样例中评估最终简历成品质量。"""
     expected = case.get("expected_behavior")
     expected = expected if isinstance(expected, dict) else {}
+    profile = case.get("anthropic_eval")
+    profile = profile if isinstance(profile, dict) else {}
     applicable = (
         expected.get("decision") == "execute"
         and not agent_result.get("skip_final_resume_quality")
+        and profile.get("final_quality_applicable", True) is not False
     )
     resume_after = agent_result.get("resume_after")
     if not isinstance(resume_after, dict) or not resume_after:
@@ -489,6 +511,72 @@ def _tool_metric_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
         "duplicate_tool_calls": total_duplicates,
     }
 
+
+
+def _unique_case_count(results: list[dict[str, Any]]) -> int:
+    """用于统计去重后的任务数量。"""
+    return len({str(result.get("id")) for result in results if result.get("id")})
+
+
+def _reliability_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
+    """用于按任务汇总重复试验后的 pass@k 和 pass^k 稳定性。"""
+    rows = _results_by_case(results)
+    case_rows = {}
+    all_passed = 0
+    any_passed = 0
+    for case_id, attempts in rows.items():
+        passed = sum(1 for result in attempts if result.get("passed") is True)
+        total = len(attempts)
+        if passed == total:
+            all_passed += 1
+        if passed:
+            any_passed += 1
+        case_rows[case_id] = {
+            "trials": total,
+            "passed": passed,
+            "pass_rate": round(passed / total, 3) if total else 0.0,
+            "pass@k": 1.0 if passed else 0.0,
+            "pass^k": 1.0 if total and passed == total else 0.0,
+        }
+    total_cases = len(rows)
+    return {
+        "unique_cases": total_cases,
+        "trials_per_case": _observed_trials_per_case(rows),
+        "pass@k": round(any_passed / total_cases, 3) if total_cases else 0.0,
+        "pass^k": round(all_passed / total_cases, 3) if total_cases else 0.0,
+        "cases": case_rows,
+    }
+
+
+def _eval_suite_health(results: list[dict[str, Any]]) -> dict[str, Any]:
+    """用于暴露评测套件是否满足 Anthropic 建议的最小覆盖。"""
+    unique_cases = _unique_case_count(results)
+    trials_per_case = _reliability_summary(results)["trials_per_case"]
+    return {
+        "recommended_min_cases": 20,
+        "unique_cases": unique_cases,
+        "has_minimum_task_count": unique_cases >= 20,
+        "has_repeated_trials": trials_per_case >= 2,
+        "status": "healthy" if unique_cases >= 20 and trials_per_case >= 2 else "needs_expansion",
+    }
+
+
+def _results_by_case(results: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+    """用于按 case id 分组试验结果。"""
+    rows: dict[str, list[dict[str, Any]]] = {}
+    for result in results:
+        case_id = str(result.get("id") or "")
+        if not case_id:
+            continue
+        rows.setdefault(case_id, []).append(result)
+    return rows
+
+
+def _observed_trials_per_case(rows: dict[str, list[dict[str, Any]]]) -> int:
+    """用于读取当前报告中每个任务的最小试验次数。"""
+    if not rows:
+        return 0
+    return min(len(attempts) for attempts in rows.values())
 
 def _dataset_split_summary(results: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     """用于按 train/holdout/regression 分层汇总结果。"""

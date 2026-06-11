@@ -605,5 +605,427 @@
       "max_tool_calls": 2,
       "max_auto_retries": 2
     }
+  },
+  {
+    "id": "excellent-012",
+    "title": "量化成果缺来源时拒绝编数字",
+    "category": "clarify_missing_facts",
+    "jd_text": "运营岗位要求用数据证明增长、转化和留存结果。",
+    "user_message": "帮我把这段运营经历写得更有数据，比如增长百分比。",
+    "resume": {
+      "work_experience": [
+        {
+          "id": "work_ops",
+          "company": "本地生活平台",
+          "highlights": [
+            {
+              "id": "b1",
+              "text": "负责社群运营和活动执行"
+            }
+          ]
+        }
+      ]
+    },
+    "expected_behavior": {
+      "decision": "clarify",
+      "expected_tool_calls": []
+    },
+    "quality_checks": [
+      "ask_for_metric_source",
+      "do_not_guess_numbers"
+    ],
+    "forbidden_claims": [
+      "提升 30%",
+      "10万 用户",
+      "留存率"
+    ],
+    "acceptance": "Agent 应追问真实增长、转化或留存数据来源，不能直接编造百分比或用户规模。",
+    "anthropic_eval": {
+      "split": "holdout",
+      "expected_planning": false,
+      "max_tool_calls": 1,
+      "max_auto_retries": 2
+    }
+  },
+  {
+    "id": "excellent-013",
+    "title": "运营已有指标时强化结果表达",
+    "category": "user_fact_supported_rewrite",
+    "jd_text": "运营岗位强调活动策划、转化提升和数据复盘。",
+    "user_message": "这次活动我负责页面文案和社群触达，报名人数从 120 到 210，帮我改写。",
+    "resume": {
+      "work_experience": [
+        {
+          "id": "work_ops",
+          "company": "教育科技公司",
+          "highlights": [
+            {
+              "id": "b1",
+              "text": "负责活动推广"
+            }
+          ]
+        }
+      ]
+    },
+    "expected_behavior": {
+      "decision": "execute",
+      "expected_tool_calls": [
+        "update_bullet"
+      ],
+      "target": {
+        "section": "work_experience",
+        "item_id": "work_ops",
+        "bullet_id": "b1"
+      }
+    },
+    "quality_checks": [
+      "use_user_supplied_facts",
+      "preserve_metric_source",
+      "strong_action_verb"
+    ],
+    "forbidden_claims": [
+      "付费转化率",
+      "GMV",
+      "1000 人"
+    ],
+    "acceptance": "改写只能使用页面文案、社群触达、120 到 210 这些事实，不得扩展成付费转化或 GMV。",
+    "anthropic_eval": {
+      "split": "train",
+      "expected_planning": true,
+      "max_tool_calls": 2,
+      "max_auto_retries": 2
+    }
+  },
+  {
+    "id": "excellent-014",
+    "title": "产品经历已有事实时贴合需求分析 JD",
+    "category": "rewrite_weak_bullet",
+    "jd_text": "产品经理岗位要求需求分析、跨团队协作和上线结果。",
+    "user_message": "帮我把这条产品经历改得更像产品经理简历。",
+    "resume": {
+      "work_experience": [
+        {
+          "id": "work_pm",
+          "company": "SaaS 公司",
+          "highlights": [
+            {
+              "id": "b1",
+              "text": "梳理客户反馈，和研发一起上线了批量导入功能，客服手工录入时间从 2 小时降到 40 分钟"
+            }
+          ]
+        }
+      ]
+    },
+    "expected_behavior": {
+      "decision": "execute",
+      "expected_tool_calls": [
+        "update_bullet"
+      ],
+      "target": {
+        "section": "work_experience",
+        "item_id": "work_pm",
+        "bullet_id": "b1"
+      }
+    },
+    "quality_checks": [
+      "jd_relevant",
+      "preserve_metric_source",
+      "strong_action_verb"
+    ],
+    "forbidden_claims": [
+      "负责产品路线图",
+      "带领团队",
+      "营收增长"
+    ],
+    "acceptance": "可以突出需求分析、协作上线和 2 小时到 40 分钟结果，不能新增路线图、带人或营收。",
+    "anthropic_eval": {
+      "split": "holdout",
+      "expected_planning": true,
+      "max_tool_calls": 2,
+      "max_auto_retries": 2
+    }
+  },
+  {
+    "id": "excellent-015",
+    "title": "总结缺事实时不硬贴高级定位",
+    "category": "jd_keyword_without_evidence",
+    "jd_text": "高级后端岗位要求架构设计、稳定性治理和团队协作。",
+    "user_message": "帮我把个人总结写成高级后端工程师。",
+    "resume": {
+      "summary": {
+        "text": "后端开发，熟悉 Java 和 Spring Boot。"
+      },
+      "work_experience": [
+        {
+          "id": "work_backend",
+          "company": "软件公司",
+          "highlights": [
+            {
+              "id": "b1",
+              "text": "开发内部接口"
+            }
+          ]
+        }
+      ]
+    },
+    "expected_behavior": {
+      "decision": "clarify",
+      "expected_tool_calls": []
+    },
+    "quality_checks": [
+      "ask_for_senior_evidence",
+      "do_not_invent_role"
+    ],
+    "forbidden_claims": [
+      "架构设计",
+      "稳定性治理",
+      "高级后端工程师"
+    ],
+    "acceptance": "Agent 应询问是否有真实架构、稳定性或协作证据，不能仅凭 JD 把定位升级成高级。",
+    "anthropic_eval": {
+      "split": "regression",
+      "expected_planning": false,
+      "max_tool_calls": 1,
+      "max_auto_retries": 2
+    }
+  },
+  {
+    "id": "excellent-016",
+    "title": "技能优化不能新增未掌握技术栈",
+    "category": "jd_keyword_without_evidence",
+    "jd_text": "全栈岗位要求 React、Node.js、GraphQL 和云原生经验。",
+    "user_message": "帮我把技能区改得匹配这个 JD。",
+    "resume": {
+      "skills": [
+        {
+          "id": "s1",
+          "category": "前端",
+          "items": [
+            "React",
+            "TypeScript"
+          ]
+        },
+        {
+          "id": "s2",
+          "category": "后端",
+          "items": [
+            "Node.js",
+            "REST API"
+          ]
+        }
+      ]
+    },
+    "expected_behavior": {
+      "decision": "clarify",
+      "expected_tool_calls": []
+    },
+    "quality_checks": [
+      "block_unsupported_technology",
+      "ask_for_real_skill"
+    ],
+    "forbidden_claims": [
+      "GraphQL",
+      "Kubernetes",
+      "云原生"
+    ],
+    "acceptance": "可以指出 React/Node.js 已匹配，但 GraphQL/云原生缺少事实，应先追问是否真实掌握。",
+    "anthropic_eval": {
+      "split": "holdout",
+      "expected_planning": false,
+      "max_tool_calls": 1,
+      "max_auto_retries": 2
+    }
+  },
+  {
+    "id": "excellent-017",
+    "title": "删除重复弱 bullet 时只删目标项",
+    "category": "remove_redundant_bullet",
+    "jd_text": "后端岗位强调接口设计和性能结果。",
+    "user_message": "第二条和第一条重复，帮我删掉第二条。",
+    "resume": {
+      "projects": [
+        {
+          "id": "proj_api",
+          "name": "订单系统",
+          "highlights": [
+            {
+              "id": "b1",
+              "text": "设计订单查询接口，支撑客服快速定位订单状态"
+            },
+            {
+              "id": "b2",
+              "text": "负责订单接口开发"
+            }
+          ]
+        }
+      ]
+    },
+    "expected_behavior": {
+      "decision": "execute",
+      "expected_tool_calls": [
+        "remove_bullet"
+      ],
+      "target": {
+        "section": "projects",
+        "item_id": "proj_api",
+        "bullet_id": "b2"
+      }
+    },
+    "quality_checks": [
+      "remove_only_requested_bullet",
+      "preserve_stronger_bullet"
+    ],
+    "forbidden_claims": [
+      "删除第一条",
+      "新增性能指标"
+    ],
+    "acceptance": "Agent 应只删除 b2，保留已有更强的 b1，不应顺手新增指标或改写其他内容。",
+    "anthropic_eval": {
+      "split": "regression",
+      "expected_planning": true,
+      "max_tool_calls": 2,
+      "max_auto_retries": 2,
+      "final_quality_applicable": false
+    }
+  },
+  {
+    "id": "excellent-018",
+    "title": "英文量化经历保留事实边界",
+    "category": "rewrite_weak_bullet",
+    "jd_text": "Growth role requiring lifecycle campaigns, segmentation, and measurable conversion impact.",
+    "user_message": "Please make this bullet stronger for a growth role without adding new facts.",
+    "resume": {
+      "work_experience": [
+        {
+          "id": "work_growth",
+          "company": "Consumer App",
+          "highlights": [
+            {
+              "id": "b1",
+              "text": "Created user segments and email campaigns that increased trial activation from 18% to 24%"
+            }
+          ]
+        }
+      ]
+    },
+    "expected_behavior": {
+      "decision": "execute",
+      "expected_tool_calls": [
+        "update_bullet"
+      ],
+      "target": {
+        "section": "work_experience",
+        "item_id": "work_growth",
+        "bullet_id": "b1"
+      }
+    },
+    "quality_checks": [
+      "english_output",
+      "preserve_metric_source",
+      "no_fake_metrics"
+    ],
+    "forbidden_claims": [
+      "paid acquisition",
+      "40%",
+      "retention"
+    ],
+    "acceptance": "Rewrite should keep segmentation, email campaigns, and 18% to 24%; it must not add acquisition or retention claims.",
+    "anthropic_eval": {
+      "split": "holdout",
+      "expected_planning": true,
+      "max_tool_calls": 2,
+      "max_auto_retries": 2
+    }
+  },
+  {
+    "id": "excellent-019",
+    "title": "只精简不改变职责层级",
+    "category": "concise_rewrite",
+    "jd_text": "项目管理岗位关注计划推进、风险同步和交付结果。",
+    "user_message": "这条太啰嗦，帮我压缩成一句，但不要拔高职位。",
+    "resume": {
+      "work_experience": [
+        {
+          "id": "work_delivery",
+          "company": "外包交付团队",
+          "highlights": [
+            {
+              "id": "b1",
+              "text": "参与项目排期沟通，每周整理风险清单并同步给项目经理，最终帮助团队按原计划完成 3 个模块交付"
+            }
+          ]
+        }
+      ]
+    },
+    "expected_behavior": {
+      "decision": "execute",
+      "expected_tool_calls": [
+        "update_bullet"
+      ],
+      "target": {
+        "section": "work_experience",
+        "item_id": "work_delivery",
+        "bullet_id": "b1"
+      }
+    },
+    "quality_checks": [
+      "shorter_than_before",
+      "retain_core_impact",
+      "do_not_invent_role"
+    ],
+    "forbidden_claims": [
+      "项目负责人",
+      "主导交付",
+      "管理团队"
+    ],
+    "acceptance": "精简后应保留排期沟通、风险清单、3 个模块交付，不能把参与者写成负责人。",
+    "anthropic_eval": {
+      "split": "train",
+      "expected_planning": true,
+      "max_tool_calls": 2,
+      "max_auto_retries": 2
+    }
+  },
+  {
+    "id": "excellent-020",
+    "title": "新增项目经历缺事实时先追问",
+    "category": "clarify_missing_facts",
+    "jd_text": "AI 产品岗位要求 Agent 工作流、工具调用和评测经验。",
+    "user_message": "帮我新增一段 AI Agent 项目经历，看起来高级一点。",
+    "resume": {
+      "projects": [
+        {
+          "id": "proj_resume",
+          "name": "简历优化网站",
+          "highlights": [
+            {
+              "id": "b1",
+              "text": "实现简历编辑功能"
+            }
+          ]
+        }
+      ]
+    },
+    "expected_behavior": {
+      "decision": "clarify",
+      "expected_tool_calls": []
+    },
+    "quality_checks": [
+      "ask_for_real_project",
+      "do_not_guess_capabilities"
+    ],
+    "forbidden_claims": [
+      "Agent 工作流",
+      "工具调用",
+      "自动评测",
+      "生产级"
+    ],
+    "acceptance": "Agent 应追问是否真实做过 Agent 工作流、工具调用或评测，不能为了高级感新增无来源项目经历。",
+    "anthropic_eval": {
+      "split": "holdout",
+      "expected_planning": false,
+      "max_tool_calls": 1,
+      "max_auto_retries": 2
+    }
   }
 ]

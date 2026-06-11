@@ -29,6 +29,7 @@ RUNNER_MODULE = _load_runner()
 build_report: Any = RUNNER_MODULE.build_report
 case_to_inputs: Any = RUNNER_MODULE.case_to_inputs
 run_single_case: Any = RUNNER_MODULE.run_single_case
+run_all: Any = RUNNER_MODULE.run_all
 trajectory_from_agent_result: Any = RUNNER_MODULE.trajectory_from_agent_result
 
 
@@ -127,6 +128,7 @@ def test_build_report_summarizes_pass_rate_and_failures():
 
     assert report["methodology"]["standard"] == "anthropic_agent_eval"
     assert report["summary"]["total"] == 2
+    assert report["summary"]["unique_cases"] == 2
     assert report["summary"]["passed"] == 1
     assert report["summary"]["pass_rate"] == 0.5
     assert report["summary"]["final_resume_quality"] == {
@@ -137,6 +139,9 @@ def test_build_report_summarizes_pass_rate_and_failures():
     }
     assert report["summary"]["anthropic_agent_eval"]["total"] == 0
     assert report["summary"]["dataset_splits"]["train"]["total"] == 2
+    assert report["summary"]["reliability"]["pass@k"] == 0.5
+    assert report["summary"]["eval_suite_health"]["status"] == "needs_expansion"
+    assert report["openai_agents_eval"]["dataset_item_count"] == 2
     assert report["failures"] == [
         {
             "id": "excellent-002",
@@ -145,6 +150,26 @@ def test_build_report_summarizes_pass_rate_and_failures():
             "anthropic_eval": {},
         }
     ]
+
+
+
+def test_build_report_summarizes_repeated_trial_reliability():
+    """用于验证重复试验报告 pass@k 和 pass^k 稳定性。"""
+    report = build_report(
+        [
+            {"id": "case-a", "status": "ok", "passed": True, "trajectory_score": {}},
+            {"id": "case-a", "status": "ok", "passed": False, "trajectory_score": {}},
+            {"id": "case-b", "status": "ok", "passed": True, "trajectory_score": {}},
+            {"id": "case-b", "status": "ok", "passed": True, "trajectory_score": {}},
+        ]
+    )
+
+    reliability = report["summary"]["reliability"]
+    assert reliability["trials_per_case"] == 2
+    assert reliability["pass@k"] == 1.0
+    assert reliability["pass^k"] == 0.5
+    assert reliability["cases"]["case-a"]["pass@k"] == 1.0
+    assert reliability["cases"]["case-a"]["pass^k"] == 0.0
 
 def test_build_report_summarizes_anthropic_dimensions():
     """用于验证报告汇总 Anthropic 轨迹维度和工具指标。"""
@@ -198,6 +223,8 @@ def test_cli_dry_run_writes_report_without_openrouter_key(tmp_path, monkeypatch)
             "--cases",
             "excellent-002",
             "--dry-run",
+            "--trials",
+            "3",
             "--output",
             str(output_path),
         ],
@@ -209,5 +236,8 @@ def test_cli_dry_run_writes_report_without_openrouter_key(tmp_path, monkeypatch)
 
     assert completed.returncode == 0, completed.stderr
     report = json.loads(output_path.read_text(encoding="utf-8"))
-    assert report["summary"]["total"] == 1
+    assert report["summary"]["total"] == 3
+    assert report["summary"]["unique_cases"] == 1
+    assert report["summary"]["reliability"]["trials_per_case"] == 3
+    assert report["summary"]["reliability"]["pass^k"] == 1.0
     assert report["results"][0]["id"] == "excellent-002"

@@ -54,6 +54,26 @@ from eval.openai_agents_standard import (  # noqa: E402
 
 TargetRunner = Callable[[Any, dict[str, Any]], Awaitable[dict[str, Any]]]
 
+ANTHROPIC_EVAL_METHODOLOGY = {
+    "standard": "anthropic_agent_eval",
+    "source": [
+        "Define task-specific measurable success criteria",
+        "Run real agent loops with tool calls and tool results",
+        "Grade verifiable outcomes instead of preferred wording",
+        "Collect trajectory, tool efficiency, error recovery, latency, and split metrics",
+        "Keep held-out cases separate from prompt/tool tuning cases",
+    ],
+    "dimensions": [
+        "task_fidelity",
+        "final_resume_quality",
+        "planning_visibility",
+        "feedback_repair",
+        "stopping_condition",
+        "tool_efficiency",
+        "tool_error_recovery",
+    ],
+}
+
 
 def load_cases(filter_ids: list[str] | None = None) -> list[dict[str, Any]]:
     """用于读取优秀简历黄金样例并按 ID 过滤。"""
@@ -112,13 +132,13 @@ async def run_single_case(
     except Exception as exc:
         return _error_result(case, exc)
     trajectory = trajectory_from_agent_result(agent_result)
-    score = evaluate_excellent_resume_trajectory(case=case, trajectory=trajectory)
+    trajectory_score = evaluate_excellent_resume_trajectory(case=case, trajectory=trajectory)
     final_quality = _score_final_quality(
         case=case,
         inputs=inputs,
         agent_result=agent_result,
     )
-    passed = score["passed"] and final_quality["passed"]
+    passed = trajectory_score["passed"] and final_quality["passed"]
     openai_artifact = agent_result.get("openai_agents_eval")
     if not isinstance(openai_artifact, dict):
         trace_config = build_trace_config(str(inputs["case_id"]))
@@ -136,7 +156,8 @@ async def run_single_case(
         "elapsed_s": agent_result.get("elapsed_s", 0),
         "agent_reply": agent_result.get("agent_reply", ""),
         "tool_calls": agent_result.get("tool_calls", []),
-        "trajectory_score": score,
+        "trajectory_score": trajectory_score,
+        "anthropic_eval": _case_anthropic_profile(case, trajectory_score),
         "final_resume_quality": final_quality,
         "openai_agents_eval": openai_artifact,
     }
@@ -168,6 +189,7 @@ def build_report(results: list[dict[str, Any]]) -> dict[str, Any]:
     failed = total - passed
     return {
         "run_at": datetime.now().isoformat(),
+        "methodology": ANTHROPIC_EVAL_METHODOLOGY,
         "summary": {
             "total": total,
             "ok": ok,
@@ -176,8 +198,9 @@ def build_report(results: list[dict[str, Any]]) -> dict[str, Any]:
             "failed": failed,
             "pass_rate": round(passed / total, 3) if total else 0.0,
             "final_resume_quality": _final_quality_summary(results),
+            "anthropic_agent_eval": _anthropic_eval_summary(results),
+            "dataset_splits": _dataset_split_summary(results),
         },
-        "openai_agents_eval": build_eval_run_summary(results),
         "failures": _failure_rows(results),
         "results": results,
     }
@@ -232,13 +255,20 @@ async def _dry_run_target(agent: Any, inputs: dict[str, Any]) -> dict[str, Any]:
     )
     expected = case["expected_behavior"]
     tools = expected["expected_tool_calls"]
-    reply = "已基于已有事实完成优化。" if tools else "请补充更多真实事实后我再改写。"
+    is_execute = expected.get("decision") == "execute"
+    reply = "已基于已有事实完成优化。" if is_execute else "请补充更多真实事实后我再改写。"
+    events = []
+    if is_execute:
+        events = [
+            {"event_type": "text_delta", "content": "我会先基于现有事实保守改写。"},
+            {"event_type": "tool_call_started", "tool_name": tools[0] if tools else ""},
+        ]
     return {
         "case_id": inputs["case_id"],
         "agent_reply": reply,
         "tool_calls": tools,
         "elapsed_s": 0,
-        "runtime_events": [],
+        "runtime_events": events,
         "skip_final_resume_quality": True,
     }
 
@@ -282,11 +312,18 @@ async def _run_target(
     return await target(agent, inputs)
 
 
-def _tool_call_dicts(tool_calls: Any) -> list[dict[str, str]]:
+def _tool_call_dicts(tool_calls: Any) -> list[dict[str, Any]]:
     """用于把工具名列表标准化成轨迹工具结构。"""
     if not isinstance(tool_calls, list):
         return []
-    return [{"name": str(name)} for name in tool_calls if str(name)]
+    normalized: list[dict[str, Any]] = []
+    for item in tool_calls:
+        if isinstance(item, dict):
+            normalized.append(item)
+            continue
+        if str(item):
+            normalized.append({"name": str(item)})
+    return normalized
 
 
 def _error_result(case: dict[str, Any], exc: Exception) -> dict[str, Any]:
@@ -298,6 +335,7 @@ def _error_result(case: dict[str, Any], exc: Exception) -> dict[str, Any]:
         "passed": False,
         "error": str(exc),
         "trajectory_score": {"failure_codes": ["execution_error"]},
+        "anthropic_eval": {"split": _case_split(case), "passed": False, "metrics": {}},
         "final_resume_quality": {"applicable": False, "failure_codes": []},
     }
 
@@ -314,6 +352,7 @@ def _failure_rows(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
             "id": result.get("id"),
             "failure_codes": _combined_failure_codes(score, quality),
             "final_resume_quality": quality,
+            "anthropic_eval": result.get("anthropic_eval", {}),
         })
     return rows
 
@@ -353,6 +392,125 @@ def _final_quality_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
         "average_score": round(sum(scores) / len(scores), 1) if scores else None,
     }
 
+
+def _case_anthropic_profile(
+    case: dict[str, Any],
+    trajectory_score: dict[str, Any],
+) -> dict[str, Any]:
+    """用于把单条样例的 Anthropic 轨迹评测结果放入报告。"""
+    profile = case.get("anthropic_eval")
+    profile = profile if isinstance(profile, dict) else {}
+    return {
+        "split": _case_split(case),
+        "expected_planning": bool(profile.get("expected_planning", _expects_execution(case))),
+        "max_tool_calls": profile.get("max_tool_calls"),
+        "passed": trajectory_score.get("anthropic_passed") is True,
+        "metrics": trajectory_score.get("anthropic_metrics", {}),
+        "tool_metrics": trajectory_score.get("tool_metrics", {}),
+    }
+
+
+def _case_split(case: dict[str, Any]) -> str:
+    """用于读取样例所属评测分层。"""
+    profile = case.get("anthropic_eval")
+    if isinstance(profile, dict) and profile.get("split"):
+        return str(profile["split"])
+    return "train"
+
+
+def _expects_execution(case: dict[str, Any]) -> bool:
+    """用于判断样例是否期望执行简历修改。"""
+    expected = case.get("expected_behavior")
+    return isinstance(expected, dict) and expected.get("decision") == "execute"
+
+
+def _anthropic_eval_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
+    """用于汇总 Anthropic 风格轨迹评测维度。"""
+    dimensions = _dimension_summary(results)
+    total = sum(1 for result in results if isinstance(result.get("anthropic_eval"), dict))
+    passed = sum(
+        1
+        for result in results
+        if isinstance(result.get("anthropic_eval"), dict)
+        and result["anthropic_eval"].get("passed") is True
+    )
+    return {
+        "total": total,
+        "passed": passed,
+        "failed": total - passed,
+        "pass_rate": round(passed / total, 3) if total else 0.0,
+        "dimensions": dimensions,
+        "tool_metrics": _tool_metric_summary(results),
+    }
+
+
+def _dimension_summary(results: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """用于按 Anthropic 维度统计适用样例和通过率。"""
+    rows: dict[str, dict[str, int]] = {}
+    for result in results:
+        anthropic = result.get("anthropic_eval")
+        if not isinstance(anthropic, dict):
+            continue
+        metrics = anthropic.get("metrics")
+        if not isinstance(metrics, dict):
+            continue
+        for name, metric in metrics.items():
+            if not isinstance(metric, dict) or metric.get("applicable") is False:
+                continue
+            row = rows.setdefault(str(name), {"total": 0, "passed": 0})
+            row["total"] += 1
+            if metric.get("passed") is True:
+                row["passed"] += 1
+    return {
+        name: {
+            "total": row["total"],
+            "passed": row["passed"],
+            "failed": row["total"] - row["passed"],
+            "pass_rate": round(row["passed"] / row["total"], 3) if row["total"] else 0.0,
+        }
+        for name, row in rows.items()
+    }
+
+
+def _tool_metric_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
+    """用于汇总工具调用效率和错误指标。"""
+    metrics = [
+        result.get("anthropic_eval", {}).get("tool_metrics", {})
+        for result in results
+        if isinstance(result.get("anthropic_eval"), dict)
+    ]
+    total_tool_calls = sum(int(metric.get("total_tool_calls", 0)) for metric in metrics)
+    total_errors = sum(int(metric.get("tool_errors", 0)) for metric in metrics)
+    total_duplicates = sum(int(metric.get("duplicate_tool_calls", 0)) for metric in metrics)
+    return {
+        "total_tool_calls": total_tool_calls,
+        "average_tool_calls": round(total_tool_calls / len(metrics), 2) if metrics else 0.0,
+        "tool_errors": total_errors,
+        "duplicate_tool_calls": total_duplicates,
+    }
+
+
+def _dataset_split_summary(results: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """用于按 train/holdout/regression 分层汇总结果。"""
+    rows: dict[str, dict[str, int]] = {}
+    for result in results:
+        split = "train"
+        anthropic = result.get("anthropic_eval")
+        if isinstance(anthropic, dict):
+            split = str(anthropic.get("split") or "train")
+        row = rows.setdefault(split, {"total": 0, "passed": 0})
+        row["total"] += 1
+        if result.get("passed") is True:
+            row["passed"] += 1
+    return {
+        split: {
+            "total": row["total"],
+            "passed": row["passed"],
+            "failed": row["total"] - row["passed"],
+            "pass_rate": round(row["passed"] / row["total"], 3) if row["total"] else 0.0,
+        }
+        for split, row in rows.items()
+    }
 
 def _print_case_result(result: dict[str, Any]) -> None:
     """用于打印单条样例运行摘要。"""

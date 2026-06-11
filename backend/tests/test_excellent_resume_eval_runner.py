@@ -91,7 +91,10 @@ def test_run_single_case_scores_fake_agent_result():
             "agent_reply": "已基于已有事实优化。",
             "tool_calls": ["update_bullet"],
             "elapsed_s": 0.01,
-            "runtime_events": [],
+            "runtime_events": [
+                {"event_type": "text_delta", "content": "我会先保守改写项目亮点。"},
+                {"event_type": "tool_call_started", "tool_name": "update_bullet"},
+            ],
             "skip_final_resume_quality": True,
         }
 
@@ -99,6 +102,7 @@ def test_run_single_case_scores_fake_agent_result():
 
     assert result["status"] == "ok"
     assert result["trajectory_score"]["passed"] is True
+    assert result["anthropic_eval"]["passed"] is True
     assert result["passed"] is True
 
 
@@ -121,27 +125,65 @@ def test_build_report_summarizes_pass_rate_and_failures():
         ]
     )
 
-    assert report["summary"] == {
-        "total": 2,
-        "ok": 2,
-        "error": 0,
-        "passed": 1,
-        "failed": 1,
-        "pass_rate": 0.5,
-        "final_resume_quality": {
-            "total": 0,
-            "passed": 0,
-            "failed": 0,
-            "average_score": None,
-        },
+    assert report["methodology"]["standard"] == "anthropic_agent_eval"
+    assert report["summary"]["total"] == 2
+    assert report["summary"]["passed"] == 1
+    assert report["summary"]["pass_rate"] == 0.5
+    assert report["summary"]["final_resume_quality"] == {
+        "total": 0,
+        "passed": 0,
+        "failed": 0,
+        "average_score": None,
     }
+    assert report["summary"]["anthropic_agent_eval"]["total"] == 0
+    assert report["summary"]["dataset_splits"]["train"]["total"] == 2
     assert report["failures"] == [
         {
             "id": "excellent-002",
             "failure_codes": ["unexpected_decision"],
             "final_resume_quality": {},
+            "anthropic_eval": {},
         }
     ]
+
+def test_build_report_summarizes_anthropic_dimensions():
+    """用于验证报告汇总 Anthropic 轨迹维度和工具指标。"""
+    report = build_report(
+        [
+            {
+                "id": "excellent-011",
+                "status": "ok",
+                "passed": True,
+                "trajectory_score": {"failure_codes": []},
+                "anthropic_eval": {
+                    "split": "holdout",
+                    "passed": False,
+                    "metrics": {
+                        "planning_visibility": {
+                            "applicable": True,
+                            "passed": False,
+                        },
+                        "feedback_repair": {
+                            "applicable": False,
+                            "passed": True,
+                        },
+                    },
+                    "tool_metrics": {
+                        "total_tool_calls": 2,
+                        "tool_errors": 1,
+                        "duplicate_tool_calls": 0,
+                    },
+                },
+            }
+        ]
+    )
+
+    summary = report["summary"]["anthropic_agent_eval"]
+    assert summary["total"] == 1
+    assert summary["failed"] == 1
+    assert summary["dimensions"]["planning_visibility"]["pass_rate"] == 0.0
+    assert summary["tool_metrics"]["tool_errors"] == 1
+    assert report["summary"]["dataset_splits"]["holdout"]["total"] == 1
 
 
 def test_cli_dry_run_writes_report_without_openrouter_key(tmp_path, monkeypatch):

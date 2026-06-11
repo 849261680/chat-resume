@@ -25,6 +25,92 @@ def test_execute_case_requires_expected_tool_call():
     assert result["actual_decision"] == "execute"
     assert result["actual_tool_calls"] == ["update_bullet"]
 
+def test_execute_case_scores_planning_visibility_before_tool_use():
+    """用于验证 Anthropic 轨迹评测会检查工具前可见计划。"""
+    result = evaluate_excellent_resume_trajectory(
+        case=_case("excellent-011"),
+        trajectory={
+            "runtime_events": [
+                {"event_type": "text_delta", "content": "我会先保守改写项目亮点。"},
+                {"event_type": "tool_call_started", "tool_name": "update_bullet"},
+            ],
+            "tool_calls": [{"name": "优化要点", "success": True}],
+            "final_text": "已基于原始经历改写，聚焦动作、方案和已有结果。",
+        },
+    )
+
+    assert result["anthropic_metrics"]["planning_visibility"]["passed"] is True
+    assert result["anthropic_passed"] is True
+
+
+def test_execute_case_flags_missing_planning_visibility():
+    """用于验证修改任务缺少工具前计划会被 Anthropic 维度标记。"""
+    result = evaluate_excellent_resume_trajectory(
+        case=_case("excellent-011"),
+        trajectory={
+            "runtime_events": [
+                {"event_type": "tool_call_started", "tool_name": "update_bullet"},
+            ],
+            "tool_calls": [{"name": "优化要点", "success": True}],
+            "final_text": "已基于原始经历改写，聚焦动作、方案和已有结果。",
+        },
+    )
+
+    assert result["passed"] is True
+    assert result["anthropic_metrics"]["planning_visibility"]["passed"] is False
+    assert result["anthropic_passed"] is False
+
+
+def test_gate_failure_repair_counts_as_feedback_loop():
+    """用于验证门禁失败后成功修正会通过反馈修复维度。"""
+    case = _case("excellent-004")
+    case["anthropic_eval"] = {**case.get("anthropic_eval", {}), "requires_feedback_repair": True}
+
+    result = evaluate_excellent_resume_trajectory(
+        case=case,
+        trajectory={
+            "runtime_events": [
+                {"event_type": "text_delta", "content": "我会基于用户补充事实保守改写。"},
+                {"event_type": "tool_call_started", "tool_name": "update_bullet"},
+            ],
+            "tool_calls": [
+                {
+                    "name": "update_bullet",
+                    "success": False,
+                    "error": {"type": "unsupported_resume_claim"},
+                    "arguments": {"text": "引入 Kafka 支撑 10万 DAU"},
+                },
+                {
+                    "name": "update_bullet",
+                    "success": True,
+                    "arguments": {"text": "基于 Spring Boot 和 Redis 优化商品搜索接口"},
+                },
+            ],
+            "final_text": "已基于用户补充事实完成改写。",
+        },
+    )
+
+    assert result["anthropic_metrics"]["feedback_repair"]["passed"] is True
+    assert result["anthropic_metrics"]["tool_error_recovery"]["passed"] is True
+
+
+def test_duplicate_tool_inputs_fail_stopping_condition():
+    """用于验证重复同参工具调用会触发停止条件失败。"""
+    result = evaluate_excellent_resume_trajectory(
+        case=_case("excellent-011"),
+        trajectory={
+            "runtime_events": [{"event_type": "text_delta", "content": "我会改写这条亮点。"}],
+            "tool_calls": [
+                {"name": "update_bullet", "arguments": {"text": "A"}},
+                {"name": "update_bullet", "arguments": {"text": "A"}},
+            ],
+            "final_text": "已完成。",
+        },
+    )
+
+    assert result["tool_metrics"]["duplicate_tool_calls"] == 1
+    assert result["anthropic_metrics"]["stopping_condition"]["passed"] is False
+
 
 def test_jd_case_with_missing_evidence_requires_ask_user():
     """用于验证 JD 关键能力缺证据时应先用 ask_user 追问。"""
@@ -53,6 +139,18 @@ def test_clarify_case_passes_when_agent_asks_for_missing_facts():
 
     assert result["passed"] is True
     assert result["actual_decision"] == "clarify"
+
+def test_all_cases_define_anthropic_eval_split_and_limits():
+    """用于验证黄金样例带有 Anthropic 分层和工具预算。"""
+    splits = set()
+    for case in load_excellent_resume_cases():
+        profile = case.get("anthropic_eval")
+        assert isinstance(profile, dict)
+        assert profile["split"] in {"train", "regression", "holdout"}
+        assert isinstance(profile["max_tool_calls"], int)
+        splits.add(profile["split"])
+
+    assert {"train", "regression", "holdout"}.issubset(splits)
 
 
 def test_ask_user_tool_counts_as_clarify_not_execute():

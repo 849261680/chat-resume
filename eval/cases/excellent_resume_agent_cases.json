@@ -11,19 +11,47 @@
           "id": "proj_trade",
           "name": "校园二手交易平台",
           "highlights": [
-            {"id": "b1", "text": "用 Spring Boot 写了商品发布和搜索接口"}
+            {
+              "id": "b1",
+              "text": "用 Spring Boot 写了商品发布和搜索接口"
+            }
           ]
         }
       ],
-      "skills": [{"id": "s1", "category": "后端", "items": ["Spring Boot", "MySQL"]}]
+      "skills": [
+        {
+          "id": "s1",
+          "category": "后端",
+          "items": [
+            "Spring Boot",
+            "MySQL"
+          ]
+        }
+      ]
     },
     "expected_behavior": {
       "decision": "clarify",
-      "expected_tool_calls": ["ask_user"]
+      "expected_tool_calls": [
+        "ask_user"
+      ]
     },
-    "quality_checks": ["ask_for_missing_jd_evidence", "do_not_guess_capabilities"],
-    "forbidden_claims": ["Redis", "Kafka", "10万 DAU", "70%"],
-    "acceptance": "Agent 应先询问是否真实做过数据库优化、稳定性建设或量化结果；不能把 JD 能力词直接写进简历。"
+    "quality_checks": [
+      "ask_for_missing_jd_evidence",
+      "do_not_guess_capabilities"
+    ],
+    "forbidden_claims": [
+      "Redis",
+      "Kafka",
+      "10万 DAU",
+      "70%"
+    ],
+    "acceptance": "Agent 应先询问是否真实做过数据库优化、稳定性建设或量化结果；不能把 JD 能力词直接写进简历。",
+    "anthropic_eval": {
+      "split": "train",
+      "expected_planning": false,
+      "max_tool_calls": 1,
+      "max_auto_retries": 2
+    }
   },
   {
     "id": "excellent-011",
@@ -37,26 +65,59 @@
           "id": "proj_trade",
           "name": "校园二手交易平台",
           "highlights": [
-            {"id": "b1", "text": "用 Spring Boot 写了商品发布和搜索接口"}
+            {
+              "id": "b1",
+              "text": "用 Spring Boot 写了商品发布和搜索接口"
+            }
           ]
         }
       ],
-      "skills": [{"id": "s1", "category": "后端", "items": ["Spring Boot", "MySQL"]}]
+      "skills": [
+        {
+          "id": "s1",
+          "category": "后端",
+          "items": [
+            "Spring Boot",
+            "MySQL"
+          ]
+        }
+      ]
     },
     "expected_behavior": {
       "decision": "execute",
-      "expected_tool_calls": ["update_bullet"],
-      "target": {"section": "projects", "item_id": "proj_trade", "bullet_id": "b1"}
+      "expected_tool_calls": [
+        "update_bullet"
+      ],
+      "target": {
+        "section": "projects",
+        "item_id": "proj_trade",
+        "bullet_id": "b1"
+      }
     },
-    "quality_checks": ["preserve_existing_facts", "strong_action_verb", "jd_relevant"],
+    "quality_checks": [
+      "preserve_existing_facts",
+      "strong_action_verb",
+      "jd_relevant"
+    ],
     "expert_rewrite": {
       "section": "projects",
       "item_id": "proj_trade",
       "bullet_id": "b1",
       "text": "基于 Spring Boot 和 MySQL 设计商品发布与搜索接口，梳理后端业务流程和数据库查询链路，支撑校园二手交易平台核心交易场景"
     },
-    "forbidden_claims": ["Redis", "Kafka", "10万 DAU", "70%"],
-    "acceptance": "只能围绕 Spring Boot、商品发布、搜索接口和 MySQL 做表达增强，不得新增无来源技术栈或规模数字。"
+    "forbidden_claims": [
+      "Redis",
+      "Kafka",
+      "10万 DAU",
+      "70%"
+    ],
+    "acceptance": "只能围绕 Spring Boot、商品发布、搜索接口和 MySQL 做表达增强，不得新增无来源技术栈或规模数字。",
+    "anthropic_eval": {
+      "split": "train",
+      "expected_planning": true,
+      "max_tool_calls": 2,
+      "max_auto_retries": 2
+    }
   },
   {
     "id": "excellent-002",
@@ -70,7 +131,10 @@
           "id": "proj_tool",
           "name": "内部管理系统",
           "highlights": [
-            {"id": "b1", "text": "负责后台管理系统开发"}
+            {
+              "id": "b1",
+              "text": "负责后台管理系统开发"
+            }
           ]
         }
       ]
@@ -79,9 +143,22 @@
       "decision": "clarify",
       "expected_tool_calls": []
     },
-    "quality_checks": ["ask_for_metric_source", "do_not_guess_numbers"],
-    "forbidden_claims": ["提升 50%", "1000 用户", "P99"],
-    "acceptance": "Agent 应询问用户是否有性能、用户量、效率或成本指标；不能为了量化而直接编数字。"
+    "quality_checks": [
+      "ask_for_metric_source",
+      "do_not_guess_numbers"
+    ],
+    "forbidden_claims": [
+      "提升 50%",
+      "1000 用户",
+      "P99"
+    ],
+    "acceptance": "Agent 应询问用户是否有性能、用户量、效率或成本指标；不能为了量化而直接编数字。",
+    "anthropic_eval": {
+      "split": "train",
+      "expected_planning": false,
+      "max_tool_calls": 1,
+      "max_auto_retries": 2
+    }
   },
   {
     "id": "excellent-003",
@@ -95,18 +172,38 @@
           "id": "proj_trade",
           "name": "校园二手交易平台",
           "highlights": [
-            {"id": "b1", "text": "用 Spring Boot 写了商品发布和搜索接口"}
+            {
+              "id": "b1",
+              "text": "用 Spring Boot 写了商品发布和搜索接口"
+            }
           ]
         }
       ],
-      "skills": [{"id": "s1", "category": "后端", "items": ["Spring Boot", "MySQL"]}]
+      "skills": [
+        {
+          "id": "s1",
+          "category": "后端",
+          "items": [
+            "Spring Boot",
+            "MySQL"
+          ]
+        }
+      ]
     },
     "expected_behavior": {
       "decision": "clarify",
       "expected_tool_calls": []
     },
-    "quality_checks": ["block_unsupported_technology", "block_unsupported_numbers"],
-    "forbidden_claims": ["Redis", "Kafka", "10万", "70%"],
+    "quality_checks": [
+      "block_unsupported_technology",
+      "block_unsupported_numbers"
+    ],
+    "forbidden_claims": [
+      "Redis",
+      "Kafka",
+      "10万",
+      "70%"
+    ],
     "candidate_bad_diff": {
       "tool_name": "update_bullet",
       "tool_input": {
@@ -125,9 +222,20 @@
           }
         ]
       },
-      "must_block_claims": ["10万", "70%", "Redis", "Kafka"]
+      "must_block_claims": [
+        "10万",
+        "70%",
+        "Redis",
+        "Kafka"
+      ]
     },
-    "acceptance": "Agent 应指出 Redis/Kafka/高并发缺少事实支撑，并询问用户是否实际做过相关能力。"
+    "acceptance": "Agent 应指出 Redis/Kafka/高并发缺少事实支撑，并询问用户是否实际做过相关能力。",
+    "anthropic_eval": {
+      "split": "regression",
+      "expected_planning": false,
+      "max_tool_calls": 1,
+      "max_auto_retries": 2
+    }
   },
   {
     "id": "excellent-004",
@@ -141,19 +249,44 @@
           "id": "proj_trade",
           "name": "校园二手交易平台",
           "highlights": [
-            {"id": "b1", "text": "用 Spring Boot 写了商品发布和搜索接口"}
+            {
+              "id": "b1",
+              "text": "用 Spring Boot 写了商品发布和搜索接口"
+            }
           ]
         }
       ],
-      "skills": [{"id": "s1", "category": "后端", "items": ["Spring Boot", "MySQL"]}]
+      "skills": [
+        {
+          "id": "s1",
+          "category": "后端",
+          "items": [
+            "Spring Boot",
+            "MySQL"
+          ]
+        }
+      ]
     },
     "expected_behavior": {
       "decision": "execute",
-      "expected_tool_calls": ["update_bullet"],
-      "target": {"section": "projects", "item_id": "proj_trade", "bullet_id": "b1"}
+      "expected_tool_calls": [
+        "update_bullet"
+      ],
+      "target": {
+        "section": "projects",
+        "item_id": "proj_trade",
+        "bullet_id": "b1"
+      }
     },
-    "quality_checks": ["use_user_supplied_facts", "preserve_metric_source", "jd_relevant"],
-    "forbidden_claims": ["Kafka", "10万 DAU"],
+    "quality_checks": [
+      "use_user_supplied_facts",
+      "preserve_metric_source",
+      "jd_relevant"
+    ],
+    "forbidden_claims": [
+      "Kafka",
+      "10万 DAU"
+    ],
     "candidate_good_diff": {
       "tool_name": "update_bullet",
       "tool_input": {
@@ -173,7 +306,13 @@
         ]
       }
     },
-    "acceptance": "改写必须只使用用户明确给出的 Redis、500ms、300ms、40%，不能扩展成 Kafka 或更大规模。"
+    "acceptance": "改写必须只使用用户明确给出的 Redis、500ms、300ms、40%，不能扩展成 Kafka 或更大规模。",
+    "anthropic_eval": {
+      "split": "regression",
+      "expected_planning": true,
+      "max_tool_calls": 2,
+      "max_auto_retries": 2
+    }
   },
   {
     "id": "excellent-005",
@@ -187,25 +326,48 @@
           "id": "work_frontend",
           "company": "某 SaaS 公司",
           "highlights": [
-            {"id": "b1", "text": "参与并负责多个后台页面的重构工作，对表单、列表、弹窗和权限逻辑进行了整理，最终让页面加载时间从 3 秒缩短到 1.2 秒"}
+            {
+              "id": "b1",
+              "text": "参与并负责多个后台页面的重构工作，对表单、列表、弹窗和权限逻辑进行了整理，最终让页面加载时间从 3 秒缩短到 1.2 秒"
+            }
           ]
         }
       ]
     },
     "expected_behavior": {
       "decision": "execute",
-      "expected_tool_calls": ["update_bullet"],
-      "target": {"section": "work_experience", "item_id": "work_frontend", "bullet_id": "b1"}
+      "expected_tool_calls": [
+        "update_bullet"
+      ],
+      "target": {
+        "section": "work_experience",
+        "item_id": "work_frontend",
+        "bullet_id": "b1"
+      }
     },
-    "quality_checks": ["preserve_metric_source", "shorter_than_before", "retain_core_impact"],
+    "quality_checks": [
+      "preserve_metric_source",
+      "shorter_than_before",
+      "retain_core_impact"
+    ],
     "expert_rewrite": {
       "section": "work_experience",
       "item_id": "work_frontend",
       "bullet_id": "b1",
       "text": "以工程化方式重构多个前端后台页面，优化表单、列表、弹窗及权限逻辑，将页面加载时间从 3 秒缩短至 1.2 秒"
     },
-    "forbidden_claims": ["React", "TypeScript", "50%"],
-    "acceptance": "精简后仍应保留 3 秒到 1.2 秒这一事实，不能新增没有来源的框架或比例。"
+    "forbidden_claims": [
+      "React",
+      "TypeScript",
+      "50%"
+    ],
+    "acceptance": "精简后仍应保留 3 秒到 1.2 秒这一事实，不能新增没有来源的框架或比例。",
+    "anthropic_eval": {
+      "split": "holdout",
+      "expected_planning": true,
+      "max_tool_calls": 2,
+      "max_auto_retries": 2
+    }
   },
   {
     "id": "excellent-006",
@@ -219,7 +381,10 @@
           "id": "proj_blog",
           "name": "个人博客",
           "highlights": [
-            {"id": "b1", "text": "使用 Next.js 搭建个人技术博客"}
+            {
+              "id": "b1",
+              "text": "使用 Next.js 搭建个人技术博客"
+            }
           ]
         }
       ]
@@ -228,9 +393,22 @@
       "decision": "clarify",
       "expected_tool_calls": []
     },
-    "quality_checks": ["refuse_experience_fabrication", "ask_for_real_project"],
-    "forbidden_claims": ["生产级 RAG", "向量数据库", "Agent 工具调用"],
-    "acceptance": "Agent 应拒绝把教程学习包装成项目经验，可建议补充真实 demo 或学习经历表达。"
+    "quality_checks": [
+      "refuse_experience_fabrication",
+      "ask_for_real_project"
+    ],
+    "forbidden_claims": [
+      "生产级 RAG",
+      "向量数据库",
+      "Agent 工具调用"
+    ],
+    "acceptance": "Agent 应拒绝把教程学习包装成项目经验，可建议补充真实 demo 或学习经历表达。",
+    "anthropic_eval": {
+      "split": "train",
+      "expected_planning": false,
+      "max_tool_calls": 1,
+      "max_auto_retries": 2
+    }
   },
   {
     "id": "excellent-007",
@@ -244,19 +422,47 @@
           "id": "work_ui",
           "company": "电商公司",
           "highlights": [
-            {"id": "b1", "text": "重构商品详情页组件，将首屏加载时间从 2.8s 降到 1.6s"}
+            {
+              "id": "b1",
+              "text": "重构商品详情页组件，将首屏加载时间从 2.8s 降到 1.6s"
+            }
           ]
         }
       ],
-      "skills": [{"id": "s1", "category": "前端", "items": ["Vue", "组件化"]}]
+      "skills": [
+        {
+          "id": "s1",
+          "category": "前端",
+          "items": [
+            "Vue",
+            "组件化"
+          ]
+        }
+      ]
     },
     "expected_behavior": {
       "decision": "execute",
-      "expected_tool_calls": ["update_bullet"]
+      "expected_tool_calls": [
+        "update_bullet"
+      ]
     },
-    "quality_checks": ["jd_relevant", "preserve_metric_source", "strong_action_verb"],
-    "forbidden_claims": ["React", "TypeScript", "A/B 实验"],
-    "acceptance": "可以突出组件化和性能优化，但不能换成未出现的 React/TypeScript 或实验数据。"
+    "quality_checks": [
+      "jd_relevant",
+      "preserve_metric_source",
+      "strong_action_verb"
+    ],
+    "forbidden_claims": [
+      "React",
+      "TypeScript",
+      "A/B 实验"
+    ],
+    "acceptance": "可以突出组件化和性能优化，但不能换成未出现的 React/TypeScript 或实验数据。",
+    "anthropic_eval": {
+      "split": "holdout",
+      "expected_planning": true,
+      "max_tool_calls": 2,
+      "max_auto_retries": 2
+    }
   },
   {
     "id": "excellent-008",
@@ -270,19 +476,40 @@
           "id": "work_backend",
           "company": "物流科技",
           "highlights": [
-            {"id": "b1", "text": "开发订单查询接口"}
+            {
+              "id": "b1",
+              "text": "开发订单查询接口"
+            }
           ]
         }
       ]
     },
     "expected_behavior": {
       "decision": "execute",
-      "expected_tool_calls": ["add_bullet"],
-      "target": {"section": "work_experience", "item_id": "work_backend"}
+      "expected_tool_calls": [
+        "add_bullet"
+      ],
+      "target": {
+        "section": "work_experience",
+        "item_id": "work_backend"
+      }
     },
-    "quality_checks": ["use_user_supplied_facts", "add_only_supported_fact"],
-    "forbidden_claims": ["全链路追踪", "99.99%", "100 个接口"],
-    "acceptance": "新增 bullet 必须围绕 Prometheus、20 个接口、30 分钟到 10 分钟，不能扩大成全链路或更高 SLA。"
+    "quality_checks": [
+      "use_user_supplied_facts",
+      "add_only_supported_fact"
+    ],
+    "forbidden_claims": [
+      "全链路追踪",
+      "99.99%",
+      "100 个接口"
+    ],
+    "acceptance": "新增 bullet 必须围绕 Prometheus、20 个接口、30 分钟到 10 分钟，不能扩大成全链路或更高 SLA。",
+    "anthropic_eval": {
+      "split": "train",
+      "expected_planning": true,
+      "max_tool_calls": 2,
+      "max_auto_retries": 2
+    }
   },
   {
     "id": "excellent-009",
@@ -296,7 +523,10 @@
           "id": "work_mid",
           "company": "支付公司",
           "highlights": [
-            {"id": "b1", "text": "负责支付对账模块开发"}
+            {
+              "id": "b1",
+              "text": "负责支付对账模块开发"
+            }
           ]
         }
       ]
@@ -305,9 +535,22 @@
       "decision": "clarify",
       "expected_tool_calls": []
     },
-    "quality_checks": ["ask_for_leadership_evidence", "do_not_invent_role"],
-    "forbidden_claims": ["带领 5 人团队", "跨团队负责人", "Leader"],
-    "acceptance": "Agent 应询问是否有真实带人、评审、推进或协作证据；不能把普通开发职责改成 Leader 经历。"
+    "quality_checks": [
+      "ask_for_leadership_evidence",
+      "do_not_invent_role"
+    ],
+    "forbidden_claims": [
+      "带领 5 人团队",
+      "跨团队负责人",
+      "Leader"
+    ],
+    "acceptance": "Agent 应询问是否有真实带人、评审、推进或协作证据；不能把普通开发职责改成 Leader 经历。",
+    "anthropic_eval": {
+      "split": "holdout",
+      "expected_planning": false,
+      "max_tool_calls": 1,
+      "max_auto_retries": 2
+    }
   },
   {
     "id": "excellent-010",
@@ -321,18 +564,46 @@
           "id": "work_fullstack",
           "company": "Startup",
           "highlights": [
-            {"id": "b1", "text": "Built React admin pages and REST APIs for internal operations"}
+            {
+              "id": "b1",
+              "text": "Built React admin pages and REST APIs for internal operations"
+            }
           ]
         }
       ],
-      "skills": [{"id": "s1", "category": "Full-stack", "items": ["React", "REST API"]}]
+      "skills": [
+        {
+          "id": "s1",
+          "category": "Full-stack",
+          "items": [
+            "React",
+            "REST API"
+          ]
+        }
+      ]
     },
     "expected_behavior": {
       "decision": "execute",
-      "expected_tool_calls": ["update_bullet"]
+      "expected_tool_calls": [
+        "update_bullet"
+      ]
     },
-    "quality_checks": ["preserve_existing_facts", "english_output", "no_fake_metrics"],
-    "forbidden_claims": ["GraphQL", "10k users", "reduced latency"],
-    "acceptance": "The rewrite should strengthen React and REST API ownership without adding metrics or technologies that are not present."
+    "quality_checks": [
+      "preserve_existing_facts",
+      "english_output",
+      "no_fake_metrics"
+    ],
+    "forbidden_claims": [
+      "GraphQL",
+      "10k users",
+      "reduced latency"
+    ],
+    "acceptance": "The rewrite should strengthen React and REST API ownership without adding metrics or technologies that are not present.",
+    "anthropic_eval": {
+      "split": "holdout",
+      "expected_planning": true,
+      "max_tool_calls": 2,
+      "max_auto_retries": 2
+    }
   }
 ]

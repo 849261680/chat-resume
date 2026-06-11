@@ -168,6 +168,21 @@ def test_ask_user_tool_counts_as_clarify_not_execute():
     assert result["actual_tool_calls"] == ["ask_user"]
 
 
+def test_ask_user_tool_counts_as_clarify_without_marker_words():
+    """用于验证 ask_user 工具本身足以表示结构化追问决策。"""
+    result = evaluate_excellent_resume_trajectory(
+        case=_case("excellent-002"),
+        trajectory={
+            "tool_calls": [{"name": "询问信息"}],
+            "final_text": "这个内部管理系统具体是什么业务场景？",
+        },
+    )
+
+    assert result["passed"] is True
+    assert result["actual_decision"] == "clarify"
+    assert result["anthropic_metrics"]["planning_visibility"]["applicable"] is False
+
+
 def test_gate_failure_case_counts_as_clarify_trajectory():
     """用于验证事实门禁失败后回到追问也算正确轨迹。"""
     result = evaluate_excellent_resume_trajectory(

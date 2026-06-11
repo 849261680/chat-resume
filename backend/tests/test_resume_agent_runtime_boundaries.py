@@ -1638,6 +1638,77 @@ async def test_resume_agent_loop_runs_react_turns_independently():
     )
 
 
+@pytest.mark.asyncio
+async def test_resume_agent_loop_publishes_plan_before_mutation_tool():
+    """用于验证简历修改工具调用前会先发布用户可见计划。"""
+    agent = ResumeAgent()
+    stream = FakeLoopStream(
+        [
+            fake_loop_tool_call(
+                name="update_bullet",
+                args={
+                    "section": "work_experience",
+                    "item_id": "work_1",
+                    "bullet_id": "hl_1",
+                    "text": "维护后台服务，支撑日活 10 万用户",
+                    "reason": "补充已确认业务规模",
+                },
+                call_id="call_plan_1",
+            ),
+            fake_loop_text("已完成优化。"),
+        ]
+    )
+    stage = ResumeToolExecutionStage()
+    loop = ResumeAgentLoop(stream_fn=stream, tool_stage=stage)
+    resume = {
+        "work_experience": [
+            {
+                "id": "work_1",
+                "company": "某科技公司",
+                "position": "Python 开发工程师",
+                "highlights": [{"id": "hl_1", "text": "维护后台服务"}],
+            }
+        ]
+    }
+    state = _new_test_stream_state()
+    context = {"resume_content": resume, "allowed_sections": {"work_experience"}}
+    pi_context, prompts, config = _build_test_turn_inputs(
+        agent,
+        user_message="优化这段工作经历，这个服务实际支撑日活 10 万用户",
+        context=context,
+        state=state,
+    )
+    confirmation_queue: asyncio.Queue[bool] = asyncio.Queue()
+    confirmation_queue.put_nowait(True)
+    event_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+
+    await loop.run(
+        agent=agent.definition,
+        run_id="run_plan_test",
+        pi_context=pi_context,
+        prompts=prompts,
+        config=config,
+        context=context,
+        confirmation_queue=confirmation_queue,
+        event_queue=event_queue,
+        event_callback=None,
+        state=state,
+        executed_tools=[],
+        model_name="test-model",
+    )
+
+    events: list[dict[str, Any]] = []
+    while not event_queue.empty():
+        events.append(event_queue.get_nowait())
+    event_types = [event.get("event_type") for event in events]
+    plan_index = event_types.index("text_delta")
+    tool_index = event_types.index("tool_call")
+
+    assert plan_index < tool_index
+    assert "调用 update_bullet" in events[plan_index]["content"]
+    assert events[tool_index]["call_id"] == "call_plan_1"
+
+
 def test_openrouter_adapter_preserves_business_model_defaults():
     """用于验证 provider 配置从 runtime 中拆出且保留模型默认值。"""
     agent = ResumeAgent()

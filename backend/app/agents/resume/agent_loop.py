@@ -83,6 +83,19 @@ _MUTATION_ACTION_WORDS = (
     "bullet",
     "要点",
 )
+_PLANNING_TOOL_NAMES = {
+    "add_bullet",
+    "hide_section",
+    "remove_bullet",
+    "show_section",
+    "update_bullet",
+    "update_item_fields",
+    "update_overview",
+    "update_profile",
+    "update_skills",
+    "update_summary",
+    "upsert_job_application",
+}
 
 
 class ResumeAgentLoop:
@@ -246,7 +259,7 @@ class ResumeAgentLoop:
         event_callback: RuntimeEventCallback | None,
         state: dict[str, Any],
     ) -> tuple[AssistantMessage, list[str]]:
-        """用于拉取一轮 assistant 流，并暂存文本直到确认没有工具调用。"""
+        """用于拉取一轮 assistant 流，并在工具调用前发布可见计划。"""
         del run_id
         cancel_event = asyncio.Event()
         response = self.stream_fn(
@@ -282,6 +295,13 @@ class ResumeAgentLoop:
                 ):
                     early_tool_call_published = True
                     visible_early_tool_call = early_tool_call
+                    await self.publish_planning_before_tool_call(
+                        tool_call=early_tool_call,
+                        event_queue=event_queue,
+                        event_callback=event_callback,
+                        state=state,
+                        text_deltas=text_deltas,
+                    )
                     await self.tool_stage.publish_visible_tool_call(
                         call_id=early_tool_call.id,
                         tool_name=early_tool_call.name,
@@ -315,6 +335,47 @@ class ResumeAgentLoop:
             return assistant_message, text_deltas
         finally:
             cancel_event.set()
+
+    @classmethod
+    async def publish_planning_before_tool_call(
+        cls,
+        *,
+        tool_call: ToolCall,
+        event_queue: asyncio.Queue[Any] | None,
+        event_callback: RuntimeEventCallback | None,
+        state: dict[str, Any],
+        text_deltas: list[str],
+    ) -> None:
+        """用于确保简历修改工具执行前有用户可见的一句话计划。"""
+        if state.get("planning_visibility_published"):
+            return
+        if tool_call.name not in _PLANNING_TOOL_NAMES:
+            return
+        deltas = text_deltas or [cls.planning_text_for_tool(tool_call.name)]
+        state["planning_visibility_published"] = True
+        if state["first_token_latency_ms"] is None:
+            state["first_token_latency_ms"] = round(
+                (perf_counter() - state["started_at"]) * 1000,
+                2,
+            )
+        for content in deltas:
+            if not content:
+                continue
+            state["chunk_index"] += 1
+            state["response_parts"].append(content)
+            await cls.publish_event(
+                event_queue=event_queue,
+                event_callback=event_callback,
+                event=text_delta_event(content=content),
+            )
+
+    @staticmethod
+    def planning_text_for_tool(tool_name: str) -> str:
+        """用于在模型没有先输出计划时生成最小可见计划。"""
+        return (
+            f"我会先调用 {tool_name} 做一次保守修改，"
+            "只处理你这次请求相关的简历内容。\n"
+        )
 
     async def publish_model_stream_error(
         self,

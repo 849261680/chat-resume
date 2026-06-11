@@ -151,7 +151,9 @@ def _actual_decision(
     """用于把轨迹压缩成执行或追问决策。"""
     if gate_failure:
         return "clarify"
-    if actual_tool_calls and not _only_clarify_tools(actual_tool_calls):
+    if actual_tool_calls and _only_clarify_tools(actual_tool_calls):
+        return "clarify"
+    if actual_tool_calls:
         return "execute"
     if _looks_like_clarification(final_text):
         return "clarify"

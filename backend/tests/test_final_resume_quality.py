@@ -291,7 +291,7 @@ def test_excellent_001_rewrite_with_unsupported_jd_capabilities_fails_fact_check
     case = _excellent_case("excellent-001")
     resume_after = _resume_with_target_rewrite(
         case,
-        "基于 Spring Boot 设计并实现商品发布与搜索接口，完成 MySQL 索引优化，保障核心交易链路的稳定性",
+        "基于 Spring Boot 设计并实现商品发布与搜索接口，完成 MySQL 数据库查询优化与参数校验，保障核心交易链路的稳定性",
     )
 
     result = score_final_resume_quality(
@@ -301,7 +301,9 @@ def test_excellent_001_rewrite_with_unsupported_jd_capabilities_fails_fact_check
     )
 
     assert result["passed"] is False
-    assert {"索引优化", "稳定性"} <= set(result["fact_check"]["unsupported_claims"])
+    assert {"数据库查询优化", "参数校验", "稳定性"} <= set(
+        result["fact_check"]["unsupported_claims"]
+    )
 
 
 def _excellent_case(case_id: str) -> dict:

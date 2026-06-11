@@ -137,6 +137,19 @@ def test_tool_excludes_forbidden_params(tool_name: str, forbidden: list[str]):
         )
 
 
+def test_update_bullet_text_requires_source_backed_facts():
+    """update_bullet 的 text 参数必须声明事实来源边界。"""
+    tool = next(
+        t for t in RESUME_TOOLS_SCHEMA if t["function"]["name"] == "update_bullet"
+    )
+    desc = tool["function"]["parameters"]["properties"]["text"]["description"]
+
+    assert "当前简历、用户补充或背景档案" in desc
+    assert "JD 只能提供匹配方向" in desc
+    assert "不能写入 text" in desc
+    assert "ask_user" in desc
+
+
 @pytest.mark.parametrize("tag,tool_name,field_path", _SCHEMA_TAG_CHECKS)
 def test_tool_carries_semantic_tag(tag: str, tool_name: str, field_path: str | None):
     """指定工具（或参数字段）必须包含对应语义标签。"""

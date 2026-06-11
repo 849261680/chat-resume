@@ -103,7 +103,6 @@ RESUME_EDIT_TOOL_NAMES = {
     "read_job_post",
     "read_memory",
     "update_memory",
-    "evaluate_bullet",
 }
 
 

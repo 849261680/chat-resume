@@ -136,7 +136,6 @@ _EDIT_TOOL_NAMES = [
     "add_bullet",
     "remove_bullet",
     "score_resume",
-    "evaluate_bullet",
     "list_job_posts",
     "read_job_post",
     "read_memory",
@@ -176,6 +175,25 @@ def test_prompt_prefers_conservative_rewrite_when_existing_facts_are_enough():
     assert "先做保守改写，不要因为缺少量化指标就追问" in rendered
     assert "不要为了满足格式编造数字" in rendered
     assert "不要把所有优化请求都变成追问" in rendered
+
+
+def test_prompt_blocks_unsupported_jd_capability_claims_in_conservative_rewrite():
+    """prompt 应说明 JD、update_bullet 和 ask_user 的事实边界。"""
+    rendered = _render(
+        target_title="后端工程师",
+        target_company="",
+        jd_text="负责接口设计、数据库优化和稳定性建设",
+        resume_json=(
+            '{"projects":[{"id":"proj_trade","highlights":[{"id":"b1",'
+            '"text":"用 Spring Boot 写了商品发布和搜索接口"}]}],'
+            '"skills":[{"items":["Spring Boot","MySQL"]}]}'
+        ),
+    )
+
+    assert "JD 只提供匹配方向，不是经历事实来源" in rendered
+    assert "`update_bullet` 用于改写已有事实" in rendered
+    assert "已有事实能支撑部分优化时可先改这部分" in rendered
+    assert "缺少事实时用 `ask_user`" in rendered
 
 
 def test_prompt_blocks_unsupported_jd_keywords_before_mutation():

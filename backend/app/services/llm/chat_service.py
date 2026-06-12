@@ -55,7 +55,7 @@ class ChatService:
         """上下文管理器入口"""
         return self
 
-    async def __aexit__(self, exc_type, _exc_val, _exc_tb):
+    async def __aexit__(self, _exc_type, _exc_val, _exc_tb):
         """上下文管理器出口"""
         await self.close()
 

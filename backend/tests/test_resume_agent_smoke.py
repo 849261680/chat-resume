@@ -186,8 +186,8 @@ class HangingPiAgentStream:
         async def events_iter():
             """保持流运行直到测试取消。"""
             await self.released.wait()
-            if False:
-                yield StreamStartEvent(partial=AssistantMessage())
+            for event in ():
+                yield event
 
         async def result():
             """返回空文本结果。"""

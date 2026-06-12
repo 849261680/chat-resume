@@ -38,7 +38,7 @@ class QualityJudgment:
 def judge_tool_call_relevance(
     user_message: str,
     tool_call_name: str,
-    tool_call_args: dict[str, Any],
+    _tool_call_args: dict[str, Any],
 ) -> QualityDimension:
     """评判工具调用是否与用户意图匹配。"""
     findings: list[str] = []

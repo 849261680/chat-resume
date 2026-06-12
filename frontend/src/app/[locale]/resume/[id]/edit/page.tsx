@@ -1364,14 +1364,6 @@ export default function ResumeEditPage() {
                             return <AgentToolActivity key={idx} event={event} live />
                           }
                           if (event.type === 'user_input_request') return null
-                          if (event.type === 'tool') {
-                            return (
-                              <div key={idx} className="flex items-center gap-2 text-xs text-gray-500 mb-1">
-                                <div className="w-1.5 h-1.5 rounded-full bg-primary-400 animate-pulse flex-shrink-0" />
-                                <span>{event.name}</span>
-                              </div>
-                            )
-                          }
                           // text event
                           const isLastEvent = idx === streamEvents.length - 1
                           return (

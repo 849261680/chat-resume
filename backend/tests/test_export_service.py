@@ -222,7 +222,7 @@ def test_render_pdf_with_playwright_uses_expected_page_settings(tmp_path, monkey
             """用于处理aenter。"""
             return FakePlaywright()
 
-        async def __aexit__(self, exc_type, exc, tb):
+        async def __aexit__(self, _exc_type, _exc, _tb):
             """用于处理aexit。"""
             return False
 
@@ -341,7 +341,7 @@ def test_render_pdf_with_playwright_injects_storage_payload(tmp_path, monkeypatc
             """用于处理aenter。"""
             return FakePlaywright()
 
-        async def __aexit__(self, exc_type, exc, tb):
+        async def __aexit__(self, _exc_type, _exc, _tb):
             """用于处理aexit。"""
             return False
 

@@ -1,7 +1,7 @@
 'use client'
 // 用于提供 lib/auth.tsx 模块。
 
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react'
+import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 import { apiFetch, handleApiResponse } from './httpClient'
 import zhAuth from '../../locales/zh/auth.json'
 import enAuth from '../../locales/en/auth.json'

@@ -9,7 +9,7 @@ export interface PrintPayload {
 }
 
 // 用于把 base64url 字符串解码成 UTF-8 JSON 字符串。
-export function decodeBase64Url(data: string): string {
+function decodeBase64Url(data: string): string {
   const normalized = data.replace(/-/g, '+').replace(/_/g, '/')
   const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=')
   const binary = window.atob(padded)
@@ -18,7 +18,7 @@ export function decodeBase64Url(data: string): string {
 }
 
 // 用于解码打印页载荷。
-export function decodePayload(data?: string | null): PrintPayload | null {
+function decodePayload(data?: string | null): PrintPayload | null {
   if (!data) {
     return null
   }
@@ -46,7 +46,7 @@ export function readPrintPayload(data?: string, payloadKey?: string): PrintPaylo
 }
 
 // 用于判断载荷是否包含可打印的简历内容。
-export function hasPrintableResumeContent(payload: PrintPayload | null): boolean {
+function hasPrintableResumeContent(payload: PrintPayload | null): boolean {
   const content = payload?.content
   return Boolean(
     content?.personal_info ||

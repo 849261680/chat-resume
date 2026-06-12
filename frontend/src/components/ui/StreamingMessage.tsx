@@ -1,5 +1,4 @@
 // 用于提供 components/ui/StreamingMessage.tsx 模块。
-import React from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { normalizeAiMarkdown } from '@/lib/markdown'

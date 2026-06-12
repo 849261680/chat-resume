@@ -11,13 +11,6 @@ export type { ModuleConfig, ResumeModule, ResumeTemplateStyle } from '@/types/re
 
 export type LayoutDensity = 'comfortable' | 'normal' | 'compact' | 'custom'
 
-export const TEMPLATE_STYLE_LABELS: Record<ResumeTemplateStyle, string> = {
-  classic: 'Classic',
-  modern: 'Modern',
-  formal: 'Formal',
-  emerald: 'Emerald',
-}
-
 /**
  * 三档预设对应的 spacingScale 值
  */
@@ -43,7 +36,7 @@ const DEFAULT_MODULE_ORDER: ResumeModule[] = [
 /**
  * 模块显示名称
  */
-export const MODULE_LABELS: Record<ResumeModule, string> = {
+const MODULE_LABELS: Record<ResumeModule, string> = {
   personal: 'Personal info',
   summary: 'Summary',
   education: 'Education',

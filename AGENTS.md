@@ -36,5 +36,3 @@
 - 后端使用basedpyright 进行类型检查
 
 - 每次进行一次修改后都要告诉用户如何验收并检查改动后的正确性
-
-<!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:7510c1e2 -->

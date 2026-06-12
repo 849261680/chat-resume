@@ -1,6 +1,4 @@
 // 用于提供 lib/oauthErrors.ts 模块。
-import zhAuth from '../../locales/zh/auth.json'
-import enAuth from '../../locales/en/auth.json'
 
 const OAUTH_ERROR_KEYS = new Set([
   'cancelled',
@@ -12,21 +10,6 @@ const OAUTH_ERROR_KEYS = new Set([
   'config_missing',
   'unknown',
 ])
-
-// 用于获取OAuth消息。
-function currentOAuthMessages() {
-  // Keeps legacy callers localized while pages use translation keys directly.
-  const locale = document.cookie.includes('NEXT_LOCALE=en') ? 'en' : 'zh'
-  return locale === 'en' ? enAuth.oauth.errors : zhAuth.oauth.errors
-}
-
-// 用于获取OAuth错误消息。
-export function getOAuthErrorMessage(errorCode: string | null) {
-  if (!errorCode) return null
-  const messages = currentOAuthMessages()
-  const key = OAUTH_ERROR_KEYS.has(errorCode) ? errorCode : 'unknown'
-  return messages[key as keyof typeof messages]
-}
 
 // 用于获取OAuth错误键。
 export function getOAuthErrorKey(errorCode: string | null) {

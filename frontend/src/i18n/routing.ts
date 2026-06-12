@@ -1,10 +1,10 @@
 // 用于提供 i18n/routing.ts 模块。
 import { defineRouting } from 'next-intl/routing'
 
-export const locales = ['zh', 'en'] as const
+const locales = ['zh', 'en'] as const
 export type AppLocale = (typeof locales)[number]
 
-export const defaultLocale: AppLocale = 'zh'
+const defaultLocale: AppLocale = 'zh'
 export const localeCookieName = 'NEXT_LOCALE'
 
 // Central locale routing contract for UI routes and proxy negotiation.

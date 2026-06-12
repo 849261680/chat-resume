@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl'
 import { apiUrl } from '@/lib/httpClient'
 
 // 用于获取Google登录地址。
-export function getGoogleLoginUrl() {
+function getGoogleLoginUrl() {
   return apiUrl('/api/auth/google/login')
 }
 

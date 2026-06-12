@@ -15,7 +15,6 @@ export type UserInputRequest = {
 }
 
 export type StreamEvent =
-  | { type: 'tool'; name: string }
   | { type: 'text'; content: string }
   | {
       type: 'tool_call'
@@ -96,7 +95,7 @@ function normalizeDiffItem(value: unknown): DiffItem[] {
 }
 
 // 用于标准化工具名称。
-export function normalizeToolName(name: string): string {
+function normalizeToolName(name: string): string {
   return TOOL_NAME_ALIASES[name] || name
 }
 
@@ -112,7 +111,7 @@ export function resolveToolId(data: Record<string, unknown>): string {
 }
 
 // 用于解析工具输入。
-export function resolveToolInput(data: Record<string, unknown>): Record<string, unknown> | undefined {
+function resolveToolInput(data: Record<string, unknown>): Record<string, unknown> | undefined {
   if (data.tool_input && typeof data.tool_input === 'object') {
     return data.tool_input as Record<string, unknown>
   }
@@ -141,7 +140,7 @@ function parseObjectJson(value: string): Record<string, unknown> | undefined {
 }
 
 // 用于把后端询问工具载荷标准化成前端卡片数据。
-export function normalizeUserInputRequest(value: unknown): UserInputRequest | null {
+function normalizeUserInputRequest(value: unknown): UserInputRequest | null {
   if (!value || typeof value !== 'object') return null
   const record = value as Record<string, unknown>
   const question = typeof record.question === 'string' ? record.question.trim() : ''
@@ -166,7 +165,7 @@ function normalizeStringOptions(value: unknown): string[] {
 }
 
 // 用于解析工具名称。
-export function resolveToolName(data: Record<string, unknown>, fallbackName: string): string {
+function resolveToolName(data: Record<string, unknown>, fallbackName: string): string {
   if (data.tool_display_name) return normalizeToolName(String(data.tool_display_name))
   if (data.tool_name) return normalizeToolName(String(data.tool_name))
   const calls = Array.isArray(data.tool_calls) ? data.tool_calls : []

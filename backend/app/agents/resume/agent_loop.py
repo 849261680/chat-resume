@@ -260,7 +260,6 @@ class ResumeAgentLoop:
         state: dict[str, Any],
     ) -> tuple[AssistantMessage, list[str]]:
         """用于拉取一轮 assistant 流，并在工具调用前发布可见计划。"""
-        del run_id
         cancel_event = asyncio.Event()
         response = self.stream_fn(
             config.model,
@@ -317,6 +316,14 @@ class ResumeAgentLoop:
                             2,
                         )
                     text_deltas.append(delta)
+                    if self.should_publish_streamed_text_delta(raw_event):
+                        await self.publish_streamed_text_delta(
+                            run_id=run_id,
+                            event_queue=event_queue,
+                            event_callback=event_callback,
+                            state=state,
+                            content=delta,
+                        )
 
             result = response["result"]()
             if inspect.isawaitable(result):
@@ -348,6 +355,8 @@ class ResumeAgentLoop:
     ) -> None:
         """用于确保简历修改工具执行前有用户可见的一句话计划。"""
         if state.get("planning_visibility_published"):
+            return
+        if state.get("text_deltas_streamed"):
             return
         if tool_call.name not in _PLANNING_TOOL_NAMES:
             return
@@ -453,14 +462,15 @@ class ResumeAgentLoop:
         """用于处理没有真实工具调用的简历修改完成声明。"""
         assistant_text = "".join(text_deltas) or str(state.get("last_assistant_text") or "")
         if not self.is_unexecuted_mutation_claim(assistant_text, executed_tools):
-            await self.publish_text_deltas(
-                agent=agent,
-                run_id=run_id,
-                event_queue=event_queue,
-                event_callback=event_callback,
-                state=state,
-                text_deltas=text_deltas,
-            )
+            if not state.get("text_deltas_streamed"):
+                await self.publish_text_deltas(
+                    agent=agent,
+                    run_id=run_id,
+                    event_queue=event_queue,
+                    event_callback=event_callback,
+                    state=state,
+                    text_deltas=text_deltas,
+                )
             return False
 
         retry_count = int(state.get("mutation_claim_retry_count") or 0)
@@ -525,6 +535,13 @@ class ResumeAgentLoop:
             return ""
         return str(getattr(raw_event, "delta", "") or "")
 
+    @staticmethod
+    def should_publish_streamed_text_delta(raw_event: Any) -> bool:
+        """用于识别可直接透传到前端的 OpenAI Agents SDK 文本 delta。"""
+        partial = getattr(raw_event, "partial", None)
+        provider = str(getattr(partial, "provider", "") or "")
+        return provider in {"openai-agents", "deepseek"}
+
     async def publish_text_deltas(
         self,
         *,
@@ -554,6 +571,35 @@ class ResumeAgentLoop:
                 event_callback=event_callback,
                 event=text_delta_event(content=content),
             )
+
+    @classmethod
+    async def publish_streamed_text_delta(
+        cls,
+        *,
+        run_id: str,
+        event_queue: asyncio.Queue[Any] | None,
+        event_callback: RuntimeEventCallback | None,
+        state: dict[str, Any],
+        content: str,
+    ) -> None:
+        """用于把底层模型流式文本立即发布到前端并防止最终重复 flush。"""
+        if not content:
+            return
+        state["text_deltas_streamed"] = True
+        state["chunk_index"] += 1
+        state["response_parts"].append(content)
+        cls.trace_chunk(
+            "agent.trace.intermediate.chunk",
+            run_id=run_id,
+            chunk_index=state["chunk_index"],
+            content_preview=ResumeToolExecutionStage.preview_text(content),
+            content_chars=len(content),
+        )
+        await cls.publish_event(
+            event_queue=event_queue,
+            event_callback=event_callback,
+            event=text_delta_event(content=content),
+        )
 
     async def execute_react_tool(
         self,

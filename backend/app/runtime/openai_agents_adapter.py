@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import inspect
 import json
 from collections.abc import AsyncIterator
@@ -12,8 +13,10 @@ from agents import FunctionTool, ModelSettings, RunConfig, Runner, ToolsToFinalO
 from agents.items import TResponseInputItem, ToolApprovalItem
 from agents.models.interface import Model as OpenAIAgentsModel
 from agents.models.openai_provider import OpenAIProvider
+from agents.result import RunResultStreaming
+from agents.run_state import RunState
+from agents.stream_events import RawResponsesStreamEvent
 from agents.usage import Usage as OpenAIAgentsUsage
-from openai.types.responses import ResponseFunctionToolCall
 from pi_agent_core import (
     AgentContext,
     AgentLoopConfig,
@@ -22,12 +25,7 @@ from pi_agent_core import (
     SimpleStreamOptions,
     StreamDoneEvent,
     StreamResult,
-    StreamStartEvent,
     StreamTextDeltaEvent,
-    StreamTextEndEvent,
-    StreamTextStartEvent,
-    StreamToolCallEndEvent,
-    StreamToolCallStartEvent,
     TextContent,
     ToolCall,
     Usage,
@@ -123,53 +121,22 @@ class OpenAIAgentsStreamAdapter:
         options: SimpleStreamOptions,
     ) -> StreamResult:
         """用于返回现有 ResumeAgentLoop 期望的 StreamResult。"""
-        message = await self.run_sdk_turn(model, context, options)
-        events = self.events_for_message(message)
+        bridge = OpenAIAgentsStreamBridge(self, model, context, options)
+        return {"events": bridge.events(), "result": bridge.result}
 
-        async def events_iter() -> AsyncIterator[Any]:
-            """用于按顺序回放转换后的单轮事件。"""
-            for event in events:
-                yield event
-
-        async def result() -> AssistantMessage:
-            """用于返回单轮最终 assistant message。"""
-            return message
-
-        return {"events": events_iter(), "result": result}
-
-    async def run_sdk_turn(
+    def run_sdk_streamed(
         self,
-        model: Model,
-        context: AgentContext,
-        options: SimpleStreamOptions,
-    ) -> AssistantMessage:
-        """用于构建 SDK Agent，并让 SDK 原生驱动工具调用直到最终回复。"""
-        sdk_agent = self.build_sdk_agent(model, context, options)
-        run_config = self.run_config(model, options)
-        result = await Runner.run(
+        sdk_agent: OpenAIAgent[Any],
+        input_items: list[TResponseInputItem] | RunState[Any],
+        run_config: RunConfig,
+    ) -> RunResultStreaming:
+        """用于通过 SDK 原生 streaming runner 启动或恢复一次 run。"""
+        return Runner.run_streamed(
             sdk_agent,
-            self.input_items(context.messages),
+            input_items,
             max_turns=10,
             run_config=run_config,
         )
-        while result.interruptions:
-            state = result.to_state()
-            for interruption in result.interruptions:
-                approved, rejection_message = await self.resolve_tool_approval(
-                    context,
-                    interruption,
-                )
-                if approved:
-                    state.approve(interruption)
-                else:
-                    state.reject(interruption, rejection_message=rejection_message)
-            result = await Runner.run(
-                sdk_agent,
-                state,
-                max_turns=10,
-                run_config=run_config,
-            )
-        return self.text_message(model, str(result.final_output or ""), result.context_wrapper.usage)
 
     def build_sdk_agent(
         self,
@@ -396,17 +363,6 @@ class OpenAIAgentsStreamAdapter:
             block.text for block in content if isinstance(block, TextContent) and block.text
         )
 
-    @staticmethod
-    def first_interrupted_tool_call(
-        interruptions: list[ToolApprovalItem],
-    ) -> ResponseFunctionToolCall | None:
-        """用于读取 SDK approval interruption 中的第一个函数工具调用。"""
-        for interruption in interruptions:
-            raw_item = interruption.raw_item
-            if isinstance(raw_item, ResponseFunctionToolCall):
-                return raw_item
-        return None
-
     @classmethod
     def text_message(
         cls,
@@ -421,29 +377,6 @@ class OpenAIAgentsStreamAdapter:
             model=model.id,
             content=[TextContent(text=text)] if text else [],
             stop_reason="stop",
-            usage=cls.usage_to_pi_usage(usage),
-        )
-
-    @classmethod
-    def tool_call_message(
-        cls,
-        model: Model,
-        tool_call: ResponseFunctionToolCall,
-        usage: OpenAIAgentsUsage,
-    ) -> AssistantMessage:
-        """用于构建包含工具调用的 assistant 消息。"""
-        return AssistantMessage(
-            api=model.api,
-            provider=model.provider,
-            model=model.id,
-            content=[
-                ToolCall(
-                    id=tool_call.call_id,
-                    name=tool_call.name,
-                    arguments=cls.parse_tool_arguments(tool_call.arguments),
-                )
-            ],
-            stop_reason="toolUse",
             usage=cls.usage_to_pi_usage(usage),
         )
 
@@ -466,29 +399,121 @@ class OpenAIAgentsStreamAdapter:
         )
 
     @classmethod
-    def events_for_message(cls, message: AssistantMessage) -> list[Any]:
-        """用于把完整 assistant message 转换成现有流式事件。"""
-        events: list[Any] = [StreamStartEvent(partial=message)]
-        for index, block in enumerate(message.content):
-            events.extend(cls.events_for_block(index, block, message))
-        events.append(StreamDoneEvent(reason=message.stop_reason, message=message))
-        return events
+    def text_delta_from_sdk_event(cls, event: Any) -> str:
+        """用于从 SDK 原生 stream event 提取模型文本 delta。"""
+        if not isinstance(event, RawResponsesStreamEvent):
+            return ""
+        data = event.data
+        if str(getattr(data, "type", "") or "") != "response.output_text.delta":
+            return ""
+        return str(getattr(data, "delta", "") or "")
 
-    @staticmethod
-    def events_for_block(index: int, block: Any, message: AssistantMessage) -> list[Any]:
-        """用于把单个 assistant content block 转换成事件列表。"""
-        if isinstance(block, TextContent):
-            return [
-                StreamTextStartEvent(content_index=index, partial=message),
-                StreamTextDeltaEvent(content_index=index, delta=block.text, partial=message),
-                StreamTextEndEvent(content_index=index, content=block.text, partial=message),
-            ]
-        if isinstance(block, ToolCall):
-            return [
-                StreamToolCallStartEvent(content_index=index, partial=message),
-                StreamToolCallEndEvent(content_index=index, tool_call=block, partial=message),
-            ]
-        return []
+    @classmethod
+    def text_delta_event_from_sdk_delta(cls, model: Model, delta: str) -> StreamTextDeltaEvent:
+        """用于把 SDK 文本 delta 转成现有 ReAct loop 可消费的事件。"""
+        partial = AssistantMessage(
+            api=model.api,
+            provider=model.provider,
+            model=model.id,
+            content=[TextContent(text=delta)],
+            stop_reason="stop",
+        )
+        return StreamTextDeltaEvent(content_index=0, delta=delta, partial=partial)
+
+
+class OpenAIAgentsStreamBridge:
+    """用于把 SDK RunResultStreaming 桥接成现有 StreamResult 协议。"""
+
+    _DONE = object()
+
+    def __init__(
+        self,
+        adapter: OpenAIAgentsStreamAdapter,
+        model: Model,
+        context: AgentContext,
+        options: SimpleStreamOptions,
+    ):
+        """用于启动后台 SDK streaming run 并保存桥接状态。"""
+        self.adapter = adapter
+        self.model = model
+        self.context = context
+        self.options = options
+        self.queue: asyncio.Queue[Any] = asyncio.Queue()
+        self.message: AssistantMessage | None = None
+        self.task = asyncio.create_task(self.run())
+
+    async def events(self) -> AsyncIterator[Any]:
+        """用于把 SDK streaming delta 实时暴露给 ResumeAgentLoop。"""
+        while True:
+            item = await self.queue.get()
+            if item is self._DONE:
+                break
+            if isinstance(item, BaseException):
+                raise item
+            yield item
+
+    async def result(self) -> AssistantMessage:
+        """用于等待 SDK run 完成并返回最终 assistant message。"""
+        await self.task
+        if self.message is None:
+            return OpenAIAgentsStreamAdapter.text_message(
+                self.model,
+                "",
+                OpenAIAgentsUsage(),
+            )
+        return self.message
+
+    async def run(self) -> None:
+        """用于执行 SDK streaming run、处理审批中断并完成最终消息。"""
+        try:
+            self.message = await self.run_until_final()
+        except BaseException as exc:
+            await self.queue.put(exc)
+            raise
+        finally:
+            await self.queue.put(self._DONE)
+
+    async def run_until_final(self) -> AssistantMessage:
+        """用于按 SDK 官方 RunState 模式处理 streaming approval/resume。"""
+        sdk_agent = self.adapter.build_sdk_agent(self.model, self.context, self.options)
+        run_config = self.adapter.run_config(self.model, self.options)
+        run_input: list[TResponseInputItem] | RunState[Any] = self.adapter.input_items(
+            self.context.messages
+        )
+        streamed_text = ""
+        usage = OpenAIAgentsUsage()
+
+        while True:
+            result = self.adapter.run_sdk_streamed(sdk_agent, run_input, run_config)
+            async for event in result.stream_events():
+                delta = self.adapter.text_delta_from_sdk_event(event)
+                if not delta:
+                    continue
+                streamed_text += delta
+                await self.queue.put(
+                    self.adapter.text_delta_event_from_sdk_delta(self.model, delta)
+                )
+
+            usage = result.context_wrapper.usage
+            if not result.interruptions:
+                final_text = str(result.final_output or streamed_text or "")
+                if final_text and not streamed_text:
+                    await self.queue.put(
+                        self.adapter.text_delta_event_from_sdk_delta(self.model, final_text)
+                    )
+                return self.adapter.text_message(self.model, final_text, usage)
+
+            state = result.to_state()
+            for interruption in result.interruptions:
+                approved, rejection_message = await self.adapter.resolve_tool_approval(
+                    self.context,
+                    interruption,
+                )
+                if approved:
+                    state.approve(interruption)
+                else:
+                    state.reject(interruption, rejection_message=rejection_message)
+            run_input = state
 
 
 __all__ = [

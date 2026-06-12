@@ -35,11 +35,28 @@ from pi_agent_core import (
 )
 from pi_agent_core.types import Message, Model, StreamResult
 from openai.types.responses import (
+    Response,
+    ResponseCompletedEvent,
+    ResponseContentPartAddedEvent,
+    ResponseContentPartDoneEvent,
+    ResponseCreatedEvent,
+    ResponseFunctionCallArgumentsDeltaEvent,
+    ResponseFunctionCallArgumentsDoneEvent,
     ResponseFunctionToolCall,
+    ResponseInProgressEvent,
+    ResponseOutputItemAddedEvent,
+    ResponseOutputItemDoneEvent,
     ResponseOutputMessage,
     ResponseOutputText,
+    ResponseTextDeltaEvent,
+    ResponseTextDoneEvent,
+    ResponseUsage,
 )
 from openai.types.responses.response_prompt_param import ResponsePromptParam
+from openai.types.responses.response_usage import (
+    InputTokensDetails,
+    OutputTokensDetails,
+)
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
@@ -346,8 +363,155 @@ class FakeOpenAIAgentsModel(OpenAIAgentsModel):
         conversation_id: str | None,
         prompt: ResponsePromptParam | None,
     ) -> AsyncIterator[Any]:
-        """用于防止测试误走真实 streaming。"""
-        raise NotImplementedError
+        """用于生成 SDK Runner.run_streamed 可消费的 Responses stream。"""
+        del (
+            system_instructions,
+            model_settings,
+            output_schema,
+            handoffs,
+            tracing,
+            previous_response_id,
+            conversation_id,
+            prompt,
+        )
+        self.inputs.append(input)
+        self.tools.append(tools)
+        output = self.outputs.pop(0) if len(self.outputs) > 1 else self.outputs[0]
+        return self._stream_response_events(cast(list[Any], output))
+
+    async def _stream_response_events(self, output: list[Any]) -> AsyncIterator[Any]:
+        """用于按 Responses API streaming 顺序输出事件。"""
+        response = self._response_for_output(output)
+        sequence_number = 0
+        yield ResponseCreatedEvent(
+            type="response.created",
+            response=response,
+            sequence_number=sequence_number,
+        )
+        sequence_number += 1
+        yield ResponseInProgressEvent(
+            type="response.in_progress",
+            response=response,
+            sequence_number=sequence_number,
+        )
+        sequence_number += 1
+        for output_index, output_item in enumerate(output):
+            yield ResponseOutputItemAddedEvent(
+                type="response.output_item.added",
+                item=output_item,
+                output_index=output_index,
+                sequence_number=sequence_number,
+            )
+            sequence_number += 1
+            async for event in self._content_events_for_item(
+                output_item,
+                output_index,
+                sequence_number,
+            ):
+                yield event
+                sequence_number += 1
+            yield ResponseOutputItemDoneEvent(
+                type="response.output_item.done",
+                item=output_item,
+                output_index=output_index,
+                sequence_number=sequence_number,
+            )
+            sequence_number += 1
+        yield ResponseCompletedEvent(
+            type="response.completed",
+            response=response,
+            sequence_number=sequence_number,
+        )
+
+    async def _content_events_for_item(
+        self,
+        output_item: Any,
+        output_index: int,
+        sequence_number: int,
+    ) -> AsyncIterator[Any]:
+        """用于输出文本和函数调用的细粒度 stream 事件。"""
+        if isinstance(output_item, ResponseFunctionToolCall):
+            yield ResponseFunctionCallArgumentsDeltaEvent(
+                type="response.function_call_arguments.delta",
+                item_id=output_item.call_id,
+                output_index=output_index,
+                delta=output_item.arguments,
+                sequence_number=sequence_number,
+            )
+            sequence_number += 1
+            yield ResponseFunctionCallArgumentsDoneEvent(
+                type="response.function_call_arguments.done",
+                item_id=output_item.call_id,
+                output_index=output_index,
+                arguments=output_item.arguments,
+                name=output_item.name,
+                sequence_number=sequence_number,
+            )
+            return
+        if not isinstance(output_item, ResponseOutputMessage):
+            return
+        for content_index, content_part in enumerate(output_item.content or []):
+            if not isinstance(content_part, ResponseOutputText):
+                continue
+            yield ResponseContentPartAddedEvent(
+                type="response.content_part.added",
+                item_id=output_item.id,
+                output_index=output_index,
+                content_index=content_index,
+                part=content_part,
+                sequence_number=sequence_number,
+            )
+            sequence_number += 1
+            yield ResponseTextDeltaEvent(
+                type="response.output_text.delta",
+                item_id=output_item.id,
+                output_index=output_index,
+                content_index=content_index,
+                delta=content_part.text,
+                logprobs=[],
+                sequence_number=sequence_number,
+            )
+            sequence_number += 1
+            yield ResponseTextDoneEvent(
+                type="response.output_text.done",
+                item_id=output_item.id,
+                output_index=output_index,
+                content_index=content_index,
+                text=content_part.text,
+                logprobs=[],
+                sequence_number=sequence_number,
+            )
+            sequence_number += 1
+            yield ResponseContentPartDoneEvent(
+                type="response.content_part.done",
+                item_id=output_item.id,
+                output_index=output_index,
+                content_index=content_index,
+                part=content_part,
+                sequence_number=sequence_number,
+            )
+
+    @staticmethod
+    def _response_for_output(output: list[Any]) -> Response:
+        """用于把预设 output 包装成 Responses API 完成响应。"""
+        return Response(
+            id="resp_test",
+            created_at=123,
+            model="test-model",
+            object="response",
+            output=cast(Any, output),
+            tool_choice="none",
+            tools=[],
+            top_p=None,
+            parallel_tool_calls=False,
+            usage=ResponseUsage(
+                input_tokens=11,
+                output_tokens=7,
+                total_tokens=18,
+                input_tokens_details=InputTokensDetails(cached_tokens=0),
+                output_tokens_details=OutputTokensDetails(reasoning_tokens=0),
+            ),
+        )
 
 
 def _build_runtime_inputs(agent: ResumeAgent, user_message: str) -> tuple[Any, dict[str, Any]]:
@@ -907,7 +1071,7 @@ async def test_openai_agents_adapter_uses_sdk_hitl_for_resume_confirmation():
     confirmation_queue.put_nowait(True)
     event_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
     executed_tools: list[dict[str, Any]] = []
-    pi_context, _prompts, _config = builder.build_loop_inputs(
+    pi_context, prompts, _config = builder.build_loop_inputs(
         agent=agent.definition,
         user_message="优化这段工作经历，这个服务实际支撑日活 10 万用户",
         context={"resume_content": resume, "allowed_sections": {"work_experience"}},
@@ -933,10 +1097,15 @@ async def test_openai_agents_adapter_uses_sdk_hitl_for_resume_confirmation():
         [fake_sdk_message("已完成优化。")],
     ])
     adapter = OpenAIAgentsStreamAdapter(sdk_model=sdk_model)
+    sdk_context = AgentContext(
+        system_prompt=pi_context.system_prompt,
+        messages=[*pi_context.messages, *prompts],
+        tools=pi_context.tools,
+    )
 
     response = await adapter(
         Model(api="responses", provider="openai-agents", id="test-model"),
-        pi_context,
+        sdk_context,
         SimpleStreamOptions(api_key="test-key", temperature=0.2, max_tokens=128),
     )
     result = response["result"]()

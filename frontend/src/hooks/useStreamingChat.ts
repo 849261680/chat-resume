@@ -2,77 +2,17 @@
 import { useCallback, useRef, useState } from 'react'
 import { API_BASE_URL, apiUrl } from '@/lib/httpClient'
 import { useTranslations } from 'next-intl'
+import {
+  normalizeDiffItems,
+  resolveToolId,
+  streamEventFromSsePayload,
+  toolDecisionFromSsePayload,
+  type DiffItem,
+  type StreamEvent,
+  type UserInputRequest,
+} from './streamingEventProtocol'
 
-export type DiffItem = {
-  before?: string
-  after?: string
-  reason?: string
-}
-
-export type UserInputRequest = {
-  question: string
-  options: string[]
-  category?: string
-  context?: string
-  allowCustom: boolean
-}
-
-export type StreamEvent =
-  | { type: 'tool'; name: string }
-  | { type: 'text'; content: string }
-  | {
-      type: 'tool_call'
-      callId: string
-      toolName: string
-      toolId?: string
-      toolInput?: Record<string, unknown>
-      displayMessage?: string
-    }
-  | {
-      type: 'tool_result'
-      callId?: string
-      toolName: string
-      toolId?: string
-      displayMessage?: string
-    }
-  | {
-      type: 'tool_failed'
-      callId: string
-      toolName: string
-      toolId?: string
-      displayMessage?: string
-    }
-  | {
-      type: 'tool_pending'
-      callId: string
-      toolName: string
-      toolId?: string
-      toolInput?: Record<string, unknown>
-      diffSummary: string
-      diffItems?: DiffItem[]
-    }
-  | {
-      type: 'tool_confirmed'
-      callId: string
-      toolName: string
-      toolId?: string
-      diffSummary: string
-      diffItems?: DiffItem[]
-    }
-  | {
-      type: 'tool_rejected'
-      callId: string
-      toolName: string
-      toolId?: string
-      diffSummary: string
-      diffItems?: DiffItem[]
-    }
-  | {
-      type: 'user_input_request'
-      callId?: string
-      toolName?: string
-      request: UserInputRequest
-    }
+export type { DiffItem, StreamEvent, UserInputRequest } from './streamingEventProtocol'
 
 type PendingConfirmationResponse = {
   session_id?: string | null
@@ -109,32 +49,6 @@ type PendingToolTiming = {
   appendedAt: number
   streamStartedAt: number
   clientRequestId: string
-}
-
-// 用于标准化差异条目。
-function normalizeDiffItems(value: unknown): DiffItem[] {
-  if (!Array.isArray(value)) return []
-  return value.flatMap((item) => {
-    if (!item || typeof item !== 'object') return []
-    const record = item as Record<string, unknown>
-    const diffItem: DiffItem = {}
-    if (record.before !== undefined && record.before !== null) {
-      diffItem.before = String(record.before)
-    }
-    if (record.after !== undefined && record.after !== null) {
-      diffItem.after = String(record.after)
-    }
-    if (record.reason !== undefined && record.reason !== null) {
-      diffItem.reason = String(record.reason)
-    }
-    return Object.keys(diffItem).length > 0 ? [diffItem] : []
-  })
-}
-
-const TOOL_NAME_ALIASES: Record<string, string> = {
-  update_highlight: 'update_bullet',
-  add_highlight: 'add_bullet',
-  remove_highlight: 'remove_bullet',
 }
 
 // 用于判断是否开启 AI stream 详细调试日志。
@@ -224,11 +138,6 @@ function elapsedMsSince(startedAt: number): number {
   return Math.round((nowMs() - startedAt) * 100) / 100
 }
 
-// 用于标准化工具名称。
-function normalizeToolName(name: string): string {
-  return TOOL_NAME_ALIASES[name] || name
-}
-
 // 用于压缩工具流事件，便于诊断前端状态切换。
 function summarizeToolEvents(events: StreamEvent[]): string[] {
   return events
@@ -241,69 +150,6 @@ function summarizeToolEvents(events: StreamEvent[]): string[] {
       event.type === 'tool_rejected'
     )
     .map((event, index) => `${index}:${event.type}:${'callId' in event ? event.callId : 'none'}:${'toolName' in event ? event.toolName : ''}`)
-}
-
-// 用于解析工具 id。
-function resolveToolId(data: Record<string, unknown>): string {
-  if (data.tool_id) return normalizeToolName(String(data.tool_id))
-  if (data.tool_name) return normalizeToolName(String(data.tool_name))
-  const toolCall = data.tool_call
-  if (toolCall && typeof toolCall === 'object') {
-    const fn = (toolCall as { function?: unknown }).function
-    if (fn && typeof fn === 'object' && 'name' in fn) {
-      return normalizeToolName(String((fn as { name?: unknown }).name || ''))
-    }
-  }
-  return ''
-}
-
-// 用于解析工具输入。
-function resolveToolInput(data: Record<string, unknown>): Record<string, unknown> | undefined {
-  if (data.tool_input && typeof data.tool_input === 'object') return data.tool_input as Record<string, unknown>
-  const toolCall = data.tool_call
-  if (!toolCall || typeof toolCall !== 'object') return undefined
-  const fn = (toolCall as { function?: unknown }).function
-  if (!fn || typeof fn !== 'object') return undefined
-  const raw = (fn as { arguments?: unknown }).arguments
-  if (raw && typeof raw === 'object') return raw as Record<string, unknown>
-  if (typeof raw !== 'string') return undefined
-  try {
-    const parsed = JSON.parse(raw)
-    return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : undefined
-  } catch {
-    return undefined
-  }
-}
-
-// 用于把后端询问工具载荷标准化成前端卡片数据。
-function normalizeUserInputRequest(value: unknown): UserInputRequest | null {
-  if (!value || typeof value !== 'object') return null
-  const record = value as Record<string, unknown>
-  const question = typeof record.question === 'string' ? record.question.trim() : ''
-  const rawOptions = Array.isArray(record.options) ? record.options : []
-  const options = rawOptions
-    .map((option) => String(option).trim())
-    .filter((option) => option.length > 0)
-  if (!question || options.length === 0) return null
-  return {
-    question,
-    options,
-    category: typeof record.category === 'string' ? record.category : undefined,
-    context: typeof record.context === 'string' ? record.context : undefined,
-    allowCustom: record.allow_custom !== false,
-  }
-}
-
-// 用于解析工具名称。
-function resolveToolName(data: Record<string, unknown>, fallbackName: string): string {
-  if (data.tool_display_name) return normalizeToolName(String(data.tool_display_name))
-  if (data.tool_name) return normalizeToolName(String(data.tool_name))
-  const calls = Array.isArray(data.tool_calls) ? data.tool_calls : []
-  const lastCall = calls[calls.length - 1]
-  if (lastCall && typeof lastCall === 'object' && 'name' in lastCall) {
-    return normalizeToolName(String((lastCall as { name?: unknown }).name || ''))
-  }
-  return fallbackName
 }
 
 // 用于封装流式聊天相关状态和行为。
@@ -566,19 +412,14 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                   onQrImages?.(data.qr_images)
                 }
 
-                if (data.event_type === 'tool_call' && data.call_id) {
-                  const callId = data.call_id as string
+                const protocolEvent = streamEventFromSsePayload(data, t('toolCall'))
+
+                if (protocolEvent?.type === 'tool_call') {
+                  const callId = protocolEvent.callId
                   if (resolveToolId(data) === 'ask_user') {
                     continue
                   }
-                  eventsBuffer = [...eventsBuffer, {
-                    type: 'tool_call',
-                    callId,
-                    toolName: resolveToolName(data, t('toolCall')),
-                    toolId: resolveToolId(data),
-                    toolInput: resolveToolInput(data),
-                    displayMessage: data.display_message ? String(data.display_message) : undefined,
-                  }]
+                  eventsBuffer = [...eventsBuffer, protocolEvent]
                   debugStreamLog('[useStreamingChat] tool_call appended', {
                     callId,
                     events: summarizeToolEvents(eventsBuffer),
@@ -586,8 +427,8 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                   setStreamEvents([...eventsBuffer])
                 }
 
-                if (data.event_type === 'tool_result') {
-                  const callId = data.call_id ? String(data.call_id) : ''
+                if (protocolEvent?.type === 'tool_result') {
+                  const callId = protocolEvent.callId || ''
                   if (resolveToolId(data) === 'ask_user') {
                     continue
                   }
@@ -598,16 +439,11 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                   if (callId) {
                     completeToolCallEvent(
                       callId,
-                      resolveToolName(data, t('toolCall')),
-                      data.display_message ? String(data.display_message) : undefined,
+                      protocolEvent.toolName,
+                      protocolEvent.displayMessage,
                     )
                   } else {
-                    eventsBuffer = [...eventsBuffer, {
-                      type: 'tool_result',
-                      toolName: resolveToolName(data, t('toolCall')),
-                      toolId: resolveToolId(data),
-                      displayMessage: data.display_message ? String(data.display_message) : undefined,
-                    }]
+                    eventsBuffer = [...eventsBuffer, protocolEvent]
                   }
                   debugStreamLog('[useStreamingChat] tool_result handling end', {
                     callId,
@@ -616,33 +452,22 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                   setStreamEvents([...eventsBuffer])
                 }
 
-                if (data.event_type === 'user_input_request') {
-                  const request = normalizeUserInputRequest(data.user_input_request)
-                  if (request) {
-                    setUserInputRequest(request)
-                    eventsBuffer = [
-                      ...eventsBuffer,
-                      {
-                        type: 'user_input_request',
-                        callId: data.call_id ? String(data.call_id) : undefined,
-                        toolName: data.tool_display_name ? String(data.tool_display_name) : undefined,
-                        request,
-                      },
-                    ]
-                    setStreamEvents([...eventsBuffer])
-                  }
+                if (protocolEvent?.type === 'user_input_request') {
+                  setUserInputRequest(protocolEvent.request)
+                  eventsBuffer = [...eventsBuffer, protocolEvent]
+                  setStreamEvents([...eventsBuffer])
                 }
 
-                if (data.event_type === 'tool_call_failed' && data.call_id) {
-                  const callId = String(data.call_id)
+                if (protocolEvent?.type === 'tool_failed') {
+                  const callId = protocolEvent.callId
                   debugStreamLog('[useStreamingChat] tool_call_failed handling start', {
                     callId,
                     eventsBefore: summarizeToolEvents(eventsBuffer),
                   })
                   completeToolCallEvent(
                     callId,
-                    resolveToolName(data, t('toolCall')),
-                    data.display_message ? String(data.display_message) : undefined,
+                    protocolEvent.toolName,
+                    protocolEvent.displayMessage,
                     'tool_failed',
                   )
                   debugStreamLog('[useStreamingChat] tool_call_failed handling end', {
@@ -653,28 +478,17 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                 }
 
                 // tool_pending: agent 暂停，等待用户确认
-                if (data.tool_pending && data.call_id) {
-                  const callId = data.call_id as string
+                if (protocolEvent?.type === 'tool_pending') {
+                  const callId = protocolEvent.callId
                   const receivedAt = nowMs()
                   debugStreamLog('[useStreamingChat] tool_pending received', {
                     callId,
-                    toolName: data.tool_display_name || data.tool_name || '',
+                    toolName: protocolEvent.toolName,
                     diffItemCount: Array.isArray(data.diff_items) ? data.diff_items.length : 0,
                     elapsedSinceStreamStartMs: Math.round((receivedAt - streamStartedAt) * 100) / 100,
                     eventsBefore: summarizeToolEvents(eventsBuffer),
                   })
-                  eventsBuffer = [
-                    ...eventsBuffer,
-                    {
-                      type: 'tool_pending',
-                      callId,
-                      toolName: data.tool_display_name || data.tool_name || '',
-                      toolId: resolveToolId(data),
-                      toolInput: resolveToolInput(data),
-                      diffSummary: data.diff_summary || '',
-                      diffItems: normalizeDiffItems(data.diff_items),
-                    },
-                  ]
+                  eventsBuffer = [...eventsBuffer, protocolEvent]
                   const appendedAt = nowMs()
                   pendingToolTimingsRef.current[callId] = {
                     receivedAt,
@@ -711,9 +525,8 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                     eventsBefore: summarizeToolEvents(eventsBuffer),
                   })
                   delete pendingToolTimingsRef.current[callId]
-                  const newType: 'tool_confirmed' | 'tool_rejected' = data.tool_confirmed
-                    ? 'tool_confirmed'
-                    : 'tool_rejected'
+                  const decisionEvent = toolDecisionFromSsePayload(data, t('toolCall'))
+                  if (!decisionEvent) continue
                   eventsBuffer = eventsBuffer.flatMap(e => {
                     if (e.type === 'tool_call' && e.callId === callId) {
                       return [{
@@ -726,19 +539,19 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                     }
                     if (e.type === 'tool_pending' && e.callId === callId) {
                       return [{
-                        type: newType,
+                        type: decisionEvent.type,
                         callId: e.callId,
-                        toolName: e.toolName,
-                        toolId: e.toolId,
-                        diffSummary: e.diffSummary,
-                        diffItems: e.diffItems,
+                        toolName: e.toolName || decisionEvent.toolName,
+                        toolId: e.toolId || decisionEvent.toolId,
+                        diffSummary: decisionEvent.diffSummary || e.diffSummary,
+                        diffItems: decisionEvent.diffItems?.length ? decisionEvent.diffItems : e.diffItems,
                       }]
                     }
                     return [e]
                   })
                   debugStreamLog('[useStreamingChat] tool decision handling end', {
                     callId,
-                    newType,
+                    newType: decisionEvent.type,
                     eventsAfter: summarizeToolEvents(eventsBuffer),
                   })
                   setStreamEvents([...eventsBuffer])
@@ -752,21 +565,21 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                   onResumeUpdate?.(data.resume_content)
                 }
 
-                if (data.content) {
-                  streamingContent += data.content
+                if (protocolEvent?.type === 'text') {
+                  streamingContent += protocolEvent.content
                   setCurrentStreamingMessage(streamingContent)
                   const last = eventsBuffer[eventsBuffer.length - 1]
                   if (last?.type === 'text') {
-                    eventsBuffer = [...eventsBuffer.slice(0, -1), { type: 'text', content: last.content + data.content }]
+                    eventsBuffer = [...eventsBuffer.slice(0, -1), { type: 'text', content: last.content + protocolEvent.content }]
                   } else {
-                    eventsBuffer = [...eventsBuffer, { type: 'text', content: data.content }]
+                    eventsBuffer = [...eventsBuffer, protocolEvent]
                   }
                   setStreamEvents([...eventsBuffer])
                   if (!firstContentRenderedLogged) {
                     firstContentRenderedLogged = true
                     window.requestAnimationFrame(() => {
                       logStreamPhase('first_content_rendered', streamStartedAt, clientRequestId, {
-                        contentChars: String(data.content).length,
+                        contentChars: protocolEvent.content.length,
                         streamEventCount: eventsBuffer.length,
                       })
                     })

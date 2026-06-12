@@ -16,13 +16,12 @@ import { Link } from '@/i18n/navigation'
 import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 import {
   ArrowLeftIcon,
-  ArrowUpIcon,
   ArrowDownTrayIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   PlayCircleIcon,
   TrashIcon,
-  XMarkIcon
+  XMarkIcon,
 } from '@heroicons/react/24/outline'
 import JobApplicationEditor from '@/components/editor/JobApplicationEditor'
 import {
@@ -43,6 +42,7 @@ import { usePanelLayout } from '@/hooks/usePanelLayout'
 import { useResumeChatPanel } from '@/hooks/useResumeChatPanel'
 import { useResumeEditor } from '@/hooks/useResumeEditor'
 import ChatInputBox from '@/components/editor/ChatInputBox'
+import QuickEditPopover from '@/components/editor/QuickEditPopover'
 import UserInputRequestCard from '@/components/editor/UserInputRequestCard'
 import { useLocale, useTranslations } from 'next-intl'
 import { toInterviewLanguage, type AppLocale } from '@/i18n/routing'
@@ -233,8 +233,6 @@ export default function ResumeEditPage() {
   const [mounted, setMounted] = useState(false)
   const [isCreatingInterview, setIsCreatingInterview] = useState(false)
   const [resumeSelectionAction, setResumeSelectionAction] = useState<ResumeSelectionAction | null>(null)
-  const [quickEditPrompt, setQuickEditPrompt] = useState('')
-  const quickEditInputRef = useRef<HTMLTextAreaElement>(null)
   const previewPanelRef = useRef<HTMLDivElement>(null)
   const agentPanelRef = useRef<HTMLDivElement>(null)
   const t = useTranslations('resume.editor')
@@ -390,7 +388,6 @@ export default function ResumeEditPage() {
    * 关闭选区动作浮层，并同步清掉所有选区视觉状态。
    */
   const clearResumeSelectionAction = useCallback(() => {
-    setQuickEditPrompt('')
     clearResumeSelectionVisualsAfterEvents()
     setResumeSelectionAction(null)
   }, [])
@@ -410,7 +407,6 @@ export default function ResumeEditPage() {
       messagesContainerRef.current?.contains(target)
     )
     if (isSelectionPanel) {
-      setQuickEditPrompt('')
       setResumeSelectionAction(null)
       return
     }
@@ -515,23 +511,17 @@ export default function ResumeEditPage() {
    */
   const quickEditResumeSelection = useCallback(() => {
     if (!resumeSelectionAction) return
-    setQuickEditPrompt('')
     setResumeSelectionAction({ ...resumeSelectionAction, mode: 'quick_edit' })
-    window.requestAnimationFrame(() => {
-      quickEditInputRef.current?.focus()
-    })
   }, [resumeSelectionAction])
 
   /**
    * 将选中文本和快速优化要求一起发送给右侧简历 Agent。
    */
-  const submitQuickEditSelection = useCallback(async () => {
-    if (!resumeSelectionAction || !quickEditPrompt.trim()) return
-    const selectedText = resumeSelectionAction.text
-    const userPrompt = quickEditPrompt
+  const submitQuickEditSelection = useCallback(async (selectedText: string, userPrompt: string) => {
+    if (!selectedText.trim() || !userPrompt.trim()) return
     clearResumeSelectionAction()
     await sendMessageWithContext(selectedText, userPrompt)
-  }, [clearResumeSelectionAction, quickEditPrompt, resumeSelectionAction, sendMessageWithContext])
+  }, [clearResumeSelectionAction, sendMessageWithContext])
 
   const handleFirstRunJdSubmit = useCallback(async () => {
     if (!resume || !firstRunJdText.trim()) return
@@ -921,61 +911,14 @@ export default function ResumeEditPage() {
               />
             ))}
             {resumeSelectionAction?.source === 'preview' && resumeSelectionAction.mode === 'quick_edit' && (
-              <div
-                data-resume-selection-action="true"
-                className="absolute z-30 w-[min(360px,calc(100%-16px))] rounded-lg border bg-white px-2 py-1 shadow-lg print:hidden"
-                style={{
-                  top: resumeSelectionAction.quickEditTop,
-                  left: resumeSelectionAction.left,
-                  borderColor: 'rgba(91,97,110,0.25)',
-                }}
-                onMouseUp={(event) => event.stopPropagation()}
-                onKeyUp={(event) => event.stopPropagation()}
-                onPointerDown={(event) => event.stopPropagation()}
-              >
-                <button
-                  type="button"
-                  aria-label="关闭快速优化"
-                  className="absolute right-2 top-1.5 inline-flex h-6 w-6 items-center justify-center rounded-full text-gray-400 transition-colors hover:text-gray-600"
-                  onPointerDown={(event) => {
-                    event.preventDefault()
-                    event.stopPropagation()
-                    clearResumeSelectionAction()
-                  }}
-                  onClick={clearResumeSelectionAction}
-                >
-                  <XMarkIcon className="h-4 w-4" />
-                </button>
-                <textarea
-                  ref={quickEditInputRef}
-                  value={quickEditPrompt}
-                  onChange={(event) => setQuickEditPrompt(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' && !event.shiftKey) {
-                      event.preventDefault()
-                      void submitQuickEditSelection()
-                    }
-                  }}
-                  placeholder="输入优化要求"
-                  rows={1}
-                  className="min-h-[30px] w-full resize-none bg-transparent py-1 pl-1 pr-8 text-sm leading-relaxed text-[#0a0b0d] placeholder:text-gray-400 focus:outline-none"
-                />
-                <div className="-mt-1 flex items-center justify-end">
-                  <button
-                    type="button"
-                    aria-label="发送快速优化"
-                    disabled={!quickEditPrompt.trim() || isSending || isStreaming}
-                    className="inline-flex h-6 w-6 items-center justify-center rounded-full transition-colors disabled:cursor-not-allowed"
-                    style={{
-                      backgroundColor: quickEditPrompt.trim() ? '#0052ff' : '#eef0f3',
-                      color: quickEditPrompt.trim() ? '#ffffff' : '#9ca3af',
-                    }}
-                    onClick={() => void submitQuickEditSelection()}
-                  >
-                    <ArrowUpIcon className="h-3 w-3" />
-                  </button>
-                </div>
-              </div>
+              <QuickEditPopover
+                selectedText={resumeSelectionAction.text}
+                top={resumeSelectionAction.quickEditTop}
+                left={resumeSelectionAction.left}
+                disabled={isSending || isStreaming}
+                onClose={clearResumeSelectionAction}
+                onSubmit={(selectedText, prompt) => void submitQuickEditSelection(selectedText, prompt)}
+              />
             )}
             <div className="flex-1 overflow-y-auto min-h-0 hide-scrollbar print:overflow-visible print:h-auto">
               <ResumePreview

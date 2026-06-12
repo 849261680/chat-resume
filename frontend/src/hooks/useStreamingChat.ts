@@ -9,6 +9,7 @@ import {
   normalizeDiffItems,
   reduceStreamSsePayload,
   resolveStreamCursor,
+  shouldYieldBeforePendingEvent,
   summarizeToolEvents,
   type DiffItem,
   type StreamEvent,
@@ -139,6 +140,14 @@ function nowMs(): number {
 // 用于把耗时压缩为稳定的两位小数。
 function elapsedMsSince(startedAt: number): number {
   return Math.round((nowMs() - startedAt) * 100) / 100
+}
+
+// 用于等待浏览器提交上一帧工具运行态，避免 pending diff 与 tool_call 同帧出现。
+function waitForNextPaint(): Promise<void> {
+  if (typeof window === 'undefined') return Promise.resolve()
+  return new Promise((resolve) => {
+    window.requestAnimationFrame(() => resolve())
+  })
 }
 
 // 用于封装流式聊天相关状态和行为。
@@ -438,6 +447,10 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                   setUserInputRequest(protocolState.userInputRequest)
                 }
                 if (protocolEvent) {
+                  if (shouldYieldBeforePendingEvent(previousEvents, protocolEvent)) {
+                    setStreamEvents([...previousEvents])
+                    await waitForNextPaint()
+                  }
                   setStreamEvents([...protocolState.events])
                 }
               } catch {

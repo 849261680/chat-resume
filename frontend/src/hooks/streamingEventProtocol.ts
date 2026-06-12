@@ -166,6 +166,17 @@ export function summarizeToolEvents(events: StreamEvent[]): string[] {
     .map((event, index) => `${index}:${event.type}:${'callId' in event ? event.callId : 'none'}:${'toolName' in event ? event.toolName : ''}`)
 }
 
+// 用于判断 pending diff 是否需要先让同一工具的运行态渲染出来。
+export function shouldYieldBeforePendingEvent(
+  previousEvents: StreamEvent[],
+  event: StreamEvent | null,
+): boolean {
+  if (!event || event.type !== 'tool_pending') return false
+  return previousEvents.some((previousEvent) =>
+    previousEvent.type === 'tool_call' && previousEvent.callId === event.callId
+  )
+}
+
 // 用于把单个 SSE payload 规约到稳定的前端流协议状态。
 export function reduceStreamSsePayload(
   state: StreamProtocolState,

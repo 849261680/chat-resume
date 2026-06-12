@@ -180,6 +180,23 @@ test('stream reducer turns pending into confirmed decision', () => {
   }])
 })
 
+test('pending diff yields when it follows a tool call for the same call id', () => {
+  assert.equal(
+    protocol.shouldYieldBeforePendingEvent(
+      [{ type: 'tool_call', callId: 'call_1', toolName: 'update_bullet' }],
+      { type: 'tool_pending', callId: 'call_1', toolName: 'update_bullet', diffSummary: '' },
+    ),
+    true,
+  )
+  assert.equal(
+    protocol.shouldYieldBeforePendingEvent(
+      [{ type: 'tool_call', callId: 'call_1', toolName: 'update_bullet' }],
+      { type: 'tool_pending', callId: 'call_2', toolName: 'update_bullet', diffSummary: '' },
+    ),
+    false,
+  )
+})
+
 test('stream reducer hides ask_user lifecycle tool events', () => {
   const reduced = protocol.reduceStreamSsePayload(
     protocol.createStreamProtocolState(),

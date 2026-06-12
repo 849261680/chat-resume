@@ -43,6 +43,10 @@ interface UseResumeEditorOptions {
   isAuthenticated: boolean
 }
 
+interface LayoutConfigChangeOptions {
+  persist?: boolean
+}
+
 /**
  * 提供编辑页主业务状态，减少 page.tsx 中的数据、副作用和保存逻辑。
  */
@@ -121,8 +125,9 @@ export function useResumeEditor({ resumeId, isAuthenticated }: UseResumeEditorOp
   /**
    * 更新布局配置并在防抖后同步到服务端，避免每次拖拽都立即发请求。
    */
-  const handleLayoutConfigChange = useCallback((newConfig: ResumeLayoutConfig) => {
+  const handleLayoutConfigChange = useCallback((newConfig: ResumeLayoutConfig, options: LayoutConfigChangeOptions = {}) => {
     setLayoutConfig(newConfig)
+    if (options.persist === false) return
     if (!resumeId) return
     const id = parseInt(resumeId, 10)
     saveLayoutConfig(id, newConfig)

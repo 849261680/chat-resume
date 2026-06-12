@@ -1,7 +1,7 @@
 'use client'
 // 用于提供 components/preview/ResumeLayoutControls.tsx 模块。
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { 
   AdjustmentsHorizontalIcon
 } from '@heroicons/react/24/outline'
@@ -22,7 +22,7 @@ import { useTranslations } from 'next-intl'
 
 interface ResumeLayoutControlsProps {
   config: ResumeLayoutConfig
-  onConfigChange: (config: ResumeLayoutConfig) => void
+  onConfigChange: (config: ResumeLayoutConfig, options?: { persist?: boolean }) => void
   className?: string
 }
 
@@ -62,6 +62,7 @@ export default function ResumeLayoutControls({
 }: ResumeLayoutControlsProps) {
   const [showControls, setShowControls] = useState(false)
   const [activeTab, setActiveTab] = useState<'template' | 'density' | 'modules'>('template')
+  const pendingSpacingConfigRef = useRef<ResumeLayoutConfig | null>(null)
   const t = useTranslations('resume.layout')
 
   // 用于处理templatestylechange。
@@ -87,15 +88,28 @@ export default function ResumeLayoutControls({
     })
   }
 
+  // 用于构建细调间距对应的布局配置。
+  const buildSpacingScaleConfig = (value: number): ResumeLayoutConfig => ({
+    density: 'custom',
+    moduleOrder: [...config.moduleOrder],
+    visibleModules: new Set(config.visibleModules),
+    spacingScale: clampResumeSpacingScale(value),
+    templateStyle: config.templateStyle,
+  })
+
   // 用于处理间距缩放change。
   const handleSpacingScaleChange = (value: number) => {
-    onConfigChange({
-      density: 'custom',
-      moduleOrder: [...config.moduleOrder],
-      visibleModules: new Set(config.visibleModules),
-      spacingScale: clampResumeSpacingScale(value),
-      templateStyle: config.templateStyle,
-    })
+    const nextConfig = buildSpacingScaleConfig(value)
+    pendingSpacingConfigRef.current = nextConfig
+    onConfigChange(nextConfig, { persist: false })
+  }
+
+  // 用于在拖动结束后持久化最后一次间距细调。
+  const commitPendingSpacingScale = () => {
+    const pendingConfig = pendingSpacingConfigRef.current
+    if (!pendingConfig) return
+    pendingSpacingConfigRef.current = null
+    onConfigChange(pendingConfig)
   }
 
   // 用于处理间距缩放reset。
@@ -280,6 +294,10 @@ export default function ResumeLayoutControls({
                       step={RESUME_SPACING_SCALE_STEP}
                       value={clampResumeSpacingScale(config.spacingScale ?? 1)}
                       onChange={(e) => handleSpacingScaleChange(parseFloat(e.target.value))}
+                      onBlur={commitPendingSpacingScale}
+                      onKeyUp={commitPendingSpacingScale}
+                      onPointerCancel={commitPendingSpacingScale}
+                      onPointerUp={commitPendingSpacingScale}
                       className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
                       style={{ accentColor: '#0052ff', backgroundColor: '#eef0f3' }}
                     />

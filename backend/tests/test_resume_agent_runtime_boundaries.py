@@ -933,6 +933,49 @@ async def test_openai_agents_adapter_executes_function_tools_with_sdk_loop():
 
 
 @pytest.mark.asyncio
+async def test_openai_agents_adapter_allows_batch_resume_edits_beyond_ten_turns():
+    """用于验证批量简历编辑不会因 SDK 默认 turn 上限过低而失败。"""
+    tool_turns = [
+        [fake_sdk_tool_call("update_bullet", '{"section":"projects"}')]
+        for _ in range(11)
+    ]
+    sdk_model = FakeOpenAIAgentsModel([*tool_turns, [fake_sdk_message("批量优化已完成。")]])
+    adapter = OpenAIAgentsStreamAdapter(sdk_model=sdk_model)
+
+    async def execute_tool(tool_call_id: str, params: dict[str, Any]) -> AgentToolResult:
+        """用于模拟批量编辑中的单次工具成功执行。"""
+        del tool_call_id, params
+        return AgentToolResult(content=[TextContent(text='{"success":true}')])
+
+    context = AgentContext(
+        system_prompt="你是简历优化 Agent。",
+        messages=[UserMessage(content=[TextContent(text="批量优化表达")])],
+        tools=[
+            AgentTool(
+                name="update_bullet",
+                description="更新已有简历要点。",
+                parameters=AgentToolSchema(type="object", properties={}, required=[]),
+                execute=execute_tool,
+            )
+        ],
+    )
+
+    response = await adapter(
+        Model(api="responses", provider="openai-agents", id="test-model"),
+        context,
+        SimpleStreamOptions(api_key="test-key", temperature=0.2, max_tokens=128),
+    )
+    result = response["result"]()
+    if inspect.isawaitable(result):
+        result = await result
+
+    assert [block.text for block in result.content if isinstance(block, TextContent)] == [
+        "批量优化已完成。"
+    ]
+    assert len(sdk_model.inputs) == 12
+
+
+@pytest.mark.asyncio
 async def test_openai_agents_adapter_approves_sdk_tool_interruption():
     """用于验证 adapter 使用 SDK RunState 批准 FunctionTool interruption。"""
     sdk_model = FakeOpenAIAgentsModel([

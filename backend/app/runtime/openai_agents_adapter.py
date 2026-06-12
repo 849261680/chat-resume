@@ -40,6 +40,7 @@ from app.runtime.openai_agents_eval import current_openai_agents_trace_config
 OPENAI_AGENTS_PROVIDER_OPENAI = "openai"
 OPENAI_AGENTS_PROVIDER_DEEPSEEK = "deepseek"
 OPENAI_AGENTS_MODEL_PROVIDER_OPENAI = "openai-agents"
+OPENAI_AGENTS_RESUME_MAX_TURNS = 40
 
 
 def normalized_openai_agents_provider() -> str:
@@ -134,7 +135,7 @@ class OpenAIAgentsStreamAdapter:
         return Runner.run_streamed(
             sdk_agent,
             input_items,
-            max_turns=10,
+            max_turns=OPENAI_AGENTS_RESUME_MAX_TURNS,
             run_config=run_config,
         )
 

@@ -33,8 +33,8 @@ async function readResumeMessages(locale) {
   return JSON.parse(await readFile(url, 'utf8'))
 }
 
-test('resume spacing scale allows up to 1.60', () => {
-  assert.equal(MAX_RESUME_SPACING_SCALE, 1.6)
+test('resume spacing scale allows up to 1.80', () => {
+  assert.equal(MAX_RESUME_SPACING_SCALE, 1.8)
 })
 
 test('deserializeLayoutConfig keeps an explicitly hidden summary module hidden', () => {

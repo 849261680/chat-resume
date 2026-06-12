@@ -18,7 +18,7 @@ async function listSectionSources() {
 test('resume section gaps use a weak spacingScale response', async () => {
   const previewSource = await readFile(new URL('./PaginatedResumePreview.tsx', previewRoot), 'utf8')
 
-  assert.match(previewSource, /SECTION_GAP_STYLE = 'calc\(12px \+ var\(--spacing-scale, 1\) \* 5px\)'/)
+  assert.match(previewSource, /SECTION_GAP_STYLE = 'calc\(9px \+ var\(--spacing-scale, 1\) \* 3px\)'/)
   assert.doesNotMatch(previewSource, /marginBottom:\s*'calc\(var\(--spacing-scale, 1\) \* 24px\)'/)
 })
 
@@ -38,14 +38,14 @@ test('resume header and heading content gaps use compact spacingScale responses'
   const skillSource = await readFile(new URL('./SkillsPreview.tsx', sectionsRoot), 'utf8')
   const summarySource = await readFile(new URL('./SummaryPreview.tsx', sectionsRoot), 'utf8')
 
-  assert.match(personalSource, /PERSONAL_BLOCK_GAP_STYLE = 'calc\(12px \+ var\(--spacing-scale, 1\) \* 4px\)'/)
-  assert.match(personalSource, /PERSONAL_HEADER_GAP_STYLE = 'calc\(8px \+ var\(--spacing-scale, 1\) \* 2px\)'/)
+  assert.match(personalSource, /PERSONAL_BLOCK_GAP_STYLE = 'calc\(8px \+ var\(--spacing-scale, 1\) \* 2px\)'/)
+  assert.match(personalSource, /PERSONAL_HEADER_GAP_STYLE = 'calc\(6px \+ var\(--spacing-scale, 1\) \* 1px\)'/)
   ;[educationSource, workSource, projectSource].forEach((source) => {
-    assert.match(source, /HEADING_CONTENT_GAP_STYLE = 'calc\(8px \+ var\(--spacing-scale, 1\) \* 3px\)'/)
+    assert.match(source, /HEADING_CONTENT_GAP_STYLE = 'calc\(6px \+ var\(--spacing-scale, 1\) \* 2px\)'/)
     assert.doesNotMatch(source, /h2[\s\S]{0,180}marginBottom:\s*'calc\(var\(--spacing-scale, 1\) \* 12px\)'/)
   })
   ;[skillSource, summarySource].forEach((source) => {
-    assert.match(source, /COMPACT_HEADING_GAP_STYLE = 'calc\(6px \+ var\(--spacing-scale, 1\) \* 2px\)'/)
+    assert.match(source, /COMPACT_HEADING_GAP_STYLE = 'calc\(4px \+ var\(--spacing-scale, 1\) \* 1px\)'/)
     assert.doesNotMatch(source, /h2[\s\S]{0,180}marginBottom:\s*'calc\(var\(--spacing-scale, 1\) \* 8px\)'/)
   })
 })

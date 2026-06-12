@@ -97,7 +97,7 @@ export interface ResumeLayoutConfig {
   density: LayoutDensity
   moduleOrder: ResumeModule[]
   visibleModules: Set<ResumeModule>
-  spacingScale: number  // 连续间距缩放，范围 0.5–1.6，默认 1.0
+  spacingScale: number  // 连续间距缩放，范围 0.5–1.8，默认 1.0
   templateStyle: ResumeTemplateStyle
 }
 

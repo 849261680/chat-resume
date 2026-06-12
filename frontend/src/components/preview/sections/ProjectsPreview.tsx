@@ -15,7 +15,7 @@ interface ProjectsPreviewProps {
   secondaryLinkLabel?: string
   inlineSecondaryLink?: boolean
 }
-const HEADING_CONTENT_GAP_STYLE = 'calc(8px + var(--spacing-scale, 1) * 3px)'
+const HEADING_CONTENT_GAP_STYLE = 'calc(6px + var(--spacing-scale, 1) * 2px)'
 
 /* 链接图标包装器：使用 flex 对齐，避免导出时基线计算偏差 */
 const iconWrap: React.CSSProperties = {

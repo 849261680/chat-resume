@@ -26,7 +26,7 @@ const SECTION_ID_MAP: Record<ResumeModule, string> = {
   open_source: 'open-source-section'
 }
 const PAGE_CONTENT_WIDTH = A4_WIDTH - PAGE_PADDING * 2
-const SECTION_GAP_STYLE = 'calc(12px + var(--spacing-scale, 1) * 5px)'
+const SECTION_GAP_STYLE = 'calc(9px + var(--spacing-scale, 1) * 3px)'
 
 // 用于按预览容器宽度计算 A4 页面缩放比例。
 function calculatePreviewScale(container: HTMLElement, viewportPadding: number) {

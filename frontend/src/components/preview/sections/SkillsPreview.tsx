@@ -10,7 +10,7 @@ interface SkillsPreviewProps {
   renderLines?: number[] // 指定渲染哪些行
   templateStyle?: ResumeTemplateStyle
 }
-const COMPACT_HEADING_GAP_STYLE = 'calc(6px + var(--spacing-scale, 1) * 2px)'
+const COMPACT_HEADING_GAP_STYLE = 'calc(4px + var(--spacing-scale, 1) * 1px)'
 
 // 用于渲染 SkillsPreview 组件。
 export default function SkillsPreview({ data, renderLines, templateStyle = 'classic' }: SkillsPreviewProps) {

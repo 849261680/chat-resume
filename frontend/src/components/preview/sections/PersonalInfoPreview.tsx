@@ -27,8 +27,8 @@ const iconWrap: React.CSSProperties = {
   marginRight: 3,
   flexShrink: 0,
 }
-const PERSONAL_BLOCK_GAP_STYLE = 'calc(12px + var(--spacing-scale, 1) * 4px)'
-const PERSONAL_HEADER_GAP_STYLE = 'calc(8px + var(--spacing-scale, 1) * 2px)'
+const PERSONAL_BLOCK_GAP_STYLE = 'calc(8px + var(--spacing-scale, 1) * 2px)'
+const PERSONAL_HEADER_GAP_STYLE = 'calc(6px + var(--spacing-scale, 1) * 1px)'
 
 // 用于渲染 EmailIcon 组件。
 const EmailIcon = () => (
@@ -285,7 +285,7 @@ export default function PersonalInfoPreview({ data, renderLines, templateStyle =
 
       {/* 联系方式 */}
       {shouldRenderLine(1) && (
-        <div data-line-index={1} className={`flex flex-wrap justify-center gap-4 text-xs text-gray-600 pb-2 ${layout.contactClassName}`}>
+        <div data-line-index={1} className={`flex flex-wrap justify-center gap-4 text-xs text-gray-600 pb-1 ${layout.contactClassName}`}>
           {data.email && (
             <span className={itemClassName}><EmailIcon />{data.email}</span>
           )}

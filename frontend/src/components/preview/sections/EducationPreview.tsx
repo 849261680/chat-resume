@@ -12,7 +12,7 @@ interface EducationPreviewProps {
   renderLines?: number[] // 指定渲染哪些行
   templateStyle?: ResumeTemplateStyle
 }
-const HEADING_CONTENT_GAP_STYLE = 'calc(8px + var(--spacing-scale, 1) * 3px)'
+const HEADING_CONTENT_GAP_STYLE = 'calc(6px + var(--spacing-scale, 1) * 2px)'
 
 // 单个教育项组件
 function EducationItem({ edu, lineIndex, templateStyle = 'classic' }: { edu: Education; lineIndex: number; templateStyle?: ResumeTemplateStyle }) {

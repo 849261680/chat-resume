@@ -11,7 +11,7 @@ interface SummaryPreviewProps {
   renderLines?: number[]
   templateStyle?: ResumeTemplateStyle
 }
-const COMPACT_HEADING_GAP_STYLE = 'calc(6px + var(--spacing-scale, 1) * 2px)'
+const COMPACT_HEADING_GAP_STYLE = 'calc(4px + var(--spacing-scale, 1) * 1px)'
 
 // 用于渲染个人简介预览模块。
 export default function SummaryPreview({ data, renderLines, templateStyle = 'classic' }: SummaryPreviewProps) {

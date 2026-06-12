@@ -11,7 +11,7 @@ interface WorkExperiencePreviewProps {
   renderLines?: number[] // 指定渲染哪些行
   templateStyle?: ResumeTemplateStyle
 }
-const HEADING_CONTENT_GAP_STYLE = 'calc(8px + var(--spacing-scale, 1) * 3px)'
+const HEADING_CONTENT_GAP_STYLE = 'calc(6px + var(--spacing-scale, 1) * 2px)'
 
 // 单个工作经验项组件
 function WorkExperienceItem({ work, lineIndex, templateStyle = 'classic' }: { work: WorkExperience; lineIndex: number; templateStyle?: ResumeTemplateStyle }) {

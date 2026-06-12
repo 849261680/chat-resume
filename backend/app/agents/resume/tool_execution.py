@@ -26,7 +26,6 @@ from app.agents.resume.event_publisher import publish_resume_runtime_event
 from app.infra.config import settings
 from app.runtime.contracts import AgentDefinition, RuntimeEventCallback
 from app.runtime.tool_confirmation import ToolConfirmationPolicy
-from app.agents.resume.quality_gate import evaluate_resume_edit_quality
 from app.types.stream import ResumeStreamEvent
 
 logger = logging.getLogger("app.agents.resume.runtime")
@@ -269,28 +268,6 @@ class ResumeToolExecutionStage:
                 tool_result=preview_result,
             )
             return False
-        quality_failure = self.quality_gate_failure(
-            tool_name=tool_name,
-            tool_input=tool_input,
-            context=context,
-            preview_result=preview_result,
-        )
-        if quality_failure is not None:
-            await self.publish_sdk_preapproval_failure(
-                agent=agent,
-                run_id=run_id,
-                call_id=call_id,
-                tool_name=tool_name,
-                tool_input=tool_input,
-                context=context,
-                event_queue=event_queue,
-                event_callback=event_callback,
-                executed_tools=executed_tools,
-                stream_state=stream_state,
-                tool_started_at=tool_started_at,
-                tool_result=quality_failure,
-            )
-            return False
         self.store_sdk_approval_preview(
             context,
             call_id,
@@ -531,36 +508,6 @@ class ResumeToolExecutionStage:
                 needs_confirmation=False,
             )
             return json.dumps(result, ensure_ascii=False)
-        quality_failure = self.quality_gate_failure(
-            tool_name=tool_name,
-            tool_input=tool_input,
-            context=context,
-            preview_result=preview_result,
-        )
-        if quality_failure is not None:
-            self.trace_tool_executed(
-                agent,
-                run_id,
-                call_id,
-                tool_name,
-                quality_failure,
-                tool_started_at,
-            )
-            quality_result = quality_failure["result"]
-            executed_tools.append(self.executed_tool_summary(quality_failure, quality_result))
-            await self.publish_tool_result(
-                call_id=call_id,
-                tool_name=tool_name,
-                tool_result=quality_failure,
-                result=quality_result,
-                display_message=quality_failure.get("display_message"),
-                event_queue=event_queue,
-                event_callback=event_callback,
-                executed_tools=executed_tools,
-                context=context,
-                needs_confirmation=False,
-            )
-            return json.dumps(quality_result, ensure_ascii=False)
         await self.publish_visible_tool_call_once(
             call_id=call_id,
             tool_name=tool_name,
@@ -656,53 +603,8 @@ class ResumeToolExecutionStage:
         needs_confirmation: bool,
         tool_started_at: float,
     ) -> str | None:
-        """用于在免确认工具真正落库前执行同一套质量门禁。"""
-        if needs_confirmation:
-            return None
-        preview_context = dict(context)
-        preview_context["resume_content"] = deepcopy(context.get("resume_content"))
-        preview_context["dry_run"] = True
-        preview_result = await self.call_tool_executor(
-            agent=agent,
-            tool_call=tool_call,
-            context=preview_context,
-        )
-        quality_failure = self.quality_gate_failure(
-            tool_name=tool_name,
-            tool_input=tool_input,
-            context=context,
-            preview_result=preview_result,
-        )
-        if quality_failure is None:
-            return None
-        quality_failure = self.auto_clarification_for_quality_failure(
-            quality_failure=quality_failure,
-            tool_name=tool_name,
-            tool_input=tool_input,
-        )
-        self.trace_tool_executed(
-            agent,
-            run_id,
-            call_id,
-            tool_name,
-            quality_failure,
-            tool_started_at,
-        )
-        quality_result = quality_failure["result"]
-        executed_tools.append(self.executed_tool_summary(quality_failure, quality_result))
-        await self.publish_tool_result(
-            call_id=call_id,
-            tool_name=tool_name,
-            tool_result=quality_failure,
-            result=quality_result,
-            display_message=quality_failure.get("display_message"),
-            event_queue=event_queue,
-            event_callback=event_callback,
-            executed_tools=executed_tools,
-            context=context,
-            needs_confirmation=False,
-        )
-        return json.dumps(quality_result, ensure_ascii=False)
+        """用于兼容旧的免确认预执行扩展点。"""
+        return None
 
     async def run_confirmed_tool(
         self,
@@ -1014,105 +916,6 @@ class ResumeToolExecutionStage:
             confirmation_wait_ms=confirmation_wait_ms,
             terminate_turn=terminate_turn,
         )
-
-    @staticmethod
-    def quality_gate_failure(
-        *,
-        tool_name: str,
-        tool_input: dict[str, Any],
-        context: dict[str, Any],
-        preview_result: dict[str, Any],
-    ) -> dict[str, Any] | None:
-        """用于把质量门禁未通过结果转换成工具失败载荷。"""
-        resume_content = context.get("resume_content")
-        if not isinstance(resume_content, dict):
-            return None
-        gate = evaluate_resume_edit_quality(
-            resume_content=resume_content,
-            tool_name=tool_name,
-            tool_input=tool_input,
-            preview_result=preview_result.get("result", {}),
-            user_message=str(context.get("user_message") or ""),
-        )
-        if gate.get("passed") is True:
-            return None
-        message = str(gate.get("message") or "这次改写没有通过简历质量门禁。")
-        result = {
-            "success": False,
-            "error": {
-                "type": str(gate.get("error_type") or "resume_quality_gate_failed"),
-                "message": message,
-                "recoverable": bool(gate.get("recoverable", True)),
-            },
-            "message": message,
-            "unsupported_claims": gate.get("unsupported_claims", []),
-        }
-        return {
-            "tool_name": str(preview_result.get("tool_name") or tool_name),
-            "result": result,
-            "display_message": message,
-            "qr_image": None,
-            "updated_section_name": None,
-        }
-    @staticmethod
-    def auto_clarification_for_quality_failure(
-        *,
-        quality_failure: dict[str, Any],
-        tool_name: str,
-        tool_input: dict[str, Any],
-    ) -> dict[str, Any]:
-        """用于把免确认阶段的无来源事实拦截转成结构化追问。"""
-        result = quality_failure.get("result")
-        if not isinstance(result, dict):
-            return quality_failure
-        error = result.get("error")
-        if not isinstance(error, dict) or error.get("type") != "unsupported_resume_claim":
-            return quality_failure
-        claims = [str(item) for item in result.get("unsupported_claims", []) if str(item)]
-        question = ResumeToolExecutionStage.unsupported_claim_question(claims)
-        return {
-            "tool_name": "ask_user",
-            "result": {
-                "success": True,
-                "terminate": True,
-                "message": question,
-                "user_input_request": {
-                    "question": question,
-                    "options": ResumeToolExecutionStage.unsupported_claim_options(claims),
-                    "category": ResumeToolExecutionStage.ask_category(tool_input),
-                    "context": "为了避免把 JD 要求写成没有证据的经历事实，需要先确认这些能力是否真实发生。",
-                    "allow_custom": True,
-                },
-                "blocked_tool": tool_name,
-                "unsupported_claims": claims,
-            },
-            "display_message": question,
-            "qr_image": None,
-            "updated_section_name": None,
-        }
-
-    @staticmethod
-    def unsupported_claim_question(claims: list[str]) -> str:
-        """用于生成无来源能力事实的追问问题。"""
-        if not claims:
-            return "这段经历是否有真实可证明的补充事实可写进简历？"
-        return f"这段经历是否真实包含这些事实：{'、'.join(claims[:4])}？"
-
-    @staticmethod
-    def unsupported_claim_options(claims: list[str]) -> list[str]:
-        """用于生成无来源能力事实的追问选项。"""
-        options = [f"确认做过：{claim}" for claim in claims[:3]]
-        options.append("没有做过，按已有事实保守改写")
-        return options
-
-    @staticmethod
-    def ask_category(tool_input: dict[str, Any]) -> str:
-        """用于按编辑板块选择 ask_user 的信息类别。"""
-        section = tool_input.get("section")
-        if section in {"work_experience", "projects", "education"}:
-            return str(section)
-        return "other"
-
 
     async def sdk_preview_result(
         self,

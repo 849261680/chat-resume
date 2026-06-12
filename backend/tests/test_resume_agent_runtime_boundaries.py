@@ -1400,8 +1400,8 @@ async def test_resume_tool_execution_stage_hides_noop_preview_failure():
     assert stream_state["visible_tool_call_ids"] == set()
 
 @pytest.mark.asyncio
-async def test_resume_tool_execution_stage_blocks_unsupported_claims_before_confirmation():
-    """用于验证无来源事实不会进入用户确认卡。"""
+async def test_resume_tool_execution_stage_sends_unsupported_claims_to_confirmation():
+    """用于验证无来源事实不再被后端门禁拦截。"""
     agent = ResumeAgent()
     stage = ResumeToolExecutionStage()
     resume = {
@@ -1428,8 +1428,8 @@ async def test_resume_tool_execution_stage_blocks_unsupported_claims_before_conf
 
     result = await stage.execute_tool_result(
         agent=agent.definition,
-        run_id="run_quality_gate",
-        call_id="call_quality_gate",
+        run_id="run_no_quality_gate",
+        call_id="call_no_quality_gate",
         tool_name="update_bullet",
         tool_input={
             "section": "projects",
@@ -1454,18 +1454,17 @@ async def test_resume_tool_execution_stage_blocks_unsupported_claims_before_conf
     while not event_queue.empty():
         events.append(event_queue.get_nowait())
 
-    assert result.details["success"] is False
-    assert result.details["error"]["type"] == "unsupported_resume_claim"
-    assert "Redis" in result.details["message"]
-    assert resume["projects"][0]["highlights"][0]["text"] == "用 Spring Boot 写了商品发布和搜索接口"
-    assert not any(event.get("tool_pending") for event in events)
-    assert any(event.get("tool_call_failed") for event in events)
-    assert executed_tools[0]["success"] is False
+    assert result.details["success"] is True
+    assert resume["projects"][0]["highlights"][0]["text"] == "引入 Redis 与 Kafka 优化搜索链路，支撑 10万 DAU 并将延迟降低 70%"
+    assert any(event.get("tool_pending") for event in events)
+    assert any(event.get("tool_confirmed") for event in events)
+    assert not any(event.get("tool_call_failed") for event in events)
+    assert executed_tools[0]["success"] is True
 
 
 @pytest.mark.asyncio
-async def test_auto_execute_stage_blocks_unsupported_claims_before_mutation():
-    """用于验证免确认工具遇到无来源事实时先转成结构化追问且不修改简历。"""
+async def test_auto_execute_stage_mutates_without_quality_gate():
+    """用于验证免确认工具不再经过事实质量门禁。"""
     agent = ResumeAgent()
     stage = ResumeToolExecutionStage()
     resume = {
@@ -1482,8 +1481,8 @@ async def test_auto_execute_stage_blocks_unsupported_claims_before_mutation():
 
     result = await stage.execute_tool_result(
         agent=agent.definition,
-        run_id="run_auto_quality_gate",
-        call_id="call_auto_quality_gate",
+        run_id="run_auto_no_quality_gate",
+        call_id="call_auto_no_quality_gate",
         tool_name="update_bullet",
         tool_input={
             "section": "projects",
@@ -1508,17 +1507,15 @@ async def test_auto_execute_stage_blocks_unsupported_claims_before_mutation():
     )
 
     assert result.details["success"] is True
-    assert result.details["terminate"] is True
-    assert result.details["user_input_request"]["category"] == "projects"
-    assert "索引优化" in result.details["message"]
-    assert executed_tools[0]["name"] == "ask_user"
+    assert result.details["updated_section"] == "projects"
+    assert "索引优化" in resume["projects"][0]["highlights"][0]["text"]
+    assert executed_tools[0]["name"] == "优化要点"
     assert executed_tools[0]["success"] is True
-    assert resume["projects"][0]["highlights"][0]["text"] == "用 Spring Boot 写了商品发布和搜索接口"
 
 
 @pytest.mark.asyncio
-async def test_resume_tool_execution_stage_blocks_low_quality_diff_before_confirmation():
-    """用于验证低质量关键词堆叠不会进入用户确认卡。"""
+async def test_resume_tool_execution_stage_allows_low_quality_diff_confirmation():
+    """用于验证低质量候选也会进入用户确认。"""
     agent = ResumeAgent()
     stage = ResumeToolExecutionStage()
     resume = {
@@ -1545,8 +1542,8 @@ async def test_resume_tool_execution_stage_blocks_low_quality_diff_before_confir
 
     result = await stage.execute_tool_result(
         agent=agent.definition,
-        run_id="run_low_quality_gate",
-        call_id="call_low_quality_gate",
+        run_id="run_low_quality_no_gate",
+        call_id="call_low_quality_no_gate",
         tool_name="update_bullet",
         tool_input={
             "section": "projects",
@@ -1571,17 +1568,16 @@ async def test_resume_tool_execution_stage_blocks_low_quality_diff_before_confir
     while not event_queue.empty():
         events.append(event_queue.get_nowait())
 
-    assert result.details["success"] is False
-    assert result.details["error"]["type"] == "low_quality_resume_edit"
-    assert "堆关键词" in result.details["message"]
-    assert resume["projects"][0]["highlights"][0]["text"] == "用 Spring Boot 写了商品发布和搜索接口"
-    assert not any(event.get("tool_pending") for event in events)
-    assert any(event.get("tool_call_failed") for event in events)
+    assert result.details["success"] is True
+    assert resume["projects"][0]["highlights"][0]["text"] == "负责 Spring Boot、MySQL、后端、接口、系统相关工作"
+    assert any(event.get("tool_pending") for event in events)
+    assert any(event.get("tool_confirmed") for event in events)
+    assert not any(event.get("tool_call_failed") for event in events)
 
 
 @pytest.mark.asyncio
-async def test_resume_tool_execution_stage_blocks_weak_action_chain_before_confirmation():
-    """用于验证有结果但缺少强动作链路的改写会被要求重写。"""
+async def test_resume_tool_execution_stage_allows_weak_action_chain_confirmation():
+    """用于验证弱动作链路候选也会进入用户确认。"""
     agent = ResumeAgent()
     stage = ResumeToolExecutionStage()
     resume = {
@@ -1608,8 +1604,8 @@ async def test_resume_tool_execution_stage_blocks_weak_action_chain_before_confi
 
     result = await stage.execute_tool_result(
         agent=agent.definition,
-        run_id="run_weak_action_gate",
-        call_id="call_weak_action_gate",
+        run_id="run_weak_action_no_gate",
+        call_id="call_weak_action_no_gate",
         tool_name="update_bullet",
         tool_input={
             "section": "projects",
@@ -1634,16 +1630,16 @@ async def test_resume_tool_execution_stage_blocks_weak_action_chain_before_confi
     while not event_queue.empty():
         events.append(event_queue.get_nowait())
 
-    assert result.details["success"] is False
-    assert result.details["error"]["type"] == "low_quality_resume_edit"
-    assert "强动作动词" in result.details["message"]
-    assert resume["projects"][0]["highlights"][0]["text"] == "用 Spring Boot 写了商品发布和搜索接口"
-    assert not any(event.get("tool_pending") for event in events)
+    assert result.details["success"] is True
+    assert resume["projects"][0]["highlights"][0]["text"] == "使用 Redis 缓存商品搜索热点数据，将搜索接口平均延迟从 500ms 降至 300ms，响应速度提升约 40%"
+    assert any(event.get("tool_pending") for event in events)
+    assert any(event.get("tool_confirmed") for event in events)
+    assert not any(event.get("tool_call_failed") for event in events)
 
 
 @pytest.mark.asyncio
-async def test_resume_tool_execution_stage_blocks_resultless_bullet_before_confirmation():
-    """用于验证缺少结果证据的 bullet 改写会被要求补充业务价值。"""
+async def test_resume_tool_execution_stage_allows_resultless_bullet_confirmation():
+    """用于验证缺少结果证据的 bullet 候选也会进入用户确认。"""
     agent = ResumeAgent()
     stage = ResumeToolExecutionStage()
     resume = {
@@ -1670,8 +1666,8 @@ async def test_resume_tool_execution_stage_blocks_resultless_bullet_before_confi
 
     result = await stage.execute_tool_result(
         agent=agent.definition,
-        run_id="run_resultless_gate",
-        call_id="call_resultless_gate",
+        run_id="run_resultless_no_gate",
+        call_id="call_resultless_no_gate",
         tool_name="update_bullet",
         tool_input={
             "section": "projects",
@@ -1692,10 +1688,8 @@ async def test_resume_tool_execution_stage_blocks_resultless_bullet_before_confi
         stream_state=stream_state,
     )
 
-    assert result.details["success"] is False
-    assert result.details["error"]["type"] == "low_quality_resume_edit"
-    assert "结果证据" in result.details["message"]
-    assert resume["projects"][0]["highlights"][0]["text"] == "用 Spring Boot 写了商品发布和搜索接口"
+    assert result.details["success"] is True
+    assert resume["projects"][0]["highlights"][0]["text"] == "基于 Spring Boot 设计并实现商品发布与搜索接口"
 
 
 @pytest.mark.asyncio

@@ -1,7 +1,6 @@
 """用于覆盖优秀简历 Agent 黄金样例集。"""
 
 from app.agents.resume.excellent_cases import load_excellent_resume_cases
-from app.agents.resume.quality_gate import evaluate_resume_edit_quality
 
 
 def test_excellent_resume_cases_cover_required_scenarios():
@@ -33,43 +32,4 @@ def test_excellent_resume_cases_have_actionable_acceptance_fields():
         assert isinstance(case["quality_checks"], list)
         assert isinstance(case["forbidden_claims"], list)
         assert case["acceptance"].strip()
-
-
-def test_missing_fact_case_is_blocked_by_quality_gate():
-    """用于验证 JD 技术栈无事实支撑时会被事实门禁拦截。"""
-    case = next(
-        item for item in load_excellent_resume_cases()
-        if item["id"] == "excellent-003"
-    )
-    candidate = case["candidate_bad_diff"]
-
-    gate = evaluate_resume_edit_quality(
-        resume_content=case["resume"],
-        tool_name=candidate["tool_name"],
-        tool_input=candidate["tool_input"],
-        preview_result=candidate["preview_result"],
-        user_message=case["user_message"],
-    )
-
-    assert gate["passed"] is False
-    assert set(candidate["must_block_claims"]) <= set(gate["unsupported_claims"])
-
-
-def test_user_fact_supported_case_passes_quality_gate():
-    """用于验证用户已补充事实时同类改写允许进入确认。"""
-    case = next(
-        item for item in load_excellent_resume_cases()
-        if item["id"] == "excellent-004"
-    )
-    candidate = case["candidate_good_diff"]
-
-    gate = evaluate_resume_edit_quality(
-        resume_content=case["resume"],
-        tool_name=candidate["tool_name"],
-        tool_input=candidate["tool_input"],
-        preview_result=candidate["preview_result"],
-        user_message=case["user_message"],
-    )
-
-    assert gate["passed"] is True
 

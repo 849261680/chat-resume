@@ -44,7 +44,7 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
             "description": (
                 "向用户发起结构化追问，不修改简历。"
                 "用于缺少事实边界、职责、量化结果或经历细节时。"
-                "question 必须是直接疑问句；调用后等待用户回答。"
+                "question 必须是直接问用户的疑问句；调用后等待用户回答。"
             ),
             "parameters": {
                 "type": "object",

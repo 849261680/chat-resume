@@ -351,7 +351,8 @@ class ResumeAgentLoop:
             return
         if tool_call.name not in _PLANNING_TOOL_NAMES:
             return
-        deltas = text_deltas or [cls.planning_text_for_tool(tool_call.name)]
+        del text_deltas
+        deltas = [cls.planning_text_for_tool(tool_call.name)]
         state["planning_visibility_published"] = True
         if state["first_token_latency_ms"] is None:
             state["first_token_latency_ms"] = round(
@@ -361,8 +362,7 @@ class ResumeAgentLoop:
         for content in deltas:
             if not content:
                 continue
-            state["chunk_index"] += 1
-            state["response_parts"].append(content)
+            state["planning_chunk_count"] = int(state.get("planning_chunk_count") or 0) + 1
             await cls.publish_event(
                 event_queue=event_queue,
                 event_callback=event_callback,

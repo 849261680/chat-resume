@@ -154,11 +154,12 @@ async def _run_trajectory(
     builder = ResumeTurnContextBuilder(tool_stage=stage)
     state = ResumeRunLifecycle.new_stream_state()
     executed_tools: list[dict[str, Any]] = []
+    context = {"resume_content": resume_content or SAMPLE_RESUME}
 
     pi_context, prompts, config = builder.build_loop_inputs(
         agent=agent.definition,
         user_message=user_message,
-        context={"resume_content": resume_content or SAMPLE_RESUME},
+        context=context,
         conversation_history=[],
         run_id="run_traj_test",
         confirmation_queue=None,
@@ -174,7 +175,7 @@ async def _run_trajectory(
         pi_context=pi_context,
         prompts=prompts,
         config=config,
-        context={"resume_content": resume_content or SAMPLE_RESUME},
+        context=context,
         confirmation_queue=None,
         event_queue=None,
         event_callback=None,
@@ -198,7 +199,7 @@ async def _run_trajectory(
 async def test_trajectory_optimize_bullet_calls_update_bullet():
     """用户说'优化这条亮点' → Agent 应调用 update_bullet。"""
     result = await _run_trajectory(
-        "帮我优化工作经历的第一条亮点",
+        "帮我优化工作经历的第一条亮点，事实是主导前端架构重构，首屏加载提速 35%",
         llm_messages=[
             _tool_msg("update_bullet", {
                 "section": "work_experience",
@@ -222,7 +223,7 @@ async def test_trajectory_optimize_bullet_calls_update_bullet():
 async def test_trajectory_add_new_bullet_calls_add_bullet():
     """用户说'加一条亮点' → Agent 应调用 add_bullet。"""
     result = await _run_trajectory(
-        "在工作经历中加一条关于性能优化的亮点",
+        "在工作经历中加一条关于性能优化的亮点，事实是搭建前端性能监控体系，覆盖 30+ 关键链路",
         llm_messages=[
             _tool_msg("add_bullet", {
                 "section": "work_experience",
@@ -294,10 +295,10 @@ async def test_trajectory_rejects_unknown_tool():
 async def test_trajectory_update_summary_for_summary_edit():
     """用户说'改个人总结' → Agent 应调用 update_summary。"""
     result = await _run_trajectory(
-        "帮我改一下个人总结",
+        "帮我改一下个人总结，事实是优化 React 生态实践，支撑前端性能提升",
         llm_messages=[
             _tool_msg("update_summary", {
-                "text": "5 年前端工程师，擅长 React 生态与性能优化",
+                "text": "优化 React 生态实践，支撑前端性能提升",
                 "reason": "用户要求修改总结",
             }),
             _text_msg("已更新个人总结。"),
@@ -313,7 +314,7 @@ async def test_trajectory_update_summary_for_summary_edit():
 async def test_trajectory_multi_turn_react_loop():
     """Agent 执行两轮工具调用后收尾 → 验证多 turn ReAct 路径。"""
     result = await _run_trajectory(
-        "优化工作经历的亮点，然后更新个人总结",
+        "优化工作经历的亮点，然后更新个人总结，事实是接口响应提速 40%，前端性能链路支撑核心体验提升",
         llm_messages=[
             _tool_msg("update_bullet", {
                 "section": "work_experience",
@@ -323,7 +324,7 @@ async def test_trajectory_multi_turn_react_loop():
                 "reason": "补充量化数据",
             }),
             _tool_msg("update_summary", {
-                "text": "资深前端工程师，擅长性能优化",
+                "text": "优化前端性能链路，支撑核心体验提升",
                 "reason": "与优化后的亮点对齐",
             }),
             _text_msg("已完成两处修改。"),

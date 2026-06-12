@@ -2106,10 +2106,11 @@ async def test_stream_error_closes_visible_early_tool_call_event():
 
     assert assistant_message.stop_reason == "error"
     assert [event.get("event_type") for event in events] == [
+        "text_delta",
         "tool_call",
         "tool_call_failed",
     ]
-    failed_event = events[1]
+    failed_event = events[2]
     assert failed_event["call_id"] == "call_interrupted"
     assert failed_event["tool_id"] == "update_bullet"
     assert failed_event["display_message"] == "peer closed connection"

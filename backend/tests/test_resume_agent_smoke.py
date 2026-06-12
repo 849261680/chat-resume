@@ -540,7 +540,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
                             args={
                                 "section": "work_experience",
                                 "item_id": "work_1",
-                                "text": "基于 Prompt Chain 优化 Agent 输出稳定性",
+                                "text": "优化 Prompt Chain 生成链路，支撑 Agent 输出一致性",
                                 "reason": "纠正无工具声明",
                             },
                         )
@@ -551,7 +551,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         )
         resume = self._sample_resume()
 
-        result = await agent.optimize("继续拆分工作经历 bullet", resume)
+        result = await agent.optimize("继续拆分工作经历 bullet，事实是 Prompt Chain 生成链路支撑 Agent 输出一致性", resume)
 
         self.assertNotIn("新增 4 条独立 bullet", result["content"])
         self.assertIn("已通过工具新增 1 条工作经历要点。", result["content"])
@@ -560,7 +560,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(resume["work_experience"][0]["highlights"]), 2)
         self.assertEqual(
             resume["work_experience"][0]["highlights"][-1]["text"],
-            "基于 Prompt Chain 优化 Agent 输出稳定性",
+            "优化 Prompt Chain 生成链路，支撑 Agent 输出一致性",
         )
 
 
@@ -618,7 +618,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
                                 "section": "work_experience",
                                 "item_id": "work_1",
                                 "bullet_id": "hl_1",
-                                "text": "维护多个后台服务，并推动核心接口响应时间下降 30%",
+                                "text": "优化核心接口链路，推动响应时间下降 30%",
                             },
                         )
                     ],
@@ -628,7 +628,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         )
         resume = self._sample_resume()
 
-        result = await agent.optimize("优化我的工作经历", resume)
+        result = await agent.optimize("优化我的工作经历，核心接口响应时间下降 30% 是真实成果", resume)
 
         self.assertIn("量化成果", result["content"])
         self.assertEqual(len(result["tool_calls"]), 1)
@@ -650,7 +650,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
                             args={
                                 "section": "projects",
                                 "item_id": "proj_1",
-                                "text": "通过结构化工具调用驱动简历内容更新",
+                                "text": "构建结构化工具调用链路，支撑简历内容更新",
                             },
                         )
                     ],
@@ -660,14 +660,14 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         )
         resume = self._sample_resume()
 
-        result = await agent.optimize("继续优化项目", resume)
+        result = await agent.optimize("继续优化项目，事实是结构化工具调用链路支撑简历内容更新", resume)
 
         self.assertNotIn("我来继续添加一个技术要点", result["content"])
         self.assertIn("已通过工具新增 1 条项目要点。", result["content"])
         self.assertEqual(len(result["tool_calls"]), 1)
         self.assertEqual(
             resume["projects"][0]["highlights"][-1]["text"],
-            "通过结构化工具调用驱动简历内容更新",
+            "构建结构化工具调用链路，支撑简历内容更新",
         )
 
     async def test_optimize_falls_back_after_repeated_no_tool_mutation_claim(self):
@@ -761,7 +761,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
                             args={
                                 "section": "projects",
                                 "item_id": "proj_1",
-                                "text": "读取工具结果后继续新增亮点",
+                                "text": "优化工具结果回读链路，支撑亮点持续新增",
                             },
                         )
                     ],
@@ -771,7 +771,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         )
         resume = self._sample_resume()
 
-        result = await agent.optimize("优化项目内容", resume)
+        result = await agent.optimize("优化项目内容，事实是工具结果回读链路支撑亮点持续新增", resume)
 
         self.assertEqual(result["content"], "已先完成第一步修改。")
         self.assertEqual(len(result["tool_calls"]), 2)
@@ -779,7 +779,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(resume["projects"][0]["highlights"]), 2)
         self.assertEqual(
             resume["projects"][0]["highlights"][-1]["text"],
-            "读取工具结果后继续新增亮点",
+            "优化工具结果回读链路，支撑亮点持续新增",
         )
         self.assertEqual(agent.runtime.stream_fn.calls, 3)
         second_turn_messages = agent.runtime.stream_fn.contexts[1].messages
@@ -813,7 +813,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
                         args={
                             "section": "projects",
                             "item_id": "proj_1",
-                            "overview": f"第 {index} 轮项目简介",
+                            "overview": "优化项目简介，支撑连续阶段表达",
                         },
                     )
                 ],
@@ -824,11 +824,11 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         agent = self._build_agent(responses)
         resume = self._sample_resume()
 
-        result = await agent.optimize("连续优化项目简介", resume)
+        result = await agent.optimize("连续优化项目简介，连续阶段表达是真实内容", resume)
 
         self.assertEqual(result["content"], "已完成连续多轮项目简介优化。")
         self.assertEqual(len(result["tool_calls"]), 7)
-        self.assertEqual(resume["projects"][0]["overview"], "第 7 轮项目简介")
+        self.assertEqual(resume["projects"][0]["overview"], "优化项目简介，支撑连续阶段表达")
         self.assertEqual(agent.runtime.stream_fn.calls, 8)
 
     async def test_optimize_retries_recoverable_tool_error(self):
@@ -884,7 +884,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
                                 "section": "work_experience",
                                 "item_id": "work_1",
                                 "bullet_id": "hl_1",
-                                "text": "维护多个后台服务，负责内部系统开发",
+                                "text": "优化后台服务维护流程，支撑内部系统开发交付",
                             },
                         )
                     ],
@@ -898,7 +898,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
 
         events = []
         async for event in agent.optimize_stream(
-            user_message="优化这段工作经历",
+            user_message="优化这段工作经历，事实是后台服务维护流程支撑内部系统开发交付",
             resume_content=resume,
             conversation_history=[],
             confirmation_queue=confirmation_queue,
@@ -923,7 +923,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(
             resume["work_experience"][0]["highlights"][0]["text"],
-            "维护多个后台服务，负责内部系统开发",
+            "优化后台服务维护流程，支撑内部系统开发交付",
         )
         self.assertEqual(agent.runtime.stream_fn.calls, 2)
 
@@ -946,7 +946,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
                             args={
                                 "section": "work_experience",
                                 "item_id": "work_1",
-                                "text": "基于 RAG 记忆检索增强长程上下文",
+                                "text": "构建 RAG 记忆检索链路，支撑长程上下文引用",
                                 "reason": "纠正无工具声明",
                             },
                         )
@@ -978,7 +978,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(resume["work_experience"][0]["highlights"]), 2)
         self.assertEqual(
             resume["work_experience"][0]["highlights"][-1]["text"],
-            "基于 RAG 记忆检索增强长程上下文",
+            "构建 RAG 记忆检索链路，支撑长程上下文引用",
         )
 
     async def test_optimize_stream_hides_tool_call_turn_preamble_text(self):
@@ -994,7 +994,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
                             args={
                                 "section": "projects",
                                 "item_id": "proj_1",
-                                "text": "使用结构化工具调用保证简历编辑可追溯",
+                                "text": "构建结构化工具调用链路，支撑简历编辑可追溯",
                             },
                         )
                     ],
@@ -1008,7 +1008,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
 
         events = []
         async for event in agent.optimize_stream(
-            user_message="继续优化项目",
+            user_message="继续优化项目，事实是结构化工具调用链路支撑简历编辑可追溯",
             resume_content=resume,
             conversation_history=[],
             confirmation_queue=confirmation_queue,
@@ -1022,7 +1022,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(any(event.get("tool_pending") for event in events))
         self.assertEqual(
             resume["projects"][0]["highlights"][-1]["text"],
-            "使用结构化工具调用保证简历编辑可追溯",
+            "构建结构化工具调用链路，支撑简历编辑可追溯",
         )
 
     async def test_optimize_stream_falls_back_after_repeated_no_tool_mutation_text(self):
@@ -1175,7 +1175,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
                                 "section": "work_experience",
                                 "item_id": "work_1",
                                 "bullet_id": "hl_1",
-                                "text": "这是一个不应被应用的修改",
+                                "text": "优化后台服务维护流程，支撑内部系统开发交付",
                             },
                         )
                     ],
@@ -1189,7 +1189,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
 
         events = []
         async for event in agent.optimize_stream(
-            user_message="随便改一下工作经历",
+            user_message="把工作经历改成后台服务维护流程支撑内部系统开发交付",
             resume_content=resume,
             conversation_history=[],
             confirmation_queue=confirmation_queue,
@@ -1246,10 +1246,9 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertTrue(any(event.get("tool_call_failed") for event in events))
         self.assertEqual(resume["projects"][0]["overview"], "流式重试后的简介")
-        self.assertEqual(
-            "".join(event.get("content", "") for event in events),
-            "已完成流式重试。",
-        )
+        visible_text = "".join(event.get("content", "") for event in events)
+        self.assertIn("已完成流式重试。", visible_text)
+        self.assertNotIn("缺少 item_id", visible_text)
 
 class ResumeAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
     def _sample_resume(self):
@@ -1283,8 +1282,8 @@ class ResumeAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
                             "section": "work_experience",
                             "item_id": "work_1",
                             "bullet_id": "hl_1",
-                            "text": "维护多个后台服务，负责内部系统开发",
-                            "reason": "补充业务规模",
+                            "text": "优化后台服务维护流程，支撑内部系统开发交付",
+                            "reason": "补充交付结果",
                         },
                         call_id="call_pi_1",
                     ),
@@ -1298,7 +1297,7 @@ class ResumeAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
 
         events = []
         async for event in agent.optimize_stream(
-            user_message="优化这段工作经历",
+            user_message="优化这段工作经历，事实是后台服务维护流程支撑内部系统开发交付",
             resume_content=resume,
             conversation_history=[],
             confirmation_queue=confirmation_queue,
@@ -1310,7 +1309,7 @@ class ResumeAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(any(event.get("tool_confirmed") for event in events))
         self.assertEqual(
             resume["work_experience"][0]["highlights"][0]["text"],
-            "维护多个后台服务，负责内部系统开发",
+            "优化后台服务维护流程，支撑内部系统开发交付",
         )
         self.assertEqual(agent.runtime.stream_fn.calls, 2)
 
@@ -1330,8 +1329,8 @@ class ResumeAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
                                         "section": "work_experience",
                                         "item_id": "work_1",
                                         "bullet_id": "hl_1",
-                                        "text": "维护多个后台服务，负责内部系统开发",
-                                        "reason": "补充业务规模",
+                                        "text": "优化后台服务维护流程，支撑内部系统开发交付",
+                                        "reason": "补充交付结果",
                                     },
                                     call_id="call_pi_preamble",
                                 )
@@ -1348,7 +1347,7 @@ class ResumeAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
 
         events = []
         async for event in agent.optimize_stream(
-            user_message="优化这段工作经历",
+            user_message="优化这段工作经历，事实是后台服务维护流程支撑内部系统开发交付",
             resume_content=resume,
             conversation_history=[],
             confirmation_queue=confirmation_queue,
@@ -1371,8 +1370,8 @@ class ResumeAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
                 "section": "work_experience",
                 "item_id": "work_1",
                 "bullet_id": "hl_1",
-                "text": "维护多个后台服务，负责内部系统开发",
-                "reason": "补充业务规模",
+                "text": "优化后台服务维护流程，支撑内部系统开发交付",
+                "reason": "补充交付结果",
             },
             call_id="call_pi_early",
         )
@@ -1396,7 +1395,7 @@ class ResumeAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
 
         events = []
         async for event in agent.optimize_stream(
-            user_message="优化这段工作经历",
+            user_message="优化这段工作经历，事实是后台服务维护流程支撑内部系统开发交付",
             resume_content=resume,
             conversation_history=[],
             confirmation_queue=confirmation_queue,
@@ -1600,8 +1599,8 @@ class ResumeAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
                             "section": "work_experience",
                             "item_id": "work_1",
                             "bullet_id": "hl_1",
-                            "text": "维护多个后台服务，负责内部系统开发",
-                            "reason": "补充业务规模",
+                            "text": "优化后台服务维护流程，支撑内部系统开发交付",
+                            "reason": "补充交付结果",
                         },
                         call_id="call_pi_trace",
                     ),
@@ -1621,7 +1620,7 @@ class ResumeAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
             with self.assertLogs("app.agents.resume.runtime", level="INFO") as logs:
                 events = []
                 async for event in agent.optimize_stream(
-                    user_message="优化这段工作经历",
+                    user_message="优化这段工作经历，事实是后台服务维护流程支撑内部系统开发交付",
                     resume_content=resume,
                     conversation_history=[],
                     confirmation_queue=confirmation_queue,

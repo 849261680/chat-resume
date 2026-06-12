@@ -2,6 +2,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { API_BASE_URL, apiUrl } from '@/lib/httpClient'
 import { useTranslations } from 'next-intl'
+import { commitCompletedStreamMessage } from './streamingCompletion'
 import {
   createStreamProtocolState,
   isToolLifecyclePayload,
@@ -331,13 +332,12 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                     timestamp: new Date(),
                     streamEvents: protocolState.events.length > 0 ? [...protocolState.events] : undefined,
                   }
-                  // 先清掉流式展示态，再把最终消息并入历史，避免同一条消息短暂重复渲染。
-                  setIsStreaming(false)
-                  setCurrentStreamingMessage('')
-                  setStreamEvents([])
-                  setTimeout(() => {
-                    onMessage?.(aiMessage)
-                  }, 0)
+                  // 先把最终消息并入历史，再清 live 态，避免结束时出现一帧空白闪烁。
+                  commitCompletedStreamMessage(aiMessage, onMessage, () => {
+                    setIsStreaming(false)
+                    setCurrentStreamingMessage('')
+                    setStreamEvents([])
+                  })
                   return
                 }
 

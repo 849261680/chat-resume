@@ -234,7 +234,6 @@ export default function ResumeEditPage() {
   const [isCreatingInterview, setIsCreatingInterview] = useState(false)
   const [resumeSelectionAction, setResumeSelectionAction] = useState<ResumeSelectionAction | null>(null)
   const [quickEditPrompt, setQuickEditPrompt] = useState('')
-  const [toolFeedbackDrafts, setToolFeedbackDrafts] = useState<Record<string, string>>({})
   const quickEditInputRef = useRef<HTMLTextAreaElement>(null)
   const previewPanelRef = useRef<HTMLDivElement>(null)
   const agentPanelRef = useRef<HTMLDivElement>(null)
@@ -323,21 +322,11 @@ export default function ResumeEditPage() {
     setMounted(true)
   }, [])
 
-  // 用于记录待确认工具调用的用户反馈草稿。
-  const updateToolFeedbackDraft = useCallback((callId: string, value: string) => {
-    setToolFeedbackDrafts((drafts) => ({ ...drafts, [callId]: value }))
-  }, [])
-
   // 用于把反馈作为拒绝原因交回 Agent，触发重新生成修改。
-  const retryToolWithFeedback = useCallback((callId: string) => {
-    const feedback = toolFeedbackDrafts[callId]?.trim() || t('rewriteFeedbackFallback')
+  const retryToolWithFeedback = useCallback((callId: string, feedbackDraft: string) => {
+    const feedback = feedbackDraft.trim() || t('rewriteFeedbackFallback')
     void confirmTool(callId, false, 'resume_edit_feedback_retry_button', feedback)
-    setToolFeedbackDrafts((drafts) => {
-      const next = { ...drafts }
-      delete next[callId]
-      return next
-    })
-  }, [confirmTool, t, toolFeedbackDrafts])
+  }, [confirmTool, t])
 
   // 用于把询问卡片的选择转换成下一轮用户消息。
   const submitUserInputRequest = useCallback((answer: string) => {
@@ -1159,12 +1148,10 @@ export default function ResumeEditPage() {
                           events={streamEvents}
                           mode="live"
                           latestPendingCallId={latestPendingCallId}
-                          toolFeedbackDrafts={toolFeedbackDrafts}
-                          onFeedbackChange={updateToolFeedbackDraft}
                           onConfirmTool={(callId, confirmed, source) => {
                             void confirmTool(callId, confirmed, source)
                           }}
-                          onRetryToolWithFeedback={(callId) => retryToolWithFeedback(callId)}
+                          onRetryToolWithFeedback={(callId, feedback) => retryToolWithFeedback(callId, feedback)}
                         />
                         {shouldShowStreamingThinking && (
                           <div className="mt-2 px-4 py-3 text-sm" style={{ color: '#5b616e' }}>

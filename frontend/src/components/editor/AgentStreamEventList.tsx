@@ -3,6 +3,7 @@
 
 import { CheckIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import { useTranslations } from 'next-intl'
+import { useRef } from 'react'
 
 import { AgentToolActivity } from '@/components/editor/AgentToolActivity'
 import { DiffGroupCards } from '@/components/editor/DiffReviewCard'
@@ -17,10 +18,8 @@ interface AgentStreamEventListProps {
   events: StreamEvent[]
   mode: 'history' | 'live'
   latestPendingCallId?: string | null
-  toolFeedbackDrafts?: Record<string, string>
-  onFeedbackChange?: (callId: string, value: string) => void
   onConfirmTool?: (callId: string, confirmed: boolean, source: string) => void
-  onRetryToolWithFeedback?: (callId: string) => void
+  onRetryToolWithFeedback?: (callId: string, feedback: string) => void
 }
 
 // 用于渲染历史或实时 Resume Agent stream event。
@@ -28,8 +27,6 @@ export function AgentStreamEventList({
   events,
   mode,
   latestPendingCallId,
-  toolFeedbackDrafts = {},
-  onFeedbackChange,
   onConfirmTool,
   onRetryToolWithFeedback,
 }: AgentStreamEventListProps) {
@@ -42,8 +39,6 @@ export function AgentStreamEventList({
         index,
         mode,
         latestPendingCallId,
-        toolFeedbackDrafts,
-        onFeedbackChange,
         onConfirmTool,
         onRetryToolWithFeedback,
         labels: {
@@ -131,8 +126,6 @@ function renderPendingEvent({
   index,
   mode,
   latestPendingCallId,
-  toolFeedbackDrafts,
-  onFeedbackChange,
   onConfirmTool,
   onRetryToolWithFeedback,
   labels,
@@ -142,10 +135,8 @@ function renderPendingEvent({
   index: number
   mode: 'history' | 'live'
   latestPendingCallId?: string | null
-  toolFeedbackDrafts: Record<string, string>
-  onFeedbackChange?: (callId: string, value: string) => void
   onConfirmTool?: (callId: string, confirmed: boolean, source: string) => void
-  onRetryToolWithFeedback?: (callId: string) => void
+  onRetryToolWithFeedback?: (callId: string, feedback: string) => void
   labels: Record<string, string>
 }) {
   if (mode === 'history') return null
@@ -169,9 +160,7 @@ function renderPendingEvent({
       key={index}
       event={event}
       isActivePending={isActivePending}
-      feedbackDraft={toolFeedbackDrafts[event.callId] || ''}
       labels={labels}
-      onFeedbackChange={onFeedbackChange}
       onConfirmTool={onConfirmTool}
       onRetryToolWithFeedback={onRetryToolWithFeedback}
     />
@@ -217,20 +206,24 @@ function renderTextEvent(
 function ToolPendingDiffCard({
   event,
   isActivePending,
-  feedbackDraft,
   labels,
-  onFeedbackChange,
   onConfirmTool,
   onRetryToolWithFeedback,
 }: {
   event: Extract<StreamEvent, { type: 'tool_pending' }>
   isActivePending: boolean
-  feedbackDraft: string
   labels: Record<string, string>
-  onFeedbackChange?: (callId: string, value: string) => void
   onConfirmTool?: (callId: string, confirmed: boolean, source: string) => void
-  onRetryToolWithFeedback?: (callId: string) => void
+  onRetryToolWithFeedback?: (callId: string, feedback: string) => void
 }) {
+  const feedbackRef = useRef<HTMLTextAreaElement>(null)
+
+  // 用于读取非受控反馈框内容，避免每个按键触发编辑页重渲染。
+  const submitRetryFeedback = () => {
+    onRetryToolWithFeedback?.(event.callId, feedbackRef.current?.value || '')
+    if (feedbackRef.current) feedbackRef.current.value = ''
+  }
+
   return (
     <div className="mb-2 rounded-2xl border border-gray-200 bg-white overflow-hidden text-xs shadow-sm">
       <div className="px-4 py-3 bg-white flex items-center gap-2 border-b border-gray-200">
@@ -249,11 +242,10 @@ function ToolPendingDiffCard({
       />
       <div className="px-4 py-3 bg-white border-t border-gray-100">
         <textarea
-          value={feedbackDraft}
+          ref={feedbackRef}
           disabled={!isActivePending}
           rows={2}
           placeholder={labels.toolFeedbackPlaceholder}
-          onChange={(changeEvent) => onFeedbackChange?.(event.callId, changeEvent.target.value)}
           className="w-full resize-none rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs leading-5 text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-blue-500 focus:bg-white disabled:cursor-not-allowed disabled:opacity-50"
         />
       </div>
@@ -274,7 +266,7 @@ function ToolPendingDiffCard({
           disabled={!isActivePending}
           label={labels.retryWithFeedback}
           variant="retry"
-          onClick={() => onRetryToolWithFeedback?.(event.callId)}
+          onClick={submitRetryFeedback}
         />
       </div>
     </div>

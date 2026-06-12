@@ -105,7 +105,7 @@ export default function PaginatedResumePreview({
   const { pages, totalPages, isCalculating } = useLineBasedPagination({
     containerRef,
     contentRef,
-    spacingScale,
+    fullBleed: isFullBleedTemplate,
   })
 
   const handleSmartFitComplete = useCallback((newScale: number) => {
@@ -118,6 +118,7 @@ export default function PaginatedResumePreview({
 
   const { runSmartFit } = useSmartFit({
     currentScale: spacingScale,
+    fullBleed: isFullBleedTemplate,
     onComplete: handleSmartFitComplete,
     setMeasureScale,
     waitForMeasureScale,
@@ -260,10 +261,10 @@ export default function PaginatedResumePreview({
       style={{
         width: `${A4_WIDTH}px`,
         aspectRatio: `${A4_WIDTH / A4_HEIGHT}`,
-        paddingTop: `${PAGE_PADDING}px`,
-        paddingBottom: `${PAGE_PADDING}px`,
-        paddingLeft: `${PAGE_PADDING}px`,
-        paddingRight: `${PAGE_PADDING}px`,
+        paddingTop: `${isFullBleedTemplate ? 0 : PAGE_PADDING}px`,
+        paddingBottom: `${isFullBleedTemplate ? 0 : PAGE_PADDING}px`,
+        paddingLeft: `${isFullBleedTemplate ? 0 : PAGE_PADDING}px`,
+        paddingRight: `${isFullBleedTemplate ? 0 : PAGE_PADDING}px`,
         boxSizing: 'border-box',
         ['--spacing-scale' as string]: String(measureScale),
       }}

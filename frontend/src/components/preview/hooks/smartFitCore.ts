@@ -4,6 +4,7 @@ import {
   MIN_RESUME_SPACING_SCALE,
   RESUME_SPACING_SCALE_STEP,
 } from '../../../lib/resumeSpacingScale'
+import { A4_HEIGHT, PAGE_PADDING, getPageContentHeight } from './useLineBasedPagination'
 
 export const MIN_SPACING_SCALE = MIN_RESUME_SPACING_SCALE
 export const MAX_SPACING_SCALE = MAX_RESUME_SPACING_SCALE
@@ -15,6 +16,221 @@ export type TooMuchContentResult = {
   status: 'too_much_content'
   pages: number
   appliedScale: number
+}
+
+export type SmartFitCoreResult =
+  | { status: 'already_fits'; finalMeasureScale: number }
+  | { status: 'failed'; finalMeasureScale: number }
+  | { status: 'success'; oldScale: number; newScale: number; finalMeasureScale: number }
+  | (TooMuchContentResult & { finalMeasureScale: number })
+
+interface SmartFitCoreOptions {
+  currentScale: number
+  fullBleed?: boolean
+  measureContentBottom: (scale: number) => Promise<number>
+  shouldAbort?: () => boolean
+}
+
+// 用于计算当前模板页面允许的内容底线。
+export function getSmartFitPageBottom(fullBleed = false): number {
+  return getPageContentHeight({ fullBleed })
+}
+
+// 用于计算智能适配期望的内容底线。
+export function getSmartFitTargetBottom(fullBleed = false): number {
+  const verticalPadding = fullBleed ? 0 : PAGE_PADDING * 2
+  return A4_HEIGHT - verticalPadding - SMART_FIT_TARGET_BOTTOM_GAP
+}
+
+// 将试算结果落到可控步长，避免布局滑块出现过细的小数。
+function roundToSpacingStep(scale: number) {
+  return Math.round(scale / SPACING_SCALE_STEP) * SPACING_SCALE_STEP
+}
+
+// 向下对齐到可控步长，避免取整后把最后一行推过目标底线。
+function floorToSpacingStep(scale: number) {
+  return Math.floor(scale / SPACING_SCALE_STEP) * SPACING_SCALE_STEP
+}
+
+// 将 scale 限制在简历密度允许范围内。
+function clampSpacingScale(scale: number) {
+  return Math.max(MIN_SPACING_SCALE, Math.min(MAX_SPACING_SCALE, scale))
+}
+
+// 判断两个 scale 是否已经落在同一个滑块步长内。
+function isSameSpacingStep(scale: number, currentScale: number) {
+  return Math.abs(scale - currentScale) < SPACING_SCALE_STEP / 2
+}
+
+// 在区间内搜索不超过目标底线的最大 scale。
+async function searchLargestFittingScale(
+  loScale: number,
+  hiScale: number,
+  targetBottom: number,
+  measure: (scale: number) => Promise<number>,
+  shouldAbort: () => boolean,
+) {
+  let lo = loScale
+  let hi = hiScale
+  let bestScale = loScale
+
+  for (let i = 0; i < 8; i++) {
+    if (shouldAbort()) return null
+    const mid = (lo + hi) / 2
+    const height = await measure(mid)
+    if (height <= targetBottom) {
+      bestScale = mid
+      lo = mid
+      continue
+    }
+    hi = mid
+  }
+
+  return bestScale
+}
+
+// 为当前已经一页的内容寻找更接近底线的宽松 scale。
+async function findScaleForFittingContent(
+  currentScale: number,
+  currentContentBottom: number,
+  targetBottom: number,
+  measure: (scale: number) => Promise<number>,
+  shouldAbort: () => boolean,
+) {
+  if (Math.abs(currentContentBottom - targetBottom) <= SMART_FIT_TARGET_TOLERANCE) {
+    return currentScale
+  }
+
+  const minContentBottom = await measure(MIN_SPACING_SCALE)
+  if (shouldAbort()) return null
+
+  const maxContentBottom = await measure(MAX_SPACING_SCALE)
+  if (shouldAbort()) return null
+
+  if (maxContentBottom <= targetBottom) {
+    return MAX_SPACING_SCALE
+  }
+  if (minContentBottom > targetBottom) {
+    return MIN_SPACING_SCALE
+  }
+
+  const bestScale = await searchLargestFittingScale(
+    MIN_SPACING_SCALE,
+    MAX_SPACING_SCALE,
+    targetBottom,
+    measure,
+    shouldAbort,
+  )
+  return bestScale === null ? null : bestScale
+}
+
+// 为当前超页的内容寻找能压回一页的最大 scale。
+async function findScaleForOverflowingContent(
+  currentScale: number,
+  pageBottom: number,
+  measure: (scale: number) => Promise<number>,
+  shouldAbort: () => boolean,
+) {
+  const minContentBottom = await measure(MIN_SPACING_SCALE)
+  if (shouldAbort()) return null
+  if (minContentBottom > pageBottom) {
+    return { status: 'too_much_content' as const, pages: Math.ceil(minContentBottom / pageBottom) }
+  }
+
+  const bestScale = await searchLargestFittingScale(
+    MIN_SPACING_SCALE,
+    currentScale,
+    pageBottom,
+    measure,
+    shouldAbort,
+  )
+  if (bestScale === null) return null
+
+  return { status: 'fits' as const, scale: bestScale }
+}
+
+// 确保步长取整后的 scale 不会重新溢出页面。
+async function backOffUntilFits(
+  scale: number,
+  pageBottom: number,
+  measure: (scale: number) => Promise<number>,
+) {
+  let bestScale = scale
+  let verifyBottom = await measure(bestScale)
+
+  while (verifyBottom > pageBottom && bestScale > MIN_SPACING_SCALE) {
+    bestScale = Math.max(MIN_SPACING_SCALE, bestScale - SPACING_SCALE_STEP)
+    verifyBottom = await measure(bestScale)
+  }
+
+  return bestScale
+}
+
+// 用于执行智能一页的纯搜索逻辑。
+export async function calculateSmartFitScale({
+  currentScale,
+  fullBleed = false,
+  measureContentBottom,
+  shouldAbort = () => false,
+}: SmartFitCoreOptions): Promise<SmartFitCoreResult> {
+  let finalMeasureScale = currentScale
+  const measure = async (scale: number) => {
+    finalMeasureScale = scale
+    return measureContentBottom(scale)
+  }
+
+  const currentContentBottom = await measure(currentScale)
+  const currentPageBottom = getSmartFitPageBottom(fullBleed)
+  if (shouldAbort()) return { status: 'failed', finalMeasureScale }
+
+  if (currentContentBottom <= currentPageBottom) {
+    const targetBottom = getSmartFitTargetBottom(fullBleed)
+    const relaxedScale = await findScaleForFittingContent(
+      currentScale,
+      currentContentBottom,
+      targetBottom,
+      measure,
+      shouldAbort,
+    )
+    if (relaxedScale === null) return { status: 'failed', finalMeasureScale }
+
+    const bestScale = clampSpacingScale(floorToSpacingStep(relaxedScale))
+    if (isSameSpacingStep(bestScale, currentScale)) {
+      finalMeasureScale = currentScale
+      return { status: 'already_fits', finalMeasureScale }
+    }
+
+    finalMeasureScale = bestScale
+    return { status: 'success', oldScale: currentScale, newScale: bestScale, finalMeasureScale }
+  }
+
+  const overflowResult = await findScaleForOverflowingContent(
+    currentScale,
+    currentPageBottom,
+    measure,
+    shouldAbort,
+  )
+  if (overflowResult === null) return { status: 'failed', finalMeasureScale }
+
+  if (overflowResult.status === 'too_much_content') {
+    return {
+      status: 'too_much_content',
+      pages: overflowResult.pages,
+      appliedScale: MIN_SPACING_SCALE,
+      finalMeasureScale: MIN_SPACING_SCALE,
+    }
+  }
+
+  const roundedScale = clampSpacingScale(roundToSpacingStep(overflowResult.scale))
+  const bestScale = await backOffUntilFits(roundedScale, currentPageBottom, measure)
+
+  if (isSameSpacingStep(bestScale, currentScale)) {
+    finalMeasureScale = currentScale
+    return { status: 'already_fits', finalMeasureScale }
+  }
+
+  finalMeasureScale = bestScale
+  return { status: 'success', oldScale: currentScale, newScale: bestScale, finalMeasureScale }
 }
 
 // 在内容仍超页时应用最小间距，并返回带有已应用 scale 的失败结果。

@@ -1,5 +1,6 @@
 // 用于验证简历预览在切换模板时尺寸保持稳定。
 import { expect, test, type Page } from '@playwright/test'
+import { SMART_FIT_TARGET_BOTTOM_GAP } from '../src/components/preview/hooks/smartFitCore'
 
 const authUser = {
   id: 1,
@@ -7,7 +8,6 @@ const authUser = {
   is_active: true,
   created_at: new Date().toISOString(),
 }
-const SMART_FIT_TARGET_BOTTOM_GAP = 48
 const SMART_FIT_GAP_TOLERANCE = 12
 
 // 构造足够长的简历内容，让预览面板在编辑页中以缩放状态显示。
@@ -82,6 +82,45 @@ function buildSmartFitResumeResponse() {
           { text: '接入简历解析、岗位摘要和智能布局，减少用户手工排版。' },
         ],
       }],
+    },
+  }
+}
+
+// 构造接近一页的简历内容，用于验证智能一页能搜索到目标底线。
+function buildDenseSmartFitResumeResponse() {
+  const resume = buildSmartFitResumeResponse()
+  const extraText = '围绕复杂编辑器、分页预览和 AI 辅助写作链路做端到端交付，兼顾稳定性、可观测性和用户可控性。'
+  return {
+    ...resume,
+    content: {
+      ...resume.content,
+      work_experience: [
+        ...resume.content.work_experience,
+        {
+          company: '增长平台团队',
+          position: '全栈工程师',
+          duration: '2021-2022',
+          highlights: [
+            { text: extraText },
+            { text: '抽象表单状态和预览状态同步协议，减少跨面板更新延迟。' },
+            { text: '补齐关键路径自动化测试，覆盖编辑、预览、保存和导出链路。' },
+          ],
+        },
+      ],
+      projects: [
+        ...resume.content.projects,
+        {
+          name: 'Resume Layout Engine',
+          role: '核心开发者',
+          duration: '2025',
+          overview: '面向简历预览和 PDF 导出的布局引擎，支持模板切换、行级分页和密度调整。',
+          highlights: [
+            { text: extraText },
+            { text: '实现行级分页测量，避免长 bullet 在页尾被裁切。' },
+            { text: '将布局参数持久化到服务端，确保编辑页和打印页使用同一份配置。' },
+          ],
+        },
+      ],
     },
   }
 }
@@ -364,11 +403,12 @@ test('经典模板教育经历文字使用深色', async ({ page }) => {
 
 test('智能一页后不同模板的底部留白保持接近', async ({ page }) => {
   test.setTimeout(60_000)
-  await mockEditorApis(page, buildSmartFitResumeResponse())
+  await mockEditorApis(page, buildDenseSmartFitResumeResponse())
   const templates = [
     { id: 'classic', label: '经典' },
     { id: 'modern', label: '现代' },
     { id: 'formal', label: '正式黑白' },
+    { id: 'emerald', label: '绿页眉' },
   ]
   const gaps: number[] = []
 

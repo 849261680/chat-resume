@@ -4,15 +4,10 @@
 import { useCallback, useRef, useState } from 'react'
 import {
   applyTooMuchContentFallback,
-  MAX_SPACING_SCALE,
-  MIN_SPACING_SCALE,
-  SMART_FIT_TARGET_BOTTOM_GAP,
-  SMART_FIT_TARGET_TOLERANCE,
-  SPACING_SCALE_STEP,
+  calculateSmartFitScale,
 } from './smartFitCore'
-import { A4_HEIGHT, PAGE_PADDING, SAFETY_MARGIN, getPageContentHeight } from './useLineBasedPagination'
 import type { RenderableLine } from './useLineBasedPagination'
-import type { TooMuchContentResult } from './smartFitCore'
+import type { SmartFitCoreResult, TooMuchContentResult } from './smartFitCore'
 
 export type SmartFitResult =
   | { status: 'already_fits' }
@@ -22,6 +17,7 @@ export type SmartFitResult =
 
 interface UseSmartFitOptions {
   currentScale: number
+  fullBleed?: boolean
   onComplete: (newScale: number) => void
   // 通过 React state 驱动测量容器 scale，避免直接操控 DOM 与 React 冲突
   setMeasureScale: (scale: number) => void
@@ -31,29 +27,21 @@ interface UseSmartFitOptions {
   measureLines: () => RenderableLine[]
 }
 
-// 用于计算固定页边距下最后一行允许到达的视觉底线。
-function effectivePageBottom() {
-  return getPageContentHeight()
-}
-
-// 用于让最后一行到底部边距线保留固定距离。
-function targetPageBottom() {
-  return A4_HEIGHT - PAGE_PADDING * 2 - SMART_FIT_TARGET_BOTTOM_GAP
-}
-
-// 将试算结果落到可控步长，避免布局滑块出现过细的小数。
-function roundToSpacingStep(scale: number) {
-  return Math.round(scale / SPACING_SCALE_STEP) * SPACING_SCALE_STEP
-}
-
-// 向下对齐到可控步长，避免取整后把最后一行推过目标底线。
-function floorToSpacingStep(scale: number) {
-  return Math.floor(scale / SPACING_SCALE_STEP) * SPACING_SCALE_STEP
+// 将核心算法结果转换为 hook 对外暴露的结果。
+function toSmartFitResult(result: SmartFitCoreResult): SmartFitResult {
+  if (result.status === 'success') {
+    return { status: 'success', oldScale: result.oldScale, newScale: result.newScale }
+  }
+  if (result.status === 'too_much_content') {
+    return { status: 'too_much_content', pages: result.pages, appliedScale: result.appliedScale }
+  }
+  return { status: result.status }
 }
 
 // 用于封装智能适配相关状态和行为。
 export function useSmartFit({
   currentScale,
+  fullBleed = false,
   onComplete,
   setMeasureScale,
   waitForMeasureScale,
@@ -79,120 +67,28 @@ export function useSmartFit({
     }
 
     try {
-      // 当前 scale 下内容在真实页面中的视觉底线
-      const currentContentBottom = await measureContentBottom(currentScale)
-      const currentPageBottom = effectivePageBottom()
+      const result = await calculateSmartFitScale({
+        currentScale,
+        fullBleed,
+        measureContentBottom,
+        shouldAbort: () => abortRef.current,
+      })
+      finalMeasureScale = result.finalMeasureScale
 
-      if (abortRef.current) return { status: 'failed' }
-
-      const currentFits = currentContentBottom <= currentPageBottom
-      let lo = currentFits ? currentScale : MIN_SPACING_SCALE
-      let hi = currentFits ? MAX_SPACING_SCALE : currentScale
-      let bestScale = currentFits ? currentScale : MIN_SPACING_SCALE
-
-      if (currentFits) {
-        const targetBottom = targetPageBottom()
-        if (Math.abs(currentContentBottom - targetBottom) <= SMART_FIT_TARGET_TOLERANCE) {
-          return { status: 'already_fits' }
-        }
-
-        const minContentBottom = await measureContentBottom(MIN_SPACING_SCALE)
-        const minTargetBottom = targetPageBottom()
-        if (abortRef.current) return { status: 'failed' }
-        if (minContentBottom > minTargetBottom) {
-          bestScale = MIN_SPACING_SCALE
-        }
-
-        const maxContentBottom = await measureContentBottom(MAX_SPACING_SCALE)
-        const maxTargetBottom = targetPageBottom()
-        if (abortRef.current) return { status: 'failed' }
-        if (maxContentBottom <= maxTargetBottom) {
-          bestScale = MAX_SPACING_SCALE
-        } else if (minContentBottom <= minTargetBottom) {
-          lo = MIN_SPACING_SCALE
-          hi = MAX_SPACING_SCALE
-          bestScale = MIN_SPACING_SCALE
-
-          for (let i = 0; i < 8; i++) {
-            if (abortRef.current) return { status: 'failed' }
-            const mid = (lo + hi) / 2
-            const h = await measureContentBottom(mid)
-            if (h <= targetPageBottom()) {
-              bestScale = mid
-              lo = mid
-            } else {
-              hi = mid
-            }
-          }
-        }
-
-        bestScale = floorToSpacingStep(bestScale)
-        bestScale = Math.max(MIN_SPACING_SCALE, Math.min(MAX_SPACING_SCALE, bestScale))
-
-        if (Math.abs(bestScale - currentScale) < SPACING_SCALE_STEP / 2) {
-          finalMeasureScale = currentScale
-          return { status: 'already_fits' }
-        }
-
-        onComplete(bestScale)
-        finalMeasureScale = bestScale
-        return { status: 'success', oldScale: currentScale, newScale: bestScale }
-      } else {
-        // 检查最小 scale 能否放下；仍放不下时不再尝试布局密度调整。
-        const minContentBottom = await measureContentBottom(MIN_SPACING_SCALE)
-        const minPageBottom = effectivePageBottom()
-
-        if (abortRef.current) return { status: 'failed' }
-
-        if (minContentBottom > minPageBottom) {
-          const approxPages = Math.ceil(minContentBottom / minPageBottom)
-          const result = applyTooMuchContentFallback(approxPages, onComplete)
-          finalMeasureScale = result.appliedScale
-          return result
-        }
+      if (result.status === 'success') {
+        onComplete(result.newScale)
+      }
+      if (result.status === 'too_much_content') {
+        return applyTooMuchContentFallback(result.pages, onComplete)
       }
 
-      for (let i = 0; i < 8; i++) {
-        if (abortRef.current) return { status: 'failed' }
-        const mid = (lo + hi) / 2
-        const h = await measureContentBottom(mid)
-        if (h <= effectivePageBottom()) {
-          bestScale = mid
-          lo = mid
-        } else {
-          hi = mid
-        }
-      }
-
-      // 取整到 0.05 步长
-      bestScale = roundToSpacingStep(bestScale)
-      bestScale = Math.max(MIN_SPACING_SCALE, Math.min(MAX_SPACING_SCALE, bestScale))
-
-      // 验证取整后仍能放下
-      let verifyBottom = await measureContentBottom(bestScale)
-      while (verifyBottom > effectivePageBottom() && bestScale > MIN_SPACING_SCALE) {
-        bestScale = Math.max(MIN_SPACING_SCALE, bestScale - SPACING_SCALE_STEP)
-        verifyBottom = await measureContentBottom(bestScale)
-      }
-
-      if (currentFits && bestScale < currentScale) {
-        bestScale = currentScale
-      }
-
-      if (Math.abs(bestScale - currentScale) < SPACING_SCALE_STEP / 2) {
-        finalMeasureScale = currentScale
-        return { status: 'already_fits' }
-      }
-
-      onComplete(bestScale)
-      finalMeasureScale = bestScale
-      return { status: 'success', oldScale: currentScale, newScale: bestScale }
+      return toSmartFitResult(result)
     } finally {
       // 保持试算容器停在最后一次已渲染的 scale，避免 finally 再触发一次过期 scale 测量。
       setMeasureScale(finalMeasureScale)
       setIsRunning(false)
     }
-  }, [currentScale, isRunning, onComplete, setMeasureScale, waitForMeasureScale, measureLines])
+  }, [currentScale, fullBleed, isRunning, onComplete, setMeasureScale, waitForMeasureScale, measureLines])
 
   const abort = useCallback(() => {
     abortRef.current = true

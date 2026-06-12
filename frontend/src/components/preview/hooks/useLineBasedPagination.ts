@@ -123,21 +123,29 @@ interface LineBasedPaginationOptions {
   containerRef: React.RefObject<HTMLElement>
   contentRef: React.RefObject<HTMLElement>
   pageHeight?: number
-  spacingScale?: number
+  fullBleed?: boolean
+}
+
+interface PageContentHeightOptions {
+  pageHeight?: number
+  fullBleed?: boolean
 }
 
 // 用于计算固定页边距下的页面可用内容高度。
-export function getPageContentHeight(pageHeight?: number): number {
-  return pageHeight ?? (A4_HEIGHT - PAGE_PADDING * 2 - SAFETY_MARGIN)
+export function getPageContentHeight(options: PageContentHeightOptions = {}): number {
+  if (typeof options.pageHeight === 'number') return options.pageHeight
+  const verticalPadding = options.fullBleed ? 0 : PAGE_PADDING * 2
+  return A4_HEIGHT - verticalPadding - SAFETY_MARGIN
 }
 
 // 用于封装行based分页相关状态和行为。
 export function useLineBasedPagination({
   containerRef,
   contentRef,
-  pageHeight
+  pageHeight,
+  fullBleed = false
 }: LineBasedPaginationOptions) {
-  const effectivePageHeight = getPageContentHeight(pageHeight)
+  const effectivePageHeight = getPageContentHeight({ pageHeight, fullBleed })
   const [pages, setPages] = useState<PageContent[]>([])
   const [totalPages, setTotalPages] = useState(1)
   const [contentHeight, setContentHeight] = useState(0)

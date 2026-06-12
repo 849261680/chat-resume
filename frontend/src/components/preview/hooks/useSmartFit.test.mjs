@@ -11,12 +11,27 @@ registerHooks({
         url: new URL('../../../lib/resumeSpacingScale.ts', import.meta.url).href,
       }
     }
+    if (specifier === './useLineBasedPagination') {
+      return {
+        shortCircuit: true,
+        url: new URL('./useLineBasedPagination.ts', import.meta.url).href,
+      }
+    }
     return nextResolve(specifier, context)
   },
 })
 
-const { MIN_SPACING_SCALE, MAX_SPACING_SCALE, applyTooMuchContentFallback } = await import('./smartFitCore.ts')
-const { MAX_RESUME_SPACING_SCALE } = await import('../../../lib/resumeSpacingScale.ts')
+const {
+  MIN_SPACING_SCALE,
+  MAX_SPACING_SCALE,
+  SMART_FIT_TARGET_BOTTOM_GAP,
+  applyTooMuchContentFallback,
+  calculateSmartFitScale,
+  getSmartFitPageBottom,
+  getSmartFitTargetBottom,
+} = await import('./smartFitCore.ts')
+const { MAX_RESUME_SPACING_SCALE, RESUME_SPACING_SCALE_STEP } = await import('../../../lib/resumeSpacingScale.ts')
+const { A4_HEIGHT, PAGE_PADDING, SAFETY_MARGIN } = await import('./useLineBasedPagination.ts')
 
 test('applyTooMuchContentFallback applies the tightest spacing before reporting overflow', () => {
   const appliedScales = []
@@ -35,4 +50,50 @@ test('applyTooMuchContentFallback applies the tightest spacing before reporting 
 
 test('smart-fit max spacing matches the professional resume spacing cap', () => {
   assert.equal(MAX_SPACING_SCALE, MAX_RESUME_SPACING_SCALE)
+})
+
+test('smart-fit bottom limits match normal and full-bleed page boxes', () => {
+  assert.equal(getSmartFitPageBottom(false), A4_HEIGHT - PAGE_PADDING * 2 - SAFETY_MARGIN)
+  assert.equal(getSmartFitPageBottom(true), A4_HEIGHT - SAFETY_MARGIN)
+  assert.equal(getSmartFitTargetBottom(false), A4_HEIGHT - PAGE_PADDING * 2 - SMART_FIT_TARGET_BOTTOM_GAP)
+  assert.equal(getSmartFitTargetBottom(true), A4_HEIGHT - SMART_FIT_TARGET_BOTTOM_GAP)
+})
+
+test('calculateSmartFitScale loosens short content up to the max spacing', async () => {
+  const targetBottom = getSmartFitTargetBottom(false)
+  const result = await calculateSmartFitScale({
+    currentScale: 1,
+    measureContentBottom: async (scale) => targetBottom - 120 + scale * 40,
+  })
+
+  assert.equal(result.status, 'success')
+  assert.equal(result.newScale, MAX_SPACING_SCALE)
+})
+
+test('calculateSmartFitScale compresses overflowing content to fit one page', async () => {
+  const pageBottom = getSmartFitPageBottom(false)
+  const result = await calculateSmartFitScale({
+    currentScale: MAX_SPACING_SCALE,
+    measureContentBottom: async (scale) => pageBottom - 70 + scale * 100,
+  })
+
+  assert.equal(result.status, 'success')
+  assert.ok(result.newScale < MAX_SPACING_SCALE)
+  assert.ok(result.newScale >= MIN_SPACING_SCALE)
+  assert.equal(Math.round(result.newScale / RESUME_SPACING_SCALE_STEP), result.newScale / RESUME_SPACING_SCALE_STEP)
+})
+
+test('calculateSmartFitScale reports too much content when minimum spacing still overflows', async () => {
+  const pageBottom = getSmartFitPageBottom(false)
+  const result = await calculateSmartFitScale({
+    currentScale: MAX_SPACING_SCALE,
+    measureContentBottom: async () => pageBottom + 100,
+  })
+
+  assert.deepEqual(result, {
+    status: 'too_much_content',
+    pages: 2,
+    appliedScale: MIN_SPACING_SCALE,
+    finalMeasureScale: MIN_SPACING_SCALE,
+  })
 })

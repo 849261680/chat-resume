@@ -767,6 +767,196 @@ async def test_openai_agents_adapter_executes_function_tools_with_sdk_loop():
     assert sdk_model.tools[0][0].name == "update_bullet"
     assert getattr(sdk_model.tools[0][0], "needs_approval") is False
 
+
+@pytest.mark.asyncio
+async def test_openai_agents_adapter_approves_sdk_tool_interruption():
+    """用于验证 adapter 使用 SDK RunState 批准 FunctionTool interruption。"""
+    sdk_model = FakeOpenAIAgentsModel([
+        [fake_sdk_tool_call("update_bullet", '{"section":"projects"}')],
+        [fake_sdk_message("审批后已执行。")],
+    ])
+    adapter = OpenAIAgentsStreamAdapter(sdk_model=sdk_model)
+    approved_calls: list[str] = []
+    executed_calls: list[str] = []
+
+    async def execute_tool(tool_call_id: str, params: dict[str, Any]) -> AgentToolResult:
+        """用于模拟批准后的业务工具执行。"""
+        executed_calls.append(tool_call_id)
+        assert params == {"section": "projects"}
+        return AgentToolResult(content=[TextContent(text='{"success":true}')])
+
+    async def needs_approval(_ctx: Any, params: dict[str, Any], call_id: str) -> bool:
+        """用于模拟 SDK 原生审批判断。"""
+        assert params == {"section": "projects"}
+        approved_calls.append(call_id)
+        return True
+
+    async def handle_approval(interruption: Any) -> tuple[bool, str | None]:
+        """用于模拟前端确认后批准 SDK interruption。"""
+        assert interruption.call_id == "call_sdk_1"
+        return True, None
+
+    tool = AgentTool(
+        name="update_bullet",
+        description="更新已有简历要点。",
+        parameters=AgentToolSchema(
+            type="object",
+            properties={"section": {"type": "string"}},
+            required=["section"],
+        ),
+        execute=execute_tool,
+    )
+    setattr(tool, "_sdk_needs_approval", needs_approval)
+    setattr(tool, "_sdk_handle_approval", handle_approval)
+    context = AgentContext(
+        system_prompt="你是简历优化 Agent。",
+        messages=[UserMessage(content=[TextContent(text="优化项目 bullet")])],
+        tools=[tool],
+    )
+
+    response = await adapter(
+        Model(api="responses", provider="openai-agents", id="test-model"),
+        context,
+        SimpleStreamOptions(api_key="test-key", temperature=0.2, max_tokens=128),
+    )
+    result = response["result"]()
+    if inspect.isawaitable(result):
+        result = await result
+
+    assert [block.text for block in result.content if isinstance(block, TextContent)] == [
+        "审批后已执行。"
+    ]
+    assert approved_calls == ["call_sdk_1", "call_sdk_1"]
+    assert executed_calls == ["call_sdk_1"]
+    assert len(sdk_model.inputs) == 2
+
+
+@pytest.mark.asyncio
+async def test_openai_agents_adapter_rejects_sdk_tool_interruption():
+    """用于验证 adapter 使用 SDK RunState 拒绝 FunctionTool interruption。"""
+    sdk_model = FakeOpenAIAgentsModel([
+        [fake_sdk_tool_call("update_bullet", '{"section":"projects"}')],
+        [fake_sdk_message("已取消修改。")],
+    ])
+    adapter = OpenAIAgentsStreamAdapter(sdk_model=sdk_model)
+
+    async def execute_tool(_tool_call_id: str, _params: dict[str, Any]) -> AgentToolResult:
+        """用于确保拒绝后不会执行业务工具。"""
+        raise AssertionError("rejected tool must not execute")
+
+    async def needs_approval(_ctx: Any, _params: dict[str, Any], _call_id: str) -> bool:
+        """用于模拟 SDK 原生审批判断。"""
+        return True
+
+    async def handle_approval(interruption: Any) -> tuple[bool, str | None]:
+        """用于模拟前端拒绝 SDK interruption。"""
+        assert interruption.call_id == "call_sdk_1"
+        return False, "用户拒绝了此修改"
+
+    tool = AgentTool(
+        name="update_bullet",
+        description="更新已有简历要点。",
+        parameters=AgentToolSchema(
+            type="object",
+            properties={"section": {"type": "string"}},
+            required=["section"],
+        ),
+        execute=execute_tool,
+    )
+    setattr(tool, "_sdk_needs_approval", needs_approval)
+    setattr(tool, "_sdk_handle_approval", handle_approval)
+    context = AgentContext(
+        system_prompt="你是简历优化 Agent。",
+        messages=[UserMessage(content=[TextContent(text="优化项目 bullet")])],
+        tools=[tool],
+    )
+
+    response = await adapter(
+        Model(api="responses", provider="openai-agents", id="test-model"),
+        context,
+        SimpleStreamOptions(api_key="test-key", temperature=0.2, max_tokens=128),
+    )
+    result = response["result"]()
+    if inspect.isawaitable(result):
+        result = await result
+
+    assert [block.text for block in result.content if isinstance(block, TextContent)] == [
+        "已取消修改。"
+    ]
+    assert len(sdk_model.inputs) == 2
+
+
+@pytest.mark.asyncio
+async def test_openai_agents_adapter_uses_sdk_hitl_for_resume_confirmation():
+    """用于验证真实简历工具确认流走 SDK needs_approval/RunState。"""
+    agent = ResumeAgent()
+    stage = ResumeToolExecutionStage()
+    builder = ResumeTurnContextBuilder(tool_stage=stage)
+    resume = {
+        "work_experience": [
+            {
+                "id": "work_1",
+                "company": "某科技公司",
+                "position": "Python 开发工程师",
+                "highlights": [{"id": "hl_1", "text": "维护多个后台服务"}],
+            }
+        ]
+    }
+    state = _new_test_stream_state()
+    confirmation_queue: asyncio.Queue[bool] = asyncio.Queue()
+    confirmation_queue.put_nowait(True)
+    event_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+    executed_tools: list[dict[str, Any]] = []
+    pi_context, _prompts, _config = builder.build_loop_inputs(
+        agent=agent.definition,
+        user_message="优化这段工作经历，这个服务实际支撑日活 10 万用户",
+        context={"resume_content": resume, "allowed_sections": {"work_experience"}},
+        conversation_history=[],
+        run_id="run_sdk_hitl",
+        confirmation_queue=confirmation_queue,
+        event_queue=event_queue,
+        event_callback=None,
+        executed_tools=executed_tools,
+        stream_state=state,
+    )
+    sdk_model = FakeOpenAIAgentsModel([
+        [
+            fake_sdk_tool_call(
+                "update_bullet",
+                (
+                    '{"section":"work_experience","item_id":"work_1",'
+                    '"bullet_id":"hl_1","text":"维护多个后台服务，支撑日活 10 万用户",'
+                    '"reason":"补充已确认业务规模"}'
+                ),
+            )
+        ],
+        [fake_sdk_message("已完成优化。")],
+    ])
+    adapter = OpenAIAgentsStreamAdapter(sdk_model=sdk_model)
+
+    response = await adapter(
+        Model(api="responses", provider="openai-agents", id="test-model"),
+        pi_context,
+        SimpleStreamOptions(api_key="test-key", temperature=0.2, max_tokens=128),
+    )
+    result = response["result"]()
+    if inspect.isawaitable(result):
+        result = await result
+    events: list[dict[str, Any]] = []
+    while not event_queue.empty():
+        events.append(event_queue.get_nowait())
+
+    assert [block.text for block in result.content if isinstance(block, TextContent)] == [
+        "已完成优化。"
+    ]
+    assert any(event.get("tool_pending") for event in events)
+    assert any(event.get("tool_confirmed") for event in events)
+    assert resume["work_experience"][0]["highlights"][0]["text"] == (
+        "维护多个后台服务，支撑日活 10 万用户"
+    )
+    assert executed_tools[0]["success"] is True
+    assert len(sdk_model.inputs) == 2
+
 @pytest.mark.asyncio
 async def test_openai_agents_adapter_stops_on_terminal_tool_result():
     """用于验证 SDK 原生工具循环保留 ask_user 等终止型工具语义。"""

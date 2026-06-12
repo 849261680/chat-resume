@@ -152,6 +152,23 @@ class OpenAIAgentsStreamAdapter:
             max_turns=10,
             run_config=run_config,
         )
+        while result.interruptions:
+            state = result.to_state()
+            for interruption in result.interruptions:
+                approved, rejection_message = await self.resolve_tool_approval(
+                    context,
+                    interruption,
+                )
+                if approved:
+                    state.approve(interruption)
+                else:
+                    state.reject(interruption, rejection_message=rejection_message)
+            result = await Runner.run(
+                sdk_agent,
+                state,
+                max_turns=10,
+                run_config=run_config,
+            )
         return self.text_message(model, str(result.final_output or ""), result.context_wrapper.usage)
 
     def build_sdk_agent(
@@ -183,6 +200,35 @@ class OpenAIAgentsStreamAdapter:
                     final_output=message if isinstance(message, str) else str(output or ""),
                 )
         return ToolsToFinalOutputResult(is_final_output=False, final_output=None)
+    @staticmethod
+    async def resolve_tool_approval(
+        context: AgentContext,
+        interruption: ToolApprovalItem,
+    ) -> tuple[bool, str | None]:
+        """用于把 SDK ToolApprovalItem 分发给业务确认处理器。"""
+        tool = OpenAIAgentsStreamAdapter.tool_for_approval(context.tools, interruption)
+        handler = getattr(tool, "_sdk_handle_approval", None) if tool is not None else None
+        if handler is None:
+            return True, None
+        result = handler(interruption)
+        if inspect.isawaitable(result):
+            result = await result
+        if isinstance(result, tuple) and len(result) == 2:
+            approved, message = result
+            return bool(approved), message if isinstance(message, str) else None
+        return bool(result), None
+
+    @staticmethod
+    def tool_for_approval(
+        tools: list[Any],
+        interruption: ToolApprovalItem,
+    ) -> Any | None:
+        """用于按 interruption 工具名查找原始业务工具。"""
+        name = interruption.name
+        for tool in tools:
+            if str(getattr(tool, "name", "")) == name:
+                return tool
+        return None
 
     @staticmethod
     def parse_tool_output(output: Any) -> Any:
@@ -263,6 +309,7 @@ class OpenAIAgentsStreamAdapter:
             },
             on_invoke_tool=on_invoke_tool,
             strict_json_schema=False,
+            needs_approval=getattr(tool, "_sdk_needs_approval", False),
         )
 
     @classmethod

@@ -171,13 +171,57 @@ class ResumeTurnContextBuilder:
                     executed_tools=executed_tools,
                     stream_state=stream_state,
                 )
+        async def needs_sdk_approval(
+            _run_context: Any,
+            params: dict[str, Any],
+            tool_call_id: str,
+        ) -> bool:
+            """用于把 SDK needs_approval 接入现有 dry-run 预览。"""
+            if tool_name in agent.auto_execute_tool_names:
+                return False
+            async with lock:
+                return await self.tool_stage.prepare_sdk_tool_approval(
+                    agent=agent,
+                    run_id=run_id,
+                    call_id=tool_call_id,
+                    tool_name=tool_name,
+                    tool_input=params,
+                    context=context,
+                    confirmation_queue=confirmation_queue,
+                    event_queue=event_queue,
+                    event_callback=event_callback,
+                    executed_tools=executed_tools,
+                    stream_state=stream_state,
+                )
 
-        return AgentTool(
+        async def handle_sdk_approval(interruption: Any) -> tuple[bool, str | None]:
+            """用于处理 SDK interruption 并等待前端确认。"""
+            call_id = getattr(interruption, "call_id", None)
+            if not isinstance(call_id, str) or not call_id:
+                return True, None
+            async with lock:
+                return await self.tool_stage.handle_sdk_tool_approval(
+                    agent=agent,
+                    run_id=run_id,
+                    call_id=call_id,
+                    tool_name=tool_name,
+                    context=context,
+                    confirmation_queue=confirmation_queue,
+                    event_queue=event_queue,
+                    event_callback=event_callback,
+                    executed_tools=executed_tools,
+                    stream_state=stream_state,
+                )
+
+        built_tool = AgentTool(
             name=tool_name,
             description=str(function.get("description", "")),
             parameters=self.tool_schema(function.get("parameters")),
             execute=execute,
         )
+        setattr(built_tool, "_sdk_needs_approval", needs_sdk_approval)
+        setattr(built_tool, "_sdk_handle_approval", handle_sdk_approval)
+        return built_tool
 
     @staticmethod
     def tool_schema(value: Any) -> AgentToolSchema:

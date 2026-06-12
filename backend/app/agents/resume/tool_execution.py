@@ -110,6 +110,32 @@ class ResumeToolExecutionStage:
         )
         needs_confirmation = confirmation_decision.requires_confirmation
         tool_call = self.tool_call_payload(call_id, tool_name, tool_input)
+        preapproval_output = self.pop_sdk_preapproval_output(context, call_id)
+        if preapproval_output is not None:
+            return preapproval_output
+        if self.consume_sdk_approved_call(context, call_id):
+            self.trace_tool_requested(
+                agent,
+                run_id,
+                call_id,
+                tool_name,
+                tool_input,
+                True,
+            )
+            return await self.run_confirmed_tool(
+                agent=agent,
+                run_id=run_id,
+                call_id=call_id,
+                tool_name=tool_name,
+                tool_call=tool_call,
+                context=context,
+                event_queue=event_queue,
+                event_callback=event_callback,
+                executed_tools=executed_tools,
+                needs_confirmation=True,
+                tool_started_at=tool_started_at,
+                stream_state=stream_state,
+            )
         self.trace_tool_requested(
             agent,
             run_id,
@@ -196,6 +222,190 @@ class ResumeToolExecutionStage:
             tool_started_at=tool_started_at,
             stream_state=stream_state,
         )
+    async def prepare_sdk_tool_approval(
+        self,
+        *,
+        agent: AgentDefinition,
+        run_id: str,
+        call_id: str,
+        tool_name: str,
+        tool_input: dict[str, Any],
+        context: dict[str, Any],
+        confirmation_queue: asyncio.Queue | None,
+        event_queue: asyncio.Queue[Any] | None,
+        event_callback: RuntimeEventCallback | None,
+        executed_tools: list[dict[str, Any]],
+        stream_state: dict[str, Any],
+    ) -> bool:
+        """用于在 SDK needs_approval 阶段生成预览并决定是否中断。"""
+        if self.has_sdk_approved_call(context, call_id):
+            return False
+        decision = self.confirmation_policy.before_tool_call(
+            confirmation_queue=confirmation_queue,
+            tool_name=tool_name,
+            auto_execute_tool_names=agent.auto_execute_tool_names,
+        )
+        if not decision.requires_confirmation:
+            return False
+        tool_started_at = perf_counter()
+        tool_call = self.tool_call_payload(call_id, tool_name, tool_input)
+        self.trace_tool_requested(agent, run_id, call_id, tool_name, tool_input, True)
+        preview_result = await self.sdk_preview_result(agent, tool_call, context)
+        result = preview_result.get("result", {})
+        self.trace_tool_preview(agent, run_id, call_id, tool_name, preview_result)
+        if self.is_tool_failure(preview_result):
+            await self.publish_sdk_preapproval_failure(
+                agent=agent,
+                run_id=run_id,
+                call_id=call_id,
+                tool_name=tool_name,
+                tool_input=tool_input,
+                context=context,
+                event_queue=event_queue,
+                event_callback=event_callback,
+                executed_tools=executed_tools,
+                stream_state=stream_state,
+                tool_started_at=tool_started_at,
+                tool_result=preview_result,
+            )
+            return False
+        quality_failure = self.quality_gate_failure(
+            tool_name=tool_name,
+            tool_input=tool_input,
+            context=context,
+            preview_result=preview_result,
+        )
+        if quality_failure is not None:
+            await self.publish_sdk_preapproval_failure(
+                agent=agent,
+                run_id=run_id,
+                call_id=call_id,
+                tool_name=tool_name,
+                tool_input=tool_input,
+                context=context,
+                event_queue=event_queue,
+                event_callback=event_callback,
+                executed_tools=executed_tools,
+                stream_state=stream_state,
+                tool_started_at=tool_started_at,
+                tool_result=quality_failure,
+            )
+            return False
+        self.store_sdk_approval_preview(
+            context,
+            call_id,
+            {
+                "tool_call": tool_call,
+                "tool_input": tool_input,
+                "tool_result": preview_result,
+                "tool_started_at": tool_started_at,
+                "diff_summary": preview_result.get("display_message") or "执行完成",
+                "diff_items": result.get("diff_items", []) if isinstance(result, dict) else [],
+            },
+        )
+        return True
+
+    async def handle_sdk_tool_approval(
+        self,
+        *,
+        agent: AgentDefinition,
+        run_id: str,
+        call_id: str,
+        tool_name: str,
+        context: dict[str, Any],
+        confirmation_queue: asyncio.Queue | None,
+        event_queue: asyncio.Queue[Any] | None,
+        event_callback: RuntimeEventCallback | None,
+        executed_tools: list[dict[str, Any]],
+        stream_state: dict[str, Any],
+    ) -> tuple[bool, str | None]:
+        """用于把 SDK interruption 接到现有前端确认卡片。"""
+        assert confirmation_queue is not None
+        preview = self.sdk_approval_preview(context, call_id)
+        if preview is None:
+            return True, None
+        tool_call = preview["tool_call"]
+        tool_input = preview["tool_input"]
+        preview_result = preview["tool_result"]
+        await self.publish_visible_tool_call_once(
+            call_id=call_id,
+            tool_name=tool_name,
+            tool_input=tool_input,
+            event_queue=event_queue,
+            event_callback=event_callback,
+            stream_state=stream_state,
+        )
+        await self.publish_event(
+            event_queue=event_queue,
+            event_callback=event_callback,
+            event=tool_pending_event(
+                call_id=call_id,
+                tool_id=tool_name,
+                tool_call=tool_call,
+                tool_display_name=preview_result["tool_name"],
+                tool_input=tool_input,
+                diff_summary=preview["diff_summary"],
+                diff_items=preview["diff_items"],
+                tool_calls=executed_tools,
+            ),
+        )
+        wait_started_at = perf_counter()
+        decision = await self.confirmation_policy.wait_for_decision(confirmation_queue)
+        confirmation_wait_ms = round((perf_counter() - wait_started_at) * 1000, 2)
+        stream_state["confirmation_wait_ms"] += confirmation_wait_ms
+        confirmation_result = self.confirmation_policy.after_tool_decision(
+            confirmed=decision.confirmed,
+            feedback=decision.feedback,
+        )
+        self.trace_tool_confirmation(
+            agent,
+            run_id,
+            call_id,
+            tool_name,
+            preview_result["tool_name"],
+            confirmation_result.confirmed,
+            confirmation_wait_ms,
+            confirmation_result.terminate_turn,
+        )
+        if confirmation_result.confirmed:
+            self.mark_sdk_approved_call(context, call_id)
+            return True, None
+        rejected_error = "用户拒绝了此修改"
+        if confirmation_result.feedback:
+            rejected_error = f"用户拒绝了此修改，并反馈：{confirmation_result.feedback}"
+        rejected = {
+            "success": False,
+            "error": rejected_error,
+            "feedback": confirmation_result.feedback,
+            "recoverable": True,
+        }
+        await self.publish_rejected_tool(
+            agent=agent,
+            run_id=run_id,
+            call_id=call_id,
+            tool_name=tool_name,
+            tool_display_name=preview_result["tool_name"],
+            diff_summary=preview["diff_summary"],
+            diff_items=preview["diff_items"],
+            result=rejected,
+            event_queue=event_queue,
+            event_callback=event_callback,
+            executed_tools=executed_tools,
+            tool_started_at=preview["tool_started_at"],
+        )
+        await self.publish_terminal_text(
+            agent=agent,
+            run_id=run_id,
+            stream_state=stream_state,
+            event_queue=event_queue,
+            event_callback=event_callback,
+            content=(
+                "已收到反馈，我会重新生成修改。"
+                if confirmation_result.feedback
+                else "已取消这处修改。"
+            ),
+        )
+        return False, rejected_error
 
     async def publish_invalid_tool_arguments(
         self,
@@ -903,6 +1113,129 @@ class ResumeToolExecutionStage:
             return str(section)
         return "other"
 
+
+    async def sdk_preview_result(
+        self,
+        agent: AgentDefinition,
+        tool_call: dict[str, Any],
+        context: dict[str, Any],
+    ) -> dict[str, Any]:
+        """用于为 SDK HITL 生成不落库的工具预览。"""
+        preview_context = dict(context)
+        preview_context["resume_content"] = deepcopy(context.get("resume_content"))
+        preview_context["dry_run"] = True
+        return await self.call_tool_executor(
+            agent=agent,
+            tool_call=tool_call,
+            context=preview_context,
+        )
+
+    async def publish_sdk_preapproval_failure(
+        self,
+        *,
+        agent: AgentDefinition,
+        run_id: str,
+        call_id: str,
+        tool_name: str,
+        tool_input: dict[str, Any],
+        context: dict[str, Any],
+        event_queue: asyncio.Queue[Any] | None,
+        event_callback: RuntimeEventCallback | None,
+        executed_tools: list[dict[str, Any]],
+        stream_state: dict[str, Any],
+        tool_started_at: float,
+        tool_result: dict[str, Any],
+    ) -> None:
+        """用于把 SDK 审批前失败转成模型可恢复输出和必要前端事件。"""
+        result = tool_result.get("result", {})
+        output = json.dumps(result, ensure_ascii=False)
+        self.store_sdk_preapproval_output(context, call_id, output)
+        self.trace_tool_executed(agent, run_id, call_id, tool_name, tool_result, tool_started_at)
+        if self.is_noop_preview_failure(tool_result):
+            return
+        await self.publish_visible_tool_call_once(
+            call_id=call_id,
+            tool_name=tool_name,
+            tool_input=tool_input,
+            event_queue=event_queue,
+            event_callback=event_callback,
+            stream_state=stream_state,
+        )
+        executed_tools.append(self.executed_tool_summary(tool_result, result))
+        await self.publish_tool_result(
+            call_id=call_id,
+            tool_name=tool_name,
+            tool_result=tool_result,
+            result=result,
+            display_message=tool_result.get("display_message"),
+            event_queue=event_queue,
+            event_callback=event_callback,
+            executed_tools=executed_tools,
+            context=context,
+            needs_confirmation=False,
+        )
+
+    @staticmethod
+    def store_sdk_approval_preview(
+        context: dict[str, Any],
+        call_id: str,
+        preview: dict[str, Any],
+    ) -> None:
+        """用于按 SDK 工具 call_id 暂存待审批预览。"""
+        previews = context.setdefault("_sdk_approval_previews", {})
+        if isinstance(previews, dict):
+            previews[call_id] = preview
+
+    @staticmethod
+    def sdk_approval_preview(context: dict[str, Any], call_id: str) -> dict[str, Any] | None:
+        """用于读取 SDK interruption 对应的预览。"""
+        previews = context.get("_sdk_approval_previews")
+        if not isinstance(previews, dict):
+            return None
+        preview = previews.get(call_id)
+        return preview if isinstance(preview, dict) else None
+
+    @staticmethod
+    def store_sdk_preapproval_output(
+        context: dict[str, Any],
+        call_id: str,
+        output: str,
+    ) -> None:
+        """用于暂存审批前已处理的工具输出。"""
+        outputs = context.setdefault("_sdk_preapproval_outputs", {})
+        if isinstance(outputs, dict):
+            outputs[call_id] = output
+
+    @staticmethod
+    def pop_sdk_preapproval_output(context: dict[str, Any], call_id: str) -> str | None:
+        """用于让 SDK 后续 on_invoke 复用审批前工具输出。"""
+        outputs = context.get("_sdk_preapproval_outputs")
+        if not isinstance(outputs, dict):
+            return None
+        output = outputs.pop(call_id, None)
+        return output if isinstance(output, str) else None
+
+    @staticmethod
+    def mark_sdk_approved_call(context: dict[str, Any], call_id: str) -> None:
+        """用于记录 SDK 已批准的工具调用。"""
+        approved = context.setdefault("_sdk_approved_call_ids", set())
+        if isinstance(approved, set):
+            approved.add(call_id)
+
+    @staticmethod
+    def has_sdk_approved_call(context: dict[str, Any], call_id: str) -> bool:
+        """用于判断 SDK 工具调用是否已获批。"""
+        approved = context.get("_sdk_approved_call_ids")
+        return isinstance(approved, set) and call_id in approved
+
+    @staticmethod
+    def consume_sdk_approved_call(context: dict[str, Any], call_id: str) -> bool:
+        """用于消费 SDK 已批准工具调用标记。"""
+        approved = context.get("_sdk_approved_call_ids")
+        if not isinstance(approved, set) or call_id not in approved:
+            return False
+        approved.remove(call_id)
+        return True
 
     def trace_tool_executed(
         self,

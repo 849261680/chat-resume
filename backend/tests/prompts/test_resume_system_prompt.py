@@ -135,7 +135,6 @@ _EDIT_TOOL_NAMES = [
     "update_bullet",
     "add_bullet",
     "remove_bullet",
-    "score_resume",
     "list_job_posts",
     "read_job_post",
     "read_memory",

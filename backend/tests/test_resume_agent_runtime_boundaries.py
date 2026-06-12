@@ -98,7 +98,6 @@ RESUME_EDIT_TOOL_NAMES = {
     "update_bullet",
     "add_bullet",
     "remove_bullet",
-    "score_resume",
     "list_job_posts",
     "read_job_post",
     "read_memory",
@@ -416,13 +415,10 @@ def test_system_prompt_tool_list_matches_requested_profile():
 
     assert [tool.name for tool in pi_context.tools] == [
         "ask_user",
-        "score_resume",
         "list_job_posts",
         "read_job_post",
         "read_memory",
     ]
-    assert "score_resume" not in pi_context.system_prompt
-    # 工具名称出现在「工具选择规则」指导文本中，不是镜像工具列表
     assert "## 工具选择规则" in pi_context.system_prompt
 
 
@@ -496,7 +492,6 @@ def test_resume_turn_context_builder_prepares_profiled_tools_independently():
 
     assert [tool.name for tool in pi_context.tools] == [
         "ask_user",
-        "score_resume",
         "list_job_posts",
         "read_job_post",
         "read_memory",
@@ -505,7 +500,6 @@ def test_resume_turn_context_builder_prepares_profiled_tools_independently():
     assert context["tool_profile"] == "read_only"
     assert context["available_tool_names"] == [
         "ask_user",
-        "score_resume",
         "list_job_posts",
         "read_job_post",
         "read_memory",
@@ -513,7 +507,6 @@ def test_resume_turn_context_builder_prepares_profiled_tools_independently():
     assert state["tool_profile"] == "read_only"
     assert state["tool_names"] == [
         "ask_user",
-        "score_resume",
         "list_job_posts",
         "read_job_post",
         "read_memory",

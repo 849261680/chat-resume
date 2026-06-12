@@ -10,7 +10,6 @@ _TOOL_ALIASES = {
     "新增要点": "add_bullet",
     "删除要点": "remove_bullet",
     "询问信息": "ask_user",
-    "评估简历": "score_resume",
 }
 _CLARIFY_TOOL_NAMES = {"ask_user"}
 _MUTATION_TOOL_NAMES = {

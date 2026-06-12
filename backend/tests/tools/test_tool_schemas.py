@@ -33,7 +33,6 @@ _ALL_RESUME_TOOLS: list[str] = [
     "update_bullet",
     "add_bullet",
     "remove_bullet",
-    "score_resume",
     "evaluate_bullet",
     "list_job_posts",
     "read_job_post",

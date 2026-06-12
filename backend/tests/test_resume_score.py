@@ -1,9 +1,8 @@
-"""用于覆盖简历评分工具的确定性回归测试。"""
+"""用于覆盖简历评分服务的确定性回归测试。"""
 
 import pytest
 
 from app.services.agent.resume_score import score_resume
-from app.tools.resume.score_resume_tool import score_resume_tool
 
 
 def _full_resume() -> dict:
@@ -92,7 +91,7 @@ async def test_score_payload_prioritizes_evidence_backed_agent_actions():
     assert result["diagnosis"]["evidence"]
     assert action["tool_hint"] == "update_bullet"
     assert action["target"] == {"item_id": "work1", "bullet_id": "h1"}
-    assert "再次调用 score_resume" in result["agent_next_step"]
+    assert "重新评估简历" in result["agent_next_step"]
 
 
 @pytest.mark.asyncio
@@ -122,14 +121,6 @@ async def test_missing_jd_keyword_listed_in_findings():
     assert "Kubernetes" in missing
 
 
-@pytest.mark.asyncio
-async def test_tool_wrapper_returns_score_payload():
-    """用于验证工具封装返回标准评分结果结构。"""
-    result = await score_resume_tool(_full_resume())
-
-    assert result["success"] is True
-    assert "total_score" in result
-    assert isinstance(result["top_suggestions"], list)
 
 
 @pytest.mark.asyncio

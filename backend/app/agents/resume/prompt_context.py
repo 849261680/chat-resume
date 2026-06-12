@@ -72,9 +72,6 @@ def build_resume_prompt_context(context: dict[str, Any]) -> dict[str, Any]:
         confirmed_diff_items=context.get("confirmed_diff_items"),
         conversation_history=context.get("conversation_history"),
     )
-    score_history = build_score_history(
-        context.get("score_snapshots"),
-    )
     return {
         "target_title": str(job_application.get("target_title", "") or ""),
         "target_company": str(job_application.get("target_company", "") or ""),
@@ -88,7 +85,6 @@ def build_resume_prompt_context(context: dict[str, Any]) -> dict[str, Any]:
             resume_content if isinstance(resume_content, dict) else {},
             visible_modules,
         ),
-        "score_history": score_history,
         "candidate_profile": str(context.get("candidate_profile", "") or ""),
         "current_time": build_current_time_context(),
     }
@@ -108,29 +104,9 @@ def build_current_time_context(now: datetime | None = None) -> str:
     )
 
 
-def build_score_history(
-    snapshots: list[dict[str, Any]] | None,
-) -> str:
-    """用于把历次评分快照格式化成 Markdown 表格。"""
-    if not snapshots:
-        return ""
-    header = "| 轮次 | 总分 | 等级 | 主要变化 |"
-    sep = "| --- | --- | --- | --- |"
-    rows: list[str] = []
-    for i, snap in enumerate(snapshots, 1):
-        score = snap.get("total_score", "?")
-        grade = snap.get("grade", "?")
-        note = snap.get("note", "—")
-        rows.append(f"| {i} | {score} | {grade} | {note} |")
-    if not rows:
-        return ""
-    return "\n".join([header, sep, *rows])
-
-
 __all__ = [
     "build_resume_prompt_context",
     "build_current_time_context",
     "build_module_visibility",
-    "build_score_history",
     "strip_redundant_fields",
 ]

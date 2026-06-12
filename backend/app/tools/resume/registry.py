@@ -12,7 +12,6 @@ from .job_post_tool import list_job_posts, read_job_post
 from .memory_tool import read_memory, update_memory
 from .remove_bullet_tool import remove_bullet
 from .resume_item_tool import hide_section, show_section
-from .score_resume_tool import score_resume_tool
 from .update_bullet_tool import update_bullet
 from .update_item_fields_tool import update_item_fields
 from .update_overview_tool import update_overview
@@ -413,21 +412,6 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
-            "name": "score_resume",
-            "description": (
-                "对当前简历做综合评分，只读不改。"
-                "返回完整度、量化、表达、JD 匹配和语义评审结果。"
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {},
-                "required": [],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
             "name": "evaluate_bullet",
             "description": (
                 "评价单条 bullet/亮点质量，只读不改。"
@@ -703,11 +687,6 @@ RESUME_TOOL_CATALOG: tuple[ResumeToolDefinition, ...] = (
         "remove_bullet",
         remove_bullet,
         _SCHEMA_BY_NAME.get("remove_bullet"),
-    ),
-    ResumeToolDefinition(
-        "score_resume",
-        score_resume_tool,
-        _SCHEMA_BY_NAME.get("score_resume"),
     ),
     ResumeToolDefinition(
         "evaluate_bullet",

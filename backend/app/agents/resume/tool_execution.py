@@ -484,8 +484,6 @@ class ResumeToolExecutionStage:
         stream_state: dict[str, Any],
     ) -> str:
         """用于执行已确认或免确认的业务工具。"""
-        if tool_name == "score_resume":
-            context["score_history"] = context.get("score_snapshots") or []
         tool_result = await self.call_tool_executor(
             agent=agent,
             tool_call=tool_call,
@@ -504,7 +502,6 @@ class ResumeToolExecutionStage:
             tool_started_at,
         )
         executed_tools.append(self.executed_tool_summary(tool_result, result))
-        self.maybe_record_score_snapshot(tool_name, result, executed_tools, context)
         await self.publish_tool_result(
             call_id=call_id,
             tool_name=tool_name,
@@ -686,27 +683,6 @@ class ResumeToolExecutionStage:
                 tool_calls=executed_tools,
             ),
         )
-
-    @staticmethod
-    def maybe_record_score_snapshot(
-        tool_name: str,
-        result: Any,
-        executed_tools: list[dict[str, Any]],
-        context: dict[str, Any],
-    ) -> None:
-        """用于在 score_resume 工具成功时把分数快照追加到 context。"""
-        del executed_tools
-        if tool_name != "score_resume":
-            return
-        if not isinstance(result, dict) or result.get("success") is not True:
-            return
-        snapshot = {
-            "total_score": result.get("total_score"),
-            "grade": result.get("grade"),
-            "note": result.get("diagnosis", {}).get("verdict", ""),
-        }
-        snapshots = context.setdefault("score_snapshots", [])
-        snapshots.append(snapshot)
 
     def trace_tool_requested(
         self,

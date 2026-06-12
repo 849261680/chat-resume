@@ -350,4 +350,3 @@ async def test_trajectory_tools_exposed_match_profile():
     assert "add_bullet" in tool_names
     assert "remove_bullet" in tool_names
     assert "update_summary" in tool_names
-    assert "score_resume" in tool_names

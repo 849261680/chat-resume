@@ -284,15 +284,14 @@ def _agent_next_step(
     priority_actions: list[dict[str, Any]],
     convergence: dict[str, Any] | None = None,
 ) -> str:
-    """用于根据是否存在优先动作和收敛状态生成 Agent 复评提示。"""
+    """用于根据是否存在优先动作和收敛状态生成下一步提示。"""
     if convergence and convergence.get("should_stop"):
         return convergence.get("stop_reason", "简历已达到当前优化天花板。")
     if not priority_actions:
-        return "当前没有明确扣分动作；可询问用户目标岗位或新的 JD，然后再次调用 score_resume 复评。"
+        return "当前没有明确扣分动作；可询问用户目标岗位或新的 JD，然后重新评估简历。"
     return (
         "先处理 priority_actions[0] 指向的最高优先级问题；如果包含 "
-        "item_id/bullet_id，调用对应编辑工具更新该 bullet，然后再次调用 "
-        "score_resume 复评。"
+        "item_id/bullet_id，调用对应编辑工具更新该 bullet，然后重新评估简历。"
     )
 
 

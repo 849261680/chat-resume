@@ -4605,7 +4605,7 @@ class TestNegativeCases:
                 "density": "normal",
                 "moduleOrder": ["personal", "education", "work", "projects", "skills"],
                 "visibleModules": ["personal", "education", "work", "projects", "skills"],
-                "spacingScale": 1.61,
+                "spacingScale": 1.81,
                 "templateStyle": "classic",
             },
             {

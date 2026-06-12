@@ -7,14 +7,15 @@
 
 'use client'
 
-import React, { useCallback, useLayoutEffect, useRef, useState } from 'react'
+import React, { forwardRef, useCallback, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react'
 import { ArrowUpIcon, StopIcon } from '@heroicons/react/24/outline'
 
+export interface ChatInputBoxHandle {
+  /** 把选中的简历文本追加到本地引用 chip 中 */
+  appendSelectedContext: (text: string) => void
+}
+
 interface ChatInputBoxProps {
-  /** 外部注入的初始上下文（选中的简历文本） */
-  selectedResumeContext: string
-  /** 清除选中上下文 */
-  onClearContext: () => void
   /** 发送消息 */
   onSend: (message: string) => void
   /** 停止流式输出 */
@@ -28,16 +29,15 @@ interface ChatInputBoxProps {
 }
 
 // 用于渲染聊天输入框，将 inputMessage 状态隔离在组件内部。
-const ChatInputBox = React.memo(function ChatInputBox({
-  selectedResumeContext,
-  onClearContext,
+const ChatInputBox = React.memo(forwardRef<ChatInputBoxHandle, ChatInputBoxProps>(function ChatInputBox({
   onSend,
   onStop,
   isSending,
   isStreaming,
   placeholder,
-}: ChatInputBoxProps) {
+}, ref) {
   const [inputMessage, setInputMessage] = useState('')
+  const [selectedResumeContext, setSelectedResumeContext] = useState('')
   const chatInputRef = useRef<HTMLTextAreaElement>(null)
 
   // textarea 按内容自动增高
@@ -51,6 +51,21 @@ const ChatInputBox = React.memo(function ChatInputBox({
 
   const hasContent = Boolean(inputMessage.trim() || selectedResumeContext.trim())
 
+  useImperativeHandle(ref, () => ({
+    appendSelectedContext: (text: string) => {
+      const selectedText = text.trim()
+      if (!selectedText) return
+      setSelectedResumeContext((currentContext) => (
+        currentContext.trim()
+          ? `${currentContext.trimEnd()}\n\n${selectedText}`
+          : selectedText
+      ))
+      window.requestAnimationFrame(() => {
+        chatInputRef.current?.focus()
+      })
+    },
+  }), [])
+
   // 发送当前输入内容，并在引用被发送后清理引用状态。
   const sendCurrentMessage = useCallback(() => {
     const selectedContext = selectedResumeContext.trim()
@@ -61,20 +76,20 @@ const ChatInputBox = React.memo(function ChatInputBox({
       : userRequest
     onSend(message)
     setInputMessage('')
-    if (selectedContext) onClearContext()
-  }, [inputMessage, selectedResumeContext, onClearContext, onSend, isSending, isStreaming])
+    if (selectedContext) setSelectedResumeContext('')
+  }, [inputMessage, selectedResumeContext, onSend, isSending, isStreaming])
 
   const handleKeyDown = useCallback((event: React.KeyboardEvent) => {
     if (event.key === 'Backspace' && selectedResumeContext && inputMessage.length === 0) {
       event.preventDefault()
-      onClearContext()
+      setSelectedResumeContext('')
       return
     }
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault()
       sendCurrentMessage()
     }
-  }, [inputMessage, selectedResumeContext, onClearContext, sendCurrentMessage])
+  }, [inputMessage, selectedResumeContext, sendCurrentMessage])
 
   return (
     <div className="pt-3 flex-shrink-0">
@@ -138,6 +153,6 @@ const ChatInputBox = React.memo(function ChatInputBox({
       </div>
     </div>
   )
-})
+}))
 
 export default ChatInputBox

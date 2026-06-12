@@ -20,6 +20,7 @@ import {
   loadLayoutConfig,
   ResumeLayoutConfig,
   ResumeModule,
+  isLayoutConfigDirty,
   saveLayoutConfig,
   saveLayoutConfigToServer,
   serializeLayoutConfig,
@@ -60,6 +61,7 @@ export function useResumeEditor({ resumeId, isAuthenticated }: UseResumeEditorOp
   const [activeSection, setActiveSection] = useState('job_application')
   const [layoutConfig, setLayoutConfig] = useState<ResumeLayoutConfig>(DEFAULT_LAYOUT_CONFIG)
   const layoutSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingLayoutSaveRef = useRef<{ id: number; config: ResumeLayoutConfig } | null>(null)
   const [previewTotalPages, setPreviewTotalPages] = useState(0)
   const [isSmartFitting, setIsSmartFitting] = useState(false)
   const smartFitTriggerRef = useRef<(() => Promise<any>) | null>(null)
@@ -89,16 +91,28 @@ export function useResumeEditor({ resumeId, isAuthenticated }: UseResumeEditorOp
     setLayoutConfig(loadLayoutConfig(parseInt(resumeId, 10)))
   }, [resumeId])
 
+  // 用于立即提交防抖中的布局配置，避免刷新页面时丢失密度设置。
+  const flushPendingLayoutSave = useCallback(() => {
+    const pending = pendingLayoutSaveRef.current
+    if (!pending) return
+    pendingLayoutSaveRef.current = null
+    if (layoutSaveTimeoutRef.current) {
+      clearTimeout(layoutSaveTimeoutRef.current)
+      layoutSaveTimeoutRef.current = null
+    }
+    void saveLayoutConfigToServer(pending.id, pending.config, { keepalive: true })
+  }, [])
+
   /**
-   * 组件卸载时清理布局保存防抖定时器，避免重复请求。
+   * 组件卸载或页面刷新前提交布局保存防抖队列。
    */
   useEffect(() => {
+    window.addEventListener('pagehide', flushPendingLayoutSave)
     return () => {
-      if (layoutSaveTimeoutRef.current) {
-        clearTimeout(layoutSaveTimeoutRef.current)
-      }
+      window.removeEventListener('pagehide', flushPendingLayoutSave)
+      flushPendingLayoutSave()
     }
-  }, [])
+  }, [flushPendingLayoutSave])
 
   /**
    * 拉取服务端简历并同步本地编辑快照。
@@ -109,11 +123,18 @@ export function useResumeEditor({ resumeId, isAuthenticated }: UseResumeEditorOp
     try {
       setResumeLoading(true)
       const data = await resumeApi.getResume(parseInt(resumeId, 10))
+      const id = parseInt(resumeId, 10)
       setResume(data)
       syncResumeSnapshot(data, { saved: true })
       const serverConfig = deserializeLayoutConfig(data.layout_config as Record<string, unknown> | null)
-      setLayoutConfig(serverConfig)
-      saveLayoutConfig(parseInt(resumeId, 10), serverConfig)
+      if (isLayoutConfigDirty(id)) {
+        const cachedConfig = loadLayoutConfig(id)
+        setLayoutConfig(cachedConfig)
+        void saveLayoutConfigToServer(id, cachedConfig)
+      } else {
+        setLayoutConfig(serverConfig)
+        saveLayoutConfig(id, serverConfig)
+      }
     } catch {
       toast.error(t('editor.fetchError'))
       router.push('/dashboard')
@@ -130,11 +151,14 @@ export function useResumeEditor({ resumeId, isAuthenticated }: UseResumeEditorOp
     if (options.persist === false) return
     if (!resumeId) return
     const id = parseInt(resumeId, 10)
-    saveLayoutConfig(id, newConfig)
+    saveLayoutConfig(id, newConfig, { dirty: true })
+    pendingLayoutSaveRef.current = { id, config: newConfig }
     if (layoutSaveTimeoutRef.current) {
       clearTimeout(layoutSaveTimeoutRef.current)
     }
     layoutSaveTimeoutRef.current = setTimeout(() => {
+      pendingLayoutSaveRef.current = null
+      layoutSaveTimeoutRef.current = null
       void saveLayoutConfigToServer(id, newConfig)
     }, 800)
   }, [resumeId])

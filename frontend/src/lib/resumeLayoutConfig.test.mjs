@@ -22,10 +22,26 @@ registerHooks({
   },
 })
 
-const { deserializeLayoutConfig } = await import('./resumeLayoutConfig.ts')
+const {
+  deserializeLayoutConfig,
+  isLayoutConfigDirty,
+  loadLayoutConfig,
+  saveLayoutConfig,
+} = await import('./resumeLayoutConfig.ts')
 const { MAX_RESUME_SPACING_SCALE } = await import('./resumeSpacingScale.ts')
 
 const layoutModules = ['personal', 'summary', 'education', 'work', 'projects', 'open_source', 'skills']
+
+// 提供最小 localStorage mock，供布局缓存测试使用。
+function installLocalStorageMock() {
+  const store = new Map()
+  globalThis.localStorage = {
+    getItem: (key) => store.get(key) ?? null,
+    setItem: (key, value) => { store.set(key, String(value)) },
+    removeItem: (key) => { store.delete(key) },
+    clear: () => { store.clear() },
+  }
+}
 
 // 读取 locale 文件，验证布局模块 id 与翻译 key 保持一致。
 async function readResumeMessages(locale) {
@@ -72,6 +88,24 @@ test('deserializeLayoutConfig clamps old overly loose spacing values', () => {
   })
 
   assert.equal(config.spacingScale, MAX_RESUME_SPACING_SCALE)
+})
+
+test('layout config cache tracks dirty local density changes', () => {
+  installLocalStorageMock()
+  const config = deserializeLayoutConfig({
+    density: 'custom',
+    moduleOrder: ['personal', 'summary', 'work'],
+    visibleModules: ['personal', 'summary', 'work'],
+    spacingScale: 1.72,
+    templateStyle: 'emerald',
+  })
+
+  saveLayoutConfig(101, config, { dirty: true })
+  assert.equal(isLayoutConfigDirty(101), true)
+  assert.equal(loadLayoutConfig(101).spacingScale, 1.72)
+
+  saveLayoutConfig(101, config, { dirty: false })
+  assert.equal(isLayoutConfigDirty(101), false)
 })
 
 test('resume layout module translations cover every module id', async () => {

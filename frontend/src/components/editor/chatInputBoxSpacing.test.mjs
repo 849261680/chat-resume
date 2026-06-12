@@ -4,6 +4,8 @@ import { readFile } from 'node:fs/promises'
 import { test } from 'node:test'
 
 const editorRoot = new URL('./', import.meta.url)
+const editPageUrl = new URL('../../app/[locale]/resume/[id]/edit/page.tsx', import.meta.url)
+const chatPanelHookUrl = new URL('../../hooks/useResumeChatPanel.ts', import.meta.url)
 
 // 读取聊天输入框源码，验证引用 chip 的内边距不会过大。
 async function readChatInputBoxSource() {
@@ -18,4 +20,19 @@ test('selected resume context chip uses compact spacing', async () => {
   assert.match(source, /leading-snug/)
   assert.doesNotMatch(source, /selected-resume-context"[\s\S]*px-2 py-1/)
   assert.doesNotMatch(source, /selected-resume-context"[\s\S]*leading-relaxed/)
+})
+
+test('selected resume context append stays local to ChatInputBox', async () => {
+  const chatInputSource = await readChatInputBoxSource()
+  const editPageSource = await readFile(editPageUrl, 'utf8')
+  const hookSource = await readFile(chatPanelHookUrl, 'utf8')
+
+  assert.match(chatInputSource, /export interface ChatInputBoxHandle/)
+  assert.match(chatInputSource, /appendSelectedContext/)
+  assert.match(chatInputSource, /useImperativeHandle/)
+  assert.match(chatInputSource, /useState\(''\)/)
+  assert.match(editPageSource, /chatInputBoxRef\.current\?\.appendSelectedContext\(text\)/)
+  assert.doesNotMatch(editPageSource, /selectedResumeContext/)
+  assert.doesNotMatch(hookSource, /appendToInputMessage/)
+  assert.doesNotMatch(hookSource, /setSelectedResumeContext/)
 })

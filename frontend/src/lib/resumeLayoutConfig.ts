@@ -112,6 +112,15 @@ export const DEFAULT_LAYOUT_CONFIG: ResumeLayoutConfig = {
   templateStyle: 'classic',
 }
 
+// 用于生成布局配置缓存 key。
+function getLayoutConfigStorageKey(resumeId: number): string {
+  return `resume_layout_${resumeId}`
+}
+
+// 用于生成布局配置脏标记 key。
+function getLayoutConfigDirtyStorageKey(resumeId: number): string {
+  return `resume_layout_${resumeId}_dirty`
+}
 
 /**
  * 将服务端返回的 layout_config 原始对象转换为 ResumeLayoutConfig
@@ -155,9 +164,13 @@ export function serializeLayoutConfig(config: ResumeLayoutConfig) {
  * 保存布局配置到 localStorage（作为离线缓存）
  */
 // 用于保存布局配置。
-export function saveLayoutConfig(resumeId: number, config: ResumeLayoutConfig): void {
-  const key = `resume_layout_${resumeId}`
-  localStorage.setItem(key, JSON.stringify(serializeLayoutConfig(config)))
+export function saveLayoutConfig(
+  resumeId: number,
+  config: ResumeLayoutConfig,
+  options: { dirty?: boolean } = {},
+): void {
+  localStorage.setItem(getLayoutConfigStorageKey(resumeId), JSON.stringify(serializeLayoutConfig(config)))
+  localStorage.setItem(getLayoutConfigDirtyStorageKey(resumeId), options.dirty ? '1' : '0')
 }
 
 /**
@@ -165,8 +178,7 @@ export function saveLayoutConfig(resumeId: number, config: ResumeLayoutConfig): 
  */
 // 用于加载布局配置。
 export function loadLayoutConfig(resumeId: number): ResumeLayoutConfig {
-  const key = `resume_layout_${resumeId}`
-  const stored = localStorage.getItem(key)
+  const stored = localStorage.getItem(getLayoutConfigStorageKey(resumeId))
   if (!stored) return DEFAULT_LAYOUT_CONFIG
   try {
     const parsed = JSON.parse(stored)
@@ -177,21 +189,37 @@ export function loadLayoutConfig(resumeId: number): ResumeLayoutConfig {
 }
 
 /**
+ * 判断本地布局缓存是否还有未确认同步到服务端的更改。
+ */
+// 用于读取布局配置脏标记。
+export function isLayoutConfigDirty(resumeId: number): boolean {
+  return localStorage.getItem(getLayoutConfigDirtyStorageKey(resumeId)) === '1'
+}
+
+/**
  * 将布局配置持久化到服务端，同时更新 localStorage 缓存
  * debounce 由调用方控制（edit/page.tsx 中 800ms）
  */
 // 用于保存布局配置to服务端。
-export async function saveLayoutConfigToServer(resumeId: number, config: ResumeLayoutConfig): Promise<void> {
+export async function saveLayoutConfigToServer(
+  resumeId: number,
+  config: ResumeLayoutConfig,
+  options: { keepalive?: boolean } = {},
+): Promise<void> {
   // 同步更新本地缓存
-  saveLayoutConfig(resumeId, config)
+  saveLayoutConfig(resumeId, config, { dirty: true })
 
-  await fetch(apiUrl(`/api/resumes/${resumeId}/layout`), {
+  const response = await fetch(apiUrl(`/api/resumes/${resumeId}/layout`), {
     method: 'PUT',
     credentials: 'include',
+    keepalive: options.keepalive,
     headers: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(serializeLayoutConfig(config)),
   })
+  if (response.ok) {
+    saveLayoutConfig(resumeId, config, { dirty: false })
+  }
   // 不抛错误——布局配置保存失败不应中断用户操作
 }

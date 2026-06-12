@@ -302,15 +302,15 @@ const ResumeSelectionOverlay = forwardRef<ResumeSelectionOverlayHandle, ResumeSe
         >
           <button
             type="button"
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 transition-colors"
+            className="inline-flex items-center gap-1 px-1 py-0.5 transition-colors"
             onClick={pasteSelectionToChat}
           >
             <span>{pasteLabel}</span>
           </button>
-          <div className="h-5 w-px" style={{ backgroundColor: 'rgba(255,255,255,0.35)' }} />
+          <div className="h-4 w-px" style={{ backgroundColor: 'rgba(255,255,255,0.35)' }} />
           <button
             type="button"
-            className="inline-flex items-center px-2.5 py-1 transition-colors"
+            className="inline-flex items-center px-1 py-0.5 transition-colors"
             onClick={quickEditSelection}
           >
             <span>快速优化</span>
@@ -366,7 +366,7 @@ const ResumeSelectionOverlay = forwardRef<ResumeSelectionOverlayHandle, ResumeSe
         >
           <button
             type="button"
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 transition-colors"
+            className="inline-flex items-center gap-1 px-1 py-0.5 transition-colors"
             onClick={pasteSelectionToChat}
           >
             <span>{pasteLabel}</span>

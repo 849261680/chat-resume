@@ -38,6 +38,7 @@ import { usePanelLayout } from '@/hooks/usePanelLayout'
 import { useResumeChatPanel } from '@/hooks/useResumeChatPanel'
 import { useResumeEditor } from '@/hooks/useResumeEditor'
 import ChatInputBox from '@/components/editor/ChatInputBox'
+import type { ChatInputBoxHandle } from '@/components/editor/ChatInputBox'
 import ResumeSelectionOverlay from '@/components/editor/ResumeSelectionOverlay'
 import type { ResumeSelectionOverlayHandle } from '@/components/editor/ResumeSelectionOverlay'
 import UserInputRequestCard from '@/components/editor/UserInputRequestCard'
@@ -149,6 +150,7 @@ export default function ResumeEditPage() {
   const [mounted, setMounted] = useState(false)
   const [isCreatingInterview, setIsCreatingInterview] = useState(false)
   const selectionOverlayRef = useRef<ResumeSelectionOverlayHandle>(null)
+  const chatInputBoxRef = useRef<ChatInputBoxHandle>(null)
   const previewPanelRef = useRef<HTMLDivElement>(null)
   const agentPanelRef = useRef<HTMLDivElement>(null)
   const t = useTranslations('resume.editor')
@@ -203,7 +205,6 @@ export default function ResumeEditPage() {
 
   const {
     messages,
-    selectedResumeContext,
     isSending,
     isClearingMessages,
     apiError,
@@ -216,11 +217,9 @@ export default function ResumeEditPage() {
     userInputRequest,
     restorePendingConfirmation,
     stopStreaming,
-    setSelectedResumeContext,
     dispatchMessage,
     handleMessagesScroll,
     handleClearMessages,
-    appendToInputMessage,
     sendMessageWithContext,
   } = useResumeChatPanel({
     resumeId,
@@ -530,7 +529,7 @@ export default function ResumeEditPage() {
           pasteLabel={t('pasteSelectionToChat')}
           isSending={isSending}
           isStreaming={isStreaming}
-          appendToInputMessage={appendToInputMessage}
+          appendToInputMessage={(text) => chatInputBoxRef.current?.appendSelectedContext(text)}
           sendMessageWithContext={sendMessageWithContext}
         />
         <div
@@ -861,8 +860,7 @@ export default function ResumeEditPage() {
                   />
                 )}
                 <ChatInputBox
-                  selectedResumeContext={selectedResumeContext}
-                  onClearContext={() => setSelectedResumeContext('')}
+                  ref={chatInputBoxRef}
                   onSend={(message) => { void dispatchMessage(message) }}
                   onStop={stopStreaming}
                   isSending={isSending}

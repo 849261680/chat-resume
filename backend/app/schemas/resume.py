@@ -529,7 +529,7 @@ class LayoutConfigUpdate(BaseModel):
     density: LayoutDensity
     moduleOrder: list[LayoutModule]
     visibleModules: list[LayoutModule]
-    spacingScale: float = Field(ge=0.5, le=1.3)
+    spacingScale: float = Field(ge=0.5, le=1.8)
     templateStyle: LayoutTemplateStyle = "classic"
 
     @field_validator("moduleOrder")

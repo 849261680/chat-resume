@@ -52,3 +52,23 @@ test('selection toolbar uses measured size and avoids covering nearby text when 
   assert.match(overlaySource, /selectionBottom \+ SELECTION_OVERLAY_GAP/)
   assert.doesNotMatch(overlaySource, /selectionTop - 40/)
 })
+
+test('selection toolbar buttons use compact padding', async () => {
+  const { overlaySource } = await readSelectionOverlaySources()
+  const previewToolbarSource = overlaySource.slice(
+    overlaySource.indexOf("selectionAction?.source === 'preview' && selectionAction.mode === 'toolbar'"),
+    overlaySource.indexOf("selectionAction?.source === 'preview' && selectionAction.mode === 'quick_edit'")
+  )
+  const chatToolbarSource = overlaySource.slice(
+    overlaySource.indexOf("selectionAction?.source === 'chat' && selectionAction.mode === 'toolbar'"),
+    overlaySource.indexOf("messagesPanel && selectionAction?.source === 'chat'")
+  )
+
+  assert.match(previewToolbarSource, /px-1 py-0\.5/)
+  assert.match(previewToolbarSource, /h-4 w-px/)
+  assert.doesNotMatch(previewToolbarSource, /px-2 py-0\.5/)
+  assert.doesNotMatch(previewToolbarSource, /px-2\.5 py-1/)
+  assert.doesNotMatch(previewToolbarSource, /h-5 w-px/)
+  assert.match(chatToolbarSource, /px-1 py-0\.5/)
+  assert.doesNotMatch(chatToolbarSource, /px-2 py-0\.5/)
+})

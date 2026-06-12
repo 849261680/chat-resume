@@ -90,7 +90,7 @@ const ChatInputBox = React.memo(function ChatInputBox({
           {selectedResumeContext && (
             <span
               data-testid="selected-resume-context"
-              className="max-w-full whitespace-pre-wrap break-words rounded-md px-2 py-1 text-sm leading-relaxed"
+              className="max-w-full whitespace-pre-wrap break-words rounded-[5px] px-1.5 py-0.5 text-sm leading-snug"
               style={{
                 backgroundColor: 'rgba(0,82,255,0.08)',
                 color: '#0667d0',

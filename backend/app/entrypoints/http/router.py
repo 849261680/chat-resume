@@ -8,14 +8,12 @@ API路由聚合模块
 from fastapi import APIRouter
 
 from app.entrypoints.http import (
-    asr,
     auth,
     billing,
     digital_human,
     export,
     interviews,
     resumes,
-    tts,
     upload,
     users,
 )
@@ -32,8 +30,6 @@ api_router.include_router(upload.router, prefix="/upload", tags=["upload"])
 api_router.include_router(export.router, prefix="/resumes", tags=["export"])
 api_router.include_router(chat.router, prefix="/ai", tags=["chat"])
 api_router.include_router(interviews.router, prefix="/interviews", tags=["interviews"])
-api_router.include_router(tts.router, prefix="/tts", tags=["tts"])
-api_router.include_router(asr.router, prefix="/asr", tags=["asr"])
 api_router.include_router(
     digital_human.router, prefix="/digital-human", tags=["digital-human"]
 )

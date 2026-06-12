@@ -164,25 +164,8 @@ class Settings(BaseSettings):
         os.getenv("OPENROUTER_CIRCUIT_BREAKER_COOLDOWN_SECONDS", "30")
     )
 
-    # MiniMax TTS API
-    MINIMAX_API_KEY: str = os.getenv("MINIMAX_API_KEY", "")
-    MINIMAX_API_BASE: str = os.getenv("MINIMAX_API_BASE", "https://api.minimaxi.com")
-    MINIMAX_GROUP_ID: str = os.getenv("MINIMAX_GROUP_ID", "")
-
-    # 火山引擎大模型流式语音识别API
-    VOLCENGINE_APP_KEY: str = os.getenv("VOLCENGINE_APP_KEY", "")
+    # 火山引擎实时语音大模型开场触发音频合成凭证
     VOLCENGINE_ACCESS_TOKEN: str = os.getenv("VOLCENGINE_ACCESS_TOKEN", "")
-    VOLCENGINE_ASR_RESOURCE_ID: str = os.getenv(
-        "VOLCENGINE_ASR_RESOURCE_ID", "volc.bigasr.sauc.duration"
-    )
-
-    # 火山引擎ASR API
-    VOLCENGINE_ASR_API_KEY: str = os.getenv("VOLCENGINE_ASR_API_KEY", "")
-    VOLCENGINE_ASR_APP_ID: str = os.getenv("VOLCENGINE_ASR_APP_ID", "")
-
-    # 火山引擎大模型ASR API
-    VOLCENGINE_BIGMODEL_API_KEY: str = os.getenv("VOLCENGINE_BIGMODEL_API_KEY", "")
-    VOLCENGINE_BIGMODEL_APP_ID: str = os.getenv("VOLCENGINE_BIGMODEL_APP_ID", "")
 
     # 火山引擎TTS API
     VOLCENGINE_TTS_API_KEY: str = os.getenv("VOLCENGINE_TTS_API_KEY", "")
@@ -192,7 +175,6 @@ class Settings(BaseSettings):
 
     # 火山引擎端到端实时语音大模型
     VOLCENGINE_DIALOGUE_APP_ID: str = os.getenv("VOLCENGINE_DIALOGUE_APP_ID", "")
-    VOLCENGINE_DIALOGUE_APP_KEY: str = os.getenv("VOLCENGINE_DIALOGUE_APP_KEY", "")
     VOLCENGINE_DIALOGUE_ACCESS_KEY: str = os.getenv(
         "VOLCENGINE_DIALOGUE_ACCESS_KEY", ""
     )
@@ -206,8 +188,6 @@ class Settings(BaseSettings):
         "VOLCENGINE_DIALOGUE_WS_URL",
         "wss://openspeech.bytedance.com/api/v3/realtime/dialogue",
     )
-
-
 
     # File upload
     UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "uploads")

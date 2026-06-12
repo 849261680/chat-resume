@@ -115,7 +115,9 @@ greenlet==3.4.0
     #   playwright
     #   sqlalchemy
 griffelib==2.0.2
-    # via fastmcp
+    # via
+    #   fastmcp
+    #   openai-agents
 h11==0.16.0
     # via
     #   httpcore
@@ -188,7 +190,9 @@ markupsafe==3.0.3
     #   jinja2
     #   mako
 mcp==1.27.1
-    # via fastmcp
+    # via
+    #   fastmcp
+    #   openai-agents
 mdurl==0.1.2
     # via markdown-it-py
 more-itertools==11.0.2
@@ -205,7 +209,11 @@ numpy==2.4.4
     #   blis
     #   spacy
     #   thinc
-openai==2.31.0
+openai==2.41.1
+    # via
+    #   chat-resume-backend
+    #   openai-agents
+openai-agents==0.17.4
     # via chat-resume-backend
 openapi-pydantic==0.5.1
     # via fastmcp
@@ -259,6 +267,7 @@ pydantic==2.13.1
     #   fastmcp
     #   mcp
     #   openai
+    #   openai-agents
     #   openapi-pydantic
     #   pi-agent-core
     #   pydantic-settings
@@ -319,6 +328,7 @@ reportlab==4.0.7
     # via chat-resume-backend
 requests==2.33.1
     # via
+    #   openai-agents
     #   spacy
     #   weasel
 rich==15.0.0
@@ -387,6 +397,8 @@ typer==0.9.4
     # via
     #   spacy
     #   weasel
+types-requests==2.33.0.20260518
+    # via openai-agents
 typing-extensions==4.15.0
     # via
     #   alembic
@@ -395,6 +407,7 @@ typing-extensions==4.15.0
     #   fastapi
     #   mcp
     #   openai
+    #   openai-agents
     #   opentelemetry-api
     #   py-key-value-aio
     #   pydantic
@@ -417,6 +430,7 @@ uncalled-for==0.3.2
 urllib3==2.6.3
     # via
     #   requests
+    #   types-requests
     #   volcengine-python-sdk
 uvicorn==0.46.0
     # via
@@ -442,6 +456,7 @@ websockets==16.0
     # via
     #   chat-resume-backend
     #   fastmcp
+    #   openai-agents
     #   uvicorn
 win32-setctime==1.2.0 ; sys_platform == 'win32'
     # via loguru

@@ -10,12 +10,13 @@ from collections.abc import AsyncIterator, Mapping
 from dataclasses import fields
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from pi_agent_core import (
     AgentContext,
     AgentTool,
+    AgentToolResult,
     AgentToolSchema,
     AssistantMessage,
     SimpleStreamOptions,
@@ -288,9 +289,12 @@ def fake_sdk_tool_call(name: str, arguments: str = "{}") -> ResponseFunctionTool
 class FakeOpenAIAgentsModel(OpenAIAgentsModel):
     """用于在测试中替代真实 OpenAI 模型。"""
 
-    def __init__(self, output: list[Any]):
-        """用于保存预设 SDK output。"""
-        self.output = output
+    def __init__(self, output: list[Any] | list[list[Any]]):
+        """用于保存预设 SDK 响应，可传入多轮 output 序列。"""
+        if output and all(isinstance(item, list) for item in output):
+            self.outputs = [list(items) for items in output]
+        else:
+            self.outputs = [list(output)]
         self.inputs: list[str | list[TResponseInputItem]] = []
         self.tools: list[list[Tool]] = []
 
@@ -321,8 +325,9 @@ class FakeOpenAIAgentsModel(OpenAIAgentsModel):
         )
         self.inputs.append(input)
         self.tools.append(tools)
+        output = self.outputs.pop(0) if len(self.outputs) > 1 else self.outputs[0]
         return ModelResponse(
-            output=self.output,
+            output=cast(Any, output),
             usage=OpenAIAgentsUsage(input_tokens=11, output_tokens=7, total_tokens=18),
             response_id="resp_test",
         )
@@ -714,12 +719,20 @@ async def test_openai_agents_adapter_returns_text_message_from_sdk_agent():
 
 
 @pytest.mark.asyncio
-async def test_openai_agents_adapter_interrupts_function_tools_for_confirmation_gate():
-    """用于验证 SDK 工具调用先中断，再交给现有确认门执行。"""
+async def test_openai_agents_adapter_executes_function_tools_with_sdk_loop():
+    """用于验证 SDK FunctionTool 直接执行业务工具并继续生成最终回复。"""
     sdk_model = FakeOpenAIAgentsModel([
-        fake_sdk_tool_call("update_bullet", '{"section":"projects"}')
+        [fake_sdk_tool_call("update_bullet", '{"section":"projects"}')],
+        [fake_sdk_message("工具已执行。")],
     ])
     adapter = OpenAIAgentsStreamAdapter(sdk_model=sdk_model)
+
+    async def execute_tool(tool_call_id: str, params: dict[str, Any]) -> AgentToolResult:
+        """用于模拟 SDK 原生工具回调进入业务工具层。"""
+        assert tool_call_id == "call_sdk_1"
+        assert params == {"section": "projects"}
+        return AgentToolResult(content=[TextContent(text='{"success":true}')])
+
     context = AgentContext(
         system_prompt="你是简历优化 Agent。",
         messages=[UserMessage(content=[TextContent(text="优化项目 bullet")])],
@@ -732,7 +745,7 @@ async def test_openai_agents_adapter_interrupts_function_tools_for_confirmation_
                     properties={"section": {"type": "string"}},
                     required=["section"],
                 ),
-                execute=lambda *_args: None,  # type: ignore[arg-type]
+                execute=execute_tool,
             )
         ],
     )
@@ -747,13 +760,63 @@ async def test_openai_agents_adapter_interrupts_function_tools_for_confirmation_
         result = await result
 
     assert isinstance(result, AssistantMessage)
-    tool_calls = [block for block in result.content if isinstance(block, ToolCall)]
-    assert [(call.id, call.name, call.arguments) for call in tool_calls] == [
-        ("call_sdk_1", "update_bullet", {"section": "projects"})
+    assert [block.text for block in result.content if isinstance(block, TextContent)] == [
+        "工具已执行。"
     ]
-    assert sdk_model.tools
+    assert len(sdk_model.inputs) == 2
     assert sdk_model.tools[0][0].name == "update_bullet"
-    assert getattr(sdk_model.tools[0][0], "needs_approval") is True
+    assert getattr(sdk_model.tools[0][0], "needs_approval") is False
+
+@pytest.mark.asyncio
+async def test_openai_agents_adapter_stops_on_terminal_tool_result():
+    """用于验证 SDK 原生工具循环保留 ask_user 等终止型工具语义。"""
+    sdk_model = FakeOpenAIAgentsModel([
+        fake_sdk_tool_call("ask_user", '{"question":"目标岗位是什么？"}')
+    ])
+    adapter = OpenAIAgentsStreamAdapter(sdk_model=sdk_model)
+
+    async def execute_tool(tool_call_id: str, params: dict[str, Any]) -> AgentToolResult:
+        """用于模拟返回 Pi-style terminate 工具结果。"""
+        assert tool_call_id == "call_sdk_1"
+        assert params == {"question": "目标岗位是什么？"}
+        return AgentToolResult(
+            content=[
+                TextContent(
+                    text='{"success":true,"terminate":true,"message":"目标岗位是什么？"}'
+                )
+            ]
+        )
+
+    context = AgentContext(
+        system_prompt="你是简历优化 Agent。",
+        messages=[UserMessage(content=[TextContent(text="帮我优化简历")])],
+        tools=[
+            AgentTool(
+                name="ask_user",
+                description="询问信息。",
+                parameters=AgentToolSchema(
+                    type="object",
+                    properties={"question": {"type": "string"}},
+                    required=["question"],
+                ),
+                execute=execute_tool,
+            )
+        ],
+    )
+
+    response = await adapter(
+        Model(api="responses", provider="openai-agents", id="test-model"),
+        context,
+        SimpleStreamOptions(api_key="test-key", temperature=0.2, max_tokens=128),
+    )
+    result = response["result"]()
+    if inspect.isawaitable(result):
+        result = await result
+
+    assert [block.text for block in result.content if isinstance(block, TextContent)] == [
+        "目标岗位是什么？"
+    ]
+    assert len(sdk_model.inputs) == 1
 
 
 def test_openai_agents_model_name_comes_from_settings(monkeypatch: pytest.MonkeyPatch):

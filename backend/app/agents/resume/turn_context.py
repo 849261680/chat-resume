@@ -141,7 +141,8 @@ class ResumeTurnContextBuilder:
             params: dict[str, Any],
             *_args: Any,
         ) -> AgentToolResult:
-            """用于执行一次业务工具调用。"""
+            """用于执行一次 SDK 原生工具调用。"""
+            stream_state["tool_call_count"] += 1
             if tool_name in agent.auto_execute_tool_names:
                 return await self.tool_stage.execute_tool_result(
                     agent=agent,

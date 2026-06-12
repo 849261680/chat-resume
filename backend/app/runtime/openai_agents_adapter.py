@@ -1,13 +1,14 @@
-"""用于把 OpenAI Agents SDK 适配到现有 Resume Agent ReAct loop。"""
+"""用于把 OpenAI Agents SDK 原生工具循环适配到 Resume Agent 运行时。"""
 
 from __future__ import annotations
 
+import inspect
 import json
 from collections.abc import AsyncIterator
 from typing import Any, cast
 
 from agents import Agent as OpenAIAgent
-from agents import FunctionTool, ModelSettings, RunConfig, Runner
+from agents import FunctionTool, ModelSettings, RunConfig, Runner, ToolsToFinalOutputResult
 from agents.items import TResponseInputItem, ToolApprovalItem
 from agents.models.interface import Model as OpenAIAgentsModel
 from agents.models.openai_provider import OpenAIProvider
@@ -103,7 +104,7 @@ async def stream_openai_agents(
     context: AgentContext,
     options: SimpleStreamOptions,
 ) -> StreamResult:
-    """用于通过 OpenAI Agents SDK 执行一轮模型调用。"""
+    """用于通过 OpenAI Agents SDK 执行一轮 SDK 原生工具循环。"""
     adapter = OpenAIAgentsStreamAdapter()
     return await adapter(model, context, options)
 
@@ -142,18 +143,15 @@ class OpenAIAgentsStreamAdapter:
         context: AgentContext,
         options: SimpleStreamOptions,
     ) -> AssistantMessage:
-        """用于构建 SDK Agent 并执行一次会中断于工具 approval 的 turn。"""
+        """用于构建 SDK Agent，并让 SDK 原生驱动工具调用直到最终回复。"""
         sdk_agent = self.build_sdk_agent(model, context, options)
         run_config = self.run_config(model, options)
         result = await Runner.run(
             sdk_agent,
             self.input_items(context.messages),
-            max_turns=1,
+            max_turns=10,
             run_config=run_config,
         )
-        tool_call = self.first_interrupted_tool_call(result.interruptions)
-        if tool_call is not None:
-            return self.tool_call_message(model, tool_call, result.context_wrapper.usage)
         return self.text_message(model, str(result.final_output or ""), result.context_wrapper.usage)
 
     def build_sdk_agent(
@@ -169,7 +167,32 @@ class OpenAIAgentsStreamAdapter:
             model=self.sdk_model or model.id,
             model_settings=self.model_settings(model, options),
             tools=[self.function_tool(tool) for tool in context.tools],
+            tool_use_behavior=self.tool_use_behavior,
         )
+
+    @staticmethod
+    def tool_use_behavior(_context: Any, tool_results: list[Any]) -> ToolsToFinalOutputResult:
+        """用于让 SDK 在终止型工具结果上直接结束运行。"""
+        for tool_result in tool_results:
+            output = getattr(tool_result, "output", None)
+            parsed = OpenAIAgentsStreamAdapter.parse_tool_output(output)
+            if isinstance(parsed, dict) and parsed.get("terminate") is True:
+                message = parsed.get("message")
+                return ToolsToFinalOutputResult(
+                    is_final_output=True,
+                    final_output=message if isinstance(message, str) else str(output or ""),
+                )
+        return ToolsToFinalOutputResult(is_final_output=False, final_output=None)
+
+    @staticmethod
+    def parse_tool_output(output: Any) -> Any:
+        """用于把 SDK 工具输出解析为可能的 JSON 对象。"""
+        if not isinstance(output, str):
+            return output
+        try:
+            return json.loads(output)
+        except json.JSONDecodeError:
+            return output
 
     @staticmethod
     def model_settings(model: Model, options: SimpleStreamOptions) -> ModelSettings:
@@ -219,12 +242,17 @@ class OpenAIAgentsStreamAdapter:
 
     @staticmethod
     def function_tool(tool: Any) -> FunctionTool:
-        """用于把现有 AgentTool schema 包装为需要 approval 的 SDK FunctionTool。"""
+        """用于把现有 AgentTool schema 包装为 SDK 原生执行的 FunctionTool。"""
 
-        async def on_invoke_tool(_context: Any, _input: str) -> str:
-            """用于兜底防止 SDK 直接执行业务工具。"""
-            return "Tool execution is handled by Chat Resume confirmation gate."
-
+        async def on_invoke_tool(tool_context: Any, raw_input: str) -> str:
+            """用于把 SDK 工具调用转交给现有业务工具执行器。"""
+            params = OpenAIAgentsStreamAdapter.parse_tool_arguments(raw_input)
+            result = tool.execute(tool_context.tool_call_id, params)
+            if inspect.isawaitable(result):
+                result = await result
+            if result is None:
+                return ""
+            return OpenAIAgentsStreamAdapter.text_from_content(result.content)
         return FunctionTool(
             name=str(tool.name),
             description=str(tool.description),
@@ -235,7 +263,6 @@ class OpenAIAgentsStreamAdapter:
             },
             on_invoke_tool=on_invoke_tool,
             strict_json_schema=False,
-            needs_approval=True,
         )
 
     @classmethod

@@ -687,9 +687,9 @@ export default function ResumeEditPage() {
           <motion.div
             ref={previewPanelRef}
             layout={!isResizingPanels}
-            initial={{ opacity: 0, x: 20 }}
+            initial={false}
             animate={{ opacity: 1, x: 0 }}
-            transition={{ layout: { duration: 0.35, ease: 'easeInOut' }, opacity: { duration: 0.8, delay: 0.2 }, x: { duration: 0.8, delay: 0.2 } }}
+            transition={{ layout: { duration: 0.35, ease: 'easeInOut' } }}
             className="preview-panel relative flex flex-col min-h-0 min-w-0 print:w-full print:h-auto print:absolute print:top-0 print:left-0 print:m-0 print:p-0"
             style={{ flex: '0 0 var(--preview-panel-width)' }}
           >
@@ -721,9 +721,9 @@ export default function ResumeEditPage() {
           {/* Right Panel - AI Chat */}
           <motion.div
             layout={!isResizingPanels}
-            initial={{ opacity: 0, y: 20 }}
+            initial={false}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ layout: { duration: 0.35, ease: 'easeInOut' }, opacity: { duration: 0.8, delay: 0.4 }, y: { duration: 0.8, delay: 0.4 } }}
+            transition={{ layout: { duration: 0.35, ease: 'easeInOut' } }}
             className="agent-panel flex flex-col min-h-0 min-w-0 print:hidden"
             style={{ flex: '0 0 var(--agent-panel-width)' }}
           >

@@ -24,3 +24,13 @@ test('resume page vertical margins do not scale with spacingScale', async () => 
   assert.doesNotMatch(paginationHook, /PAGE_PADDING \* 2 \* spacingScale/)
   assert.doesNotMatch(smartFitHook, /PAGE_PADDING \* 2 \* scale/)
 })
+
+test('emerald keeps a fixed bottom page margin', async () => {
+  const globalsCss = await readFile(new URL('../../app/globals.css', import.meta.url), 'utf8')
+  const paginatedPreview = await readPreviewSource('PaginatedResumePreview.tsx')
+  const paginationHook = await readFile(new URL('useLineBasedPagination.ts', hooksRoot), 'utf8')
+
+  assert.match(globalsCss, /\.resume-page\.resume-template-emerald\s*\{[\s\S]*padding-bottom:\s*40px !important;/)
+  assert.match(paginatedPreview, /paddingBottom:\s*`\$\{PAGE_PADDING\}px`/)
+  assert.match(paginationHook, /options\.fullBleed \? PAGE_PADDING : PAGE_PADDING \* 2/)
+})

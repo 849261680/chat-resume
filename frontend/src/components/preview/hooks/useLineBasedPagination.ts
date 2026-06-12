@@ -134,8 +134,17 @@ interface PageContentHeightOptions {
 // 用于计算固定页边距下的页面可用内容高度。
 export function getPageContentHeight(options: PageContentHeightOptions = {}): number {
   if (typeof options.pageHeight === 'number') return options.pageHeight
-  const verticalPadding = options.fullBleed ? 0 : PAGE_PADDING * 2
+  const verticalPadding = options.fullBleed ? PAGE_PADDING : PAGE_PADDING * 2
   return A4_HEIGHT - verticalPadding - SAFETY_MARGIN
+}
+
+// 用于计算页面切片结尾，最后一页保留文末尾部间距。
+export function getPageLineEndOffset(
+  line: Pick<RenderableLine, 'top' | 'bottom' | 'height'>,
+  isLastContentLine: boolean,
+) {
+  if (!isLastContentLine) return line.bottom
+  return Math.max(line.bottom, line.top + line.height)
 }
 
 // 用于封装行based分页相关状态和行为。
@@ -178,11 +187,12 @@ export function useLineBasedPagination({
 
       const pageLines = lines.slice(startIndex, endIndex + 1)
       const lastLine = pageLines[pageLines.length - 1]
+      const pageEndOffset = getPageLineEndOffset(lastLine, endIndex === lines.length - 1)
       pages.push({
         lines: pageLines,
-        height: Math.max(lastLine.bottom - pageStart, 0),
+        height: Math.max(pageEndOffset - pageStart, 0),
         startOffset: pageStart,
-        endOffset: lastLine.bottom,
+        endOffset: pageEndOffset,
       })
       startIndex = endIndex + 1
     }

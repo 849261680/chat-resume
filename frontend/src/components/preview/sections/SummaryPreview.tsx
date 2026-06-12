@@ -11,6 +11,7 @@ interface SummaryPreviewProps {
   renderLines?: number[]
   templateStyle?: ResumeTemplateStyle
 }
+const COMPACT_HEADING_GAP_STYLE = 'calc(6px + var(--spacing-scale, 1) * 2px)'
 
 // 用于渲染个人简介预览模块。
 export default function SummaryPreview({ data, renderLines, templateStyle = 'classic' }: SummaryPreviewProps) {
@@ -22,12 +23,12 @@ export default function SummaryPreview({ data, renderLines, templateStyle = 'cla
   const isFormal = templateStyle === 'formal'
 
   return (
-    <div style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 20px)' }}>
+    <div>
       {shouldRenderLine(0) && (
         <h2
           data-line-index={0}
           className="text-lg font-bold text-gray-900 pb-1 border-b border-gray-200"
-          style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 8px)' }}
+          style={{ marginBottom: COMPACT_HEADING_GAP_STYLE }}
         >
           {isEmerald ? <span className="resume-emerald-heading-label">{t('summary')}</span> : t('summary')}
         </h2>

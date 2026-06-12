@@ -26,6 +26,7 @@ const SECTION_ID_MAP: Record<ResumeModule, string> = {
   open_source: 'open-source-section'
 }
 const PAGE_CONTENT_WIDTH = A4_WIDTH - PAGE_PADDING * 2
+const SECTION_GAP_STYLE = 'calc(12px + var(--spacing-scale, 1) * 5px)'
 
 // 用于按预览容器宽度计算 A4 页面缩放比例。
 function calculatePreviewScale(container: HTMLElement, viewportPadding: number) {
@@ -182,7 +183,7 @@ export default function PaginatedResumePreview({
   const renderSection = (sectionId: string, children: ReactNode): JSX.Element => (
     <section
       data-section-id={sectionId}
-      style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 24px)' }}
+      style={{ marginBottom: SECTION_GAP_STYLE }}
     >
       {children}
     </section>
@@ -259,7 +260,7 @@ export default function PaginatedResumePreview({
         width: `${A4_WIDTH}px`,
         aspectRatio: `${A4_WIDTH / A4_HEIGHT}`,
         paddingTop: `${isFullBleedTemplate ? 0 : PAGE_PADDING}px`,
-        paddingBottom: `${isFullBleedTemplate ? 0 : PAGE_PADDING}px`,
+        paddingBottom: `${PAGE_PADDING}px`,
         paddingLeft: `${isFullBleedTemplate ? 0 : PAGE_PADDING}px`,
         paddingRight: `${isFullBleedTemplate ? 0 : PAGE_PADDING}px`,
         boxSizing: 'border-box',

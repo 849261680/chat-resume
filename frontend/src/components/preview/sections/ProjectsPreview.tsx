@@ -15,6 +15,7 @@ interface ProjectsPreviewProps {
   secondaryLinkLabel?: string
   inlineSecondaryLink?: boolean
 }
+const HEADING_CONTENT_GAP_STYLE = 'calc(8px + var(--spacing-scale, 1) * 3px)'
 
 /* 链接图标包装器：使用 flex 对齐，避免导出时基线计算偏差 */
 const iconWrap: React.CSSProperties = {
@@ -305,10 +306,10 @@ export default function ProjectsPreview({
   }
 
   return (
-    <div style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 20px)' }}>
+    <div>
       {/* 标题作为第0行 */}
       {shouldRenderLine(0) && (
-        <h2 data-line-index={0} className="text-lg font-bold text-gray-900 pb-1.5 border-b border-gray-300" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 12px)' }}>
+        <h2 data-line-index={0} className="text-lg font-bold text-gray-900 pb-1.5 border-b border-gray-300" style={{ marginBottom: HEADING_CONTENT_GAP_STYLE }}>
           {templateStyle === 'emerald' ? (
             <span className="resume-emerald-heading-label">{title || t('projects')}</span>
           ) : title || t('projects')}

@@ -10,6 +10,7 @@ interface SkillsPreviewProps {
   renderLines?: number[] // 指定渲染哪些行
   templateStyle?: ResumeTemplateStyle
 }
+const COMPACT_HEADING_GAP_STYLE = 'calc(6px + var(--spacing-scale, 1) * 2px)'
 
 // 用于渲染 SkillsPreview 组件。
 export default function SkillsPreview({ data, renderLines, templateStyle = 'classic' }: SkillsPreviewProps) {
@@ -24,13 +25,13 @@ export default function SkillsPreview({ data, renderLines, templateStyle = 'clas
   }
 
   return (
-    <div style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 20px)' }}>
+    <div>
       {/* 标题作为第0行 */}
       {shouldRenderLine(0) && (
         <h2
           data-line-index={0}
           className="text-lg font-bold text-gray-900 pb-1 border-b border-gray-200"
-          style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 8px)' }}
+          style={{ marginBottom: COMPACT_HEADING_GAP_STYLE }}
         >
           {templateStyle === 'emerald' ? (
             <span className="resume-emerald-heading-label">{t('skills')}</span>

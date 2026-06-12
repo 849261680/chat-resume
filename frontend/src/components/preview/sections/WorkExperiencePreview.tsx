@@ -11,6 +11,7 @@ interface WorkExperiencePreviewProps {
   renderLines?: number[] // 指定渲染哪些行
   templateStyle?: ResumeTemplateStyle
 }
+const HEADING_CONTENT_GAP_STYLE = 'calc(8px + var(--spacing-scale, 1) * 3px)'
 
 // 单个工作经验项组件
 function WorkExperienceItem({ work, lineIndex, templateStyle = 'classic' }: { work: WorkExperience; lineIndex: number; templateStyle?: ResumeTemplateStyle }) {
@@ -121,10 +122,10 @@ export default function WorkExperiencePreview({
   }
 
   return (
-    <div style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 20px)' }}>
+    <div>
       {/* 标题作为第0行 */}
       {shouldRenderLine(0) && (
-        <h2 data-line-index={0} className="text-lg font-bold text-gray-900 pb-1.5 border-b border-gray-300" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 12px)' }}>
+        <h2 data-line-index={0} className="text-lg font-bold text-gray-900 pb-1.5 border-b border-gray-300" style={{ marginBottom: HEADING_CONTENT_GAP_STYLE }}>
           {templateStyle === 'emerald' ? (
             <span className="resume-emerald-heading-label">{t('work')}</span>
           ) : t('work')}

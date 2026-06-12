@@ -6,6 +6,7 @@ const {
   A4_HEIGHT,
   PAGE_PADDING,
   SAFETY_MARGIN,
+  getPageLineEndOffset,
   getPageContentHeight,
 } = await import('./useLineBasedPagination.ts')
 
@@ -14,9 +15,16 @@ test('getPageContentHeight uses fixed page margins', () => {
   assert.equal(getPageContentHeight({ pageHeight: 720 }), 720)
 })
 
-test('getPageContentHeight gives full-bleed templates the full page height', () => {
+test('getPageContentHeight keeps a fixed bottom margin for full-bleed templates', () => {
   assert.equal(
     getPageContentHeight({ fullBleed: true }),
-    A4_HEIGHT - SAFETY_MARGIN,
+    A4_HEIGHT - PAGE_PADDING - SAFETY_MARGIN,
   )
+})
+
+test('getPageLineEndOffset preserves trailing space only on the final content line', () => {
+  const line = { top: 100, bottom: 140, height: 72 }
+
+  assert.equal(getPageLineEndOffset(line, false), 140)
+  assert.equal(getPageLineEndOffset(line, true), 172)
 })

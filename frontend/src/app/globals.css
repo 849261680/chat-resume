@@ -275,6 +275,7 @@
 
   .resume-page.resume-template-emerald {
     padding: 0 !important;
+    padding-bottom: 40px !important;
     border-color: #d9dee3 !important;
     box-shadow: 0 12px 34px rgba(15, 23, 42, 0.12);
     color: #111827;

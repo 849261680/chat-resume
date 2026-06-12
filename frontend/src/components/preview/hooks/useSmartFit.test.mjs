@@ -52,7 +52,7 @@ test('smart-fit max spacing matches the professional resume spacing cap', () => 
 
 test('smart-fit bottom limits match normal and full-bleed page boxes', () => {
   assert.equal(getSmartFitPageBottom(false), A4_HEIGHT - PAGE_PADDING * 2 - SAFETY_MARGIN)
-  assert.equal(getSmartFitPageBottom(true), A4_HEIGHT - SAFETY_MARGIN)
+  assert.equal(getSmartFitPageBottom(true), A4_HEIGHT - PAGE_PADDING - SAFETY_MARGIN)
 })
 
 test('calculateSmartFitScale loosens short content up to the max spacing', async () => {

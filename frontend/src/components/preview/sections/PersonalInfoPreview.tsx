@@ -27,6 +27,8 @@ const iconWrap: React.CSSProperties = {
   marginRight: 3,
   flexShrink: 0,
 }
+const PERSONAL_BLOCK_GAP_STYLE = 'calc(12px + var(--spacing-scale, 1) * 4px)'
+const PERSONAL_HEADER_GAP_STYLE = 'calc(8px + var(--spacing-scale, 1) * 2px)'
 
 // 用于渲染 EmailIcon 组件。
 const EmailIcon = () => (
@@ -196,9 +198,9 @@ export default function PersonalInfoPreview({ data, renderLines, templateStyle =
     const layout = getFormalPersonalInfoLayout(Boolean(photoUrl))
 
     return (
-      <div className={layout.containerClassName} style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 22px)' }}>
+      <div className={layout.containerClassName} style={{ marginBottom: PERSONAL_BLOCK_GAP_STYLE }}>
         {shouldRenderLine(0) && (
-          <div data-line-index={0} className={layout.headerClassName} style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 12px)' }}>
+          <div data-line-index={0} className={layout.headerClassName} style={{ marginBottom: PERSONAL_HEADER_GAP_STYLE }}>
             <div className={layout.textClassName}>
               <h1 className="text-2xl font-bold text-gray-900 mb-3">
                 {data.name || t('nameFallback')}
@@ -248,7 +250,7 @@ export default function PersonalInfoPreview({ data, renderLines, templateStyle =
 
   const layout = getCenteredPersonalInfoLayout(Boolean(photoUrl))
   return (
-    <div className={layout.containerClassName} style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 20px)' }}>
+    <div className={layout.containerClassName} style={{ marginBottom: PERSONAL_BLOCK_GAP_STYLE }}>
       {/* 姓名和职位 */}
       {shouldRenderLine(0) && (
         <div
@@ -256,7 +258,7 @@ export default function PersonalInfoPreview({ data, renderLines, templateStyle =
           className={layout.headerClassName}
           style={{
             ...layout.headerStyle,
-            marginBottom: 'calc(var(--spacing-scale, 1) * 12px)',
+            marginBottom: PERSONAL_HEADER_GAP_STYLE,
           }}
         >
           <div className={layout.textClassName}>
@@ -283,7 +285,7 @@ export default function PersonalInfoPreview({ data, renderLines, templateStyle =
 
       {/* 联系方式 */}
       {shouldRenderLine(1) && (
-        <div data-line-index={1} className={`flex flex-wrap justify-center gap-4 text-xs text-gray-600 pb-3 ${layout.contactClassName}`}>
+        <div data-line-index={1} className={`flex flex-wrap justify-center gap-4 text-xs text-gray-600 pb-2 ${layout.contactClassName}`}>
           {data.email && (
             <span className={itemClassName}><EmailIcon />{data.email}</span>
           )}

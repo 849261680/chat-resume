@@ -3,10 +3,6 @@
 
 import { motion, AnimatePresence } from 'framer-motion'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type {
-  ClipboardEvent as ReactClipboardEvent,
-  PointerEvent as ReactPointerEvent,
-} from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { useRouter } from '@/i18n/navigation'
 import { useAuth } from '@/lib/auth'
@@ -42,72 +38,12 @@ import { usePanelLayout } from '@/hooks/usePanelLayout'
 import { useResumeChatPanel } from '@/hooks/useResumeChatPanel'
 import { useResumeEditor } from '@/hooks/useResumeEditor'
 import ChatInputBox from '@/components/editor/ChatInputBox'
-import QuickEditPopover from '@/components/editor/QuickEditPopover'
+import ResumeSelectionOverlay from '@/components/editor/ResumeSelectionOverlay'
+import type { ResumeSelectionOverlayHandle } from '@/components/editor/ResumeSelectionOverlay'
 import UserInputRequestCard from '@/components/editor/UserInputRequestCard'
 import { useLocale, useTranslations } from 'next-intl'
 import { toInterviewLanguage, type AppLocale } from '@/i18n/routing'
 import toast from 'react-hot-toast'
-
-type ResumeSelectionSource = 'preview' | 'chat'
-
-interface ResumeSelectionAction {
-  source: ResumeSelectionSource
-  text: string
-  top: number
-  quickEditTop: number
-  left: number
-  highlightRects: Array<{
-    top: number
-    left: number
-    width: number
-    height: number
-  }>
-  mode: 'toolbar' | 'quick_edit'
-}
-
-/** 从当前浏览器选区里读取所属元素。 */
-function getSelectionElement(range: Range): Element | null {
-  const rangeNode = range.commonAncestorContainer
-  return rangeNode.nodeType === Node.ELEMENT_NODE
-    ? rangeNode as Element
-    : rangeNode.parentElement
-}
-
-/** 将原生选区转换成相对容器定位的浮层状态。 */
-function buildSelectionAction(
-  range: Range,
-  panel: HTMLElement,
-  text: string,
-  source: ResumeSelectionSource,
-  highlightPanel: HTMLElement = panel
-): ResumeSelectionAction {
-  const rangeRect = range.getBoundingClientRect()
-  const panelRect = panel.getBoundingClientRect()
-  const highlightPanelRect = highlightPanel.getBoundingClientRect()
-  const highlightRects = Array.from(range.getClientRects())
-    .filter((rect) => rect.width > 0 && rect.height > 0)
-    .map((rect) => ({
-      top: rect.top - highlightPanelRect.top + highlightPanel.scrollTop,
-      left: rect.left - highlightPanelRect.left + highlightPanel.scrollLeft,
-      width: rect.width,
-      height: rect.height,
-    }))
-  const actionWidth = Math.min(560, Math.max(230, panelRect.width - 16))
-  const maxLeft = Math.max(8, panelRect.width - actionWidth - 8)
-  const selectionTop = rangeRect.top - panelRect.top
-  const selectionBottom = rangeRect.bottom - panelRect.top
-  const left = Math.min(
-    Math.max(rangeRect.right - panelRect.left + 8, 8),
-    maxLeft
-  )
-  const top = Math.max(selectionTop - 40, 8)
-  const quickEditHeight = 64
-  const quickEditGap = 8
-  const quickEditTop = selectionTop > quickEditHeight + quickEditGap
-    ? selectionTop - quickEditHeight - quickEditGap
-    : selectionBottom + quickEditGap
-  return { source, text, top, quickEditTop, left, highlightRects, mode: 'toolbar' }
-}
 
 /** 从 Next 路由参数中读取单个简历 ID。 */
 function getResumeIdParam(value: string | string[] | undefined): string | undefined {
@@ -122,26 +58,6 @@ function isValidResumeIdParam(value: string | undefined): value is string {
   return Boolean(value && /^\d+$/.test(value))
 }
 
-/** 清理浏览器原生选区，避免关闭快速优化后预览里残留蓝色选中态。 */
-function clearNativeSelection() {
-  window.getSelection()?.removeAllRanges()
-}
-
-/** 清理浏览器原生选区。自绘高亮由 React 状态卸载。 */
-function clearResumeSelectionVisuals() {
-  clearNativeSelection()
-}
-
-/** 多次清理选区视觉，覆盖浏览器在 pointerup/click 后恢复旧选区的时序。 */
-function clearResumeSelectionVisualsAfterEvents() {
-  clearResumeSelectionVisuals()
-  window.requestAnimationFrame(() => {
-    clearResumeSelectionVisuals()
-    window.requestAnimationFrame(clearResumeSelectionVisuals)
-  })
-  window.setTimeout(clearResumeSelectionVisuals, 40)
-  window.setTimeout(clearResumeSelectionVisuals, 250)
-}
 /** 描述选区快捷优化消息中的引用内容和用户要求。 */
 interface SelectedResumeUserMessage {
   selectedText: string
@@ -232,7 +148,7 @@ export default function ResumeEditPage() {
   const locale = useLocale() as AppLocale
   const [mounted, setMounted] = useState(false)
   const [isCreatingInterview, setIsCreatingInterview] = useState(false)
-  const [resumeSelectionAction, setResumeSelectionAction] = useState<ResumeSelectionAction | null>(null)
+  const selectionOverlayRef = useRef<ResumeSelectionOverlayHandle>(null)
   const previewPanelRef = useRef<HTMLDivElement>(null)
   const agentPanelRef = useRef<HTMLDivElement>(null)
   const t = useTranslations('resume.editor')
@@ -384,47 +300,6 @@ export default function ResumeEditPage() {
     if (hasConfirmed) setFirstRunPhase('done')
   }, [streamEvents, firstRunPhase])
 
-  /**
-   * 关闭选区动作浮层，并同步清掉所有选区视觉状态。
-   */
-  const clearResumeSelectionAction = useCallback(() => {
-    clearResumeSelectionVisualsAfterEvents()
-    setResumeSelectionAction(null)
-  }, [])
-
-  /**
-   * 在用户按下非选区浮层区域时取消选区。
-   * 预览区内点击说明用户在开始新的拖选，只清 toolbar 状态，不动原生 selection，
-   * 否则 clearResumeSelectionVisualsAfterEvents 的定时器会在拖选途中把新选区清掉。
-   */
-  const handleMainPointerDown = useCallback((event: ReactPointerEvent<HTMLElement>) => {
-    const target = event.target
-    if (!(target instanceof Element)) return
-    if (target.closest('[data-resume-selection-action="true"]')) return
-    if (!resumeSelectionAction && !window.getSelection()?.toString()) return
-    const isSelectionPanel = Boolean(
-      previewPanelRef.current?.contains(target) ||
-      messagesContainerRef.current?.contains(target)
-    )
-    if (isSelectionPanel) {
-      setResumeSelectionAction(null)
-      return
-    }
-    clearResumeSelectionAction()
-  }, [clearResumeSelectionAction, messagesContainerRef, resumeSelectionAction])
-
-  /**
-   * 复制自绘高亮对应的缓存文本，避免 React 重渲染后原生 Selection 被截断。
-   */
-  const handleMainCopy = useCallback((event: ReactClipboardEvent<HTMLElement>) => {
-    if (resumeSelectionAction?.mode !== 'toolbar') return
-    if (!resumeSelectionAction.text.trim()) return
-    const target = event.target
-    if (target instanceof Element && target.closest('[data-resume-selection-action="true"]')) return
-    event.clipboardData.setData('text/plain', resumeSelectionAction.text)
-    event.preventDefault()
-  }, [resumeSelectionAction])
-
   const latestPendingCallId = streamEvents.reduce<string | null>(
     (latest, event) => (event.type === 'tool_pending' ? event.callId : latest),
     null
@@ -466,62 +341,6 @@ export default function ResumeEditPage() {
       simultaneousCalls,
     })
   }, [streamEvents, isStreaming, latestPendingCallId])
-
-  /** 读取预览区或聊天内容区当前选中文本，并把浮动按钮定位到选区上方。 */
-  const updateResumeSelectionAction = useCallback(() => {
-    const previewPanel = previewPanelRef.current
-    const agentPanel = agentPanelRef.current
-    const messagesPanel = messagesContainerRef.current
-    const selection = window.getSelection()
-    if (!previewPanel || !agentPanel || !messagesPanel || !selection || selection.rangeCount === 0) {
-      setResumeSelectionAction(null)
-      return
-    }
-
-    const selectedText = selection.toString().trim()
-    const range = selection.getRangeAt(0)
-    const selectedElement = getSelectionElement(range)
-    if (!selectedText || !selectedElement) {
-      setResumeSelectionAction(null)
-      return
-    }
-
-    if (previewPanel.contains(selectedElement)) {
-      setResumeSelectionAction(buildSelectionAction(range, previewPanel, selectedText, 'preview'))
-      return
-    }
-    if (messagesPanel.contains(selectedElement)) {
-      setResumeSelectionAction(buildSelectionAction(range, agentPanel, selectedText, 'chat', messagesPanel))
-      return
-    }
-    setResumeSelectionAction(null)
-  }, [messagesContainerRef])
-
-  /**
-   * 把预览区选中文本放入聊天输入框，等待用户继续编辑或发送。
-   */
-  const pasteResumeSelectionToChat = useCallback(() => {
-    if (!resumeSelectionAction) return
-    appendToInputMessage(resumeSelectionAction.text)
-    clearResumeSelectionAction()
-  }, [appendToInputMessage, clearResumeSelectionAction, resumeSelectionAction])
-
-  /**
-   * 把选中文本作为快速编辑上下文，并预填明确的优化指令。
-   */
-  const quickEditResumeSelection = useCallback(() => {
-    if (!resumeSelectionAction) return
-    setResumeSelectionAction({ ...resumeSelectionAction, mode: 'quick_edit' })
-  }, [resumeSelectionAction])
-
-  /**
-   * 将选中文本和快速优化要求一起发送给右侧简历 Agent。
-   */
-  const submitQuickEditSelection = useCallback(async (selectedText: string, userPrompt: string) => {
-    if (!selectedText.trim() || !userPrompt.trim()) return
-    clearResumeSelectionAction()
-    await sendMessageWithContext(selectedText, userPrompt)
-  }, [clearResumeSelectionAction, sendMessageWithContext])
 
   const handleFirstRunJdSubmit = useCallback(async () => {
     if (!resume || !firstRunJdText.trim()) return
@@ -697,11 +516,23 @@ export default function ResumeEditPage() {
       {/* Main Content — 三栏布局 */}
       <main
         className="max-w-full mx-auto px-6 py-3"
-        onPointerDown={handleMainPointerDown}
-        onMouseUp={updateResumeSelectionAction}
-        onKeyUp={updateResumeSelectionAction}
-        onCopy={handleMainCopy}
+        onPointerDown={(event) => selectionOverlayRef.current?.handleMainPointerDown(event)}
+        onPointerUp={() => selectionOverlayRef.current?.updateSelectionAction()}
+        onMouseUp={() => selectionOverlayRef.current?.updateSelectionAction()}
+        onKeyUp={() => selectionOverlayRef.current?.updateSelectionAction()}
+        onCopy={(event) => selectionOverlayRef.current?.handleMainCopy(event)}
       >
+        <ResumeSelectionOverlay
+          ref={selectionOverlayRef}
+          previewPanelRef={previewPanelRef}
+          agentPanelRef={agentPanelRef}
+          messagesContainerRef={messagesContainerRef}
+          pasteLabel={t('pasteSelectionToChat')}
+          isSending={isSending}
+          isStreaming={isStreaming}
+          appendToInputMessage={appendToInputMessage}
+          sendMessageWithContext={sendMessageWithContext}
+        />
         <div
           ref={mainPanelsRef}
           className="flex gap-0 h-[calc(100vh-120px)]"
@@ -863,63 +694,6 @@ export default function ResumeEditPage() {
             className="preview-panel relative flex flex-col min-h-0 min-w-0 print:w-full print:h-auto print:absolute print:top-0 print:left-0 print:m-0 print:p-0"
             style={{ flex: '0 0 var(--preview-panel-width)' }}
           >
-            {resumeSelectionAction?.source === 'preview' && resumeSelectionAction.mode === 'toolbar' && (
-              <div
-                data-resume-selection-action="true"
-                className="absolute z-30 inline-flex items-center overflow-hidden whitespace-nowrap text-sm font-normal shadow-sm print:hidden"
-                style={{
-                  top: resumeSelectionAction.top,
-                  left: resumeSelectionAction.left,
-                  borderRadius: '2px',
-                  backgroundColor: '#0052ff',
-                  border: '1px solid #0052ff',
-                  color: '#ffffff',
-                }}
-                onPointerDown={(event) => event.stopPropagation()}
-                onMouseDown={(event) => event.preventDefault()}
-                onMouseUp={(event) => event.stopPropagation()}
-              >
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 transition-colors"
-                  onClick={pasteResumeSelectionToChat}
-                >
-                  <span>{t('pasteSelectionToChat')}</span>
-                </button>
-                <div className="h-5 w-px" style={{ backgroundColor: 'rgba(255,255,255,0.35)' }} />
-                <button
-                  type="button"
-                  className="inline-flex items-center px-2.5 py-1 transition-colors"
-                  onClick={quickEditResumeSelection}
-                >
-                  <span>快速优化</span>
-                </button>
-              </div>
-            )}
-            {resumeSelectionAction?.source === 'preview' && resumeSelectionAction.mode === 'quick_edit' && resumeSelectionAction.highlightRects.map((rect, index) => (
-              <div
-                key={`${rect.top}-${rect.left}-${index}`}
-                data-testid="resume-selection-highlight"
-                className="pointer-events-none absolute z-20 rounded-[2px] print:hidden"
-                style={{
-                  top: rect.top,
-                  left: rect.left,
-                  width: rect.width,
-                  height: rect.height,
-                  backgroundColor: 'rgba(0,82,255,0.22)',
-                }}
-              />
-            ))}
-            {resumeSelectionAction?.source === 'preview' && resumeSelectionAction.mode === 'quick_edit' && (
-              <QuickEditPopover
-                selectedText={resumeSelectionAction.text}
-                top={resumeSelectionAction.quickEditTop}
-                left={resumeSelectionAction.left}
-                disabled={isSending || isStreaming}
-                onClose={clearResumeSelectionAction}
-                onSubmit={(selectedText, prompt) => void submitQuickEditSelection(selectedText, prompt)}
-              />
-            )}
             <div className="flex-1 overflow-y-auto min-h-0 hide-scrollbar print:overflow-visible print:h-auto">
               <ResumePreview
                 key={JSON.stringify(moduleOrder.map(m => `${m.type}-${m.order}-${m.visible}`))}
@@ -963,31 +737,6 @@ export default function ResumeEditPage() {
                 borderRadius: '16px',
               }}
             >
-              {resumeSelectionAction?.source === 'chat' && resumeSelectionAction.mode === 'toolbar' && (
-                <div
-                  data-resume-selection-action="true"
-                  className="absolute z-30 inline-flex items-center overflow-hidden whitespace-nowrap text-sm font-normal shadow-sm"
-                  style={{
-                    top: resumeSelectionAction.top,
-                    left: resumeSelectionAction.left,
-                    borderRadius: '2px',
-                    backgroundColor: '#0052ff',
-                    border: '1px solid #0052ff',
-                    color: '#ffffff',
-                  }}
-                  onPointerDown={(event) => event.stopPropagation()}
-                  onMouseDown={(event) => event.preventDefault()}
-                  onMouseUp={(event) => event.stopPropagation()}
-                >
-                  <button
-                    type="button"
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1 transition-colors"
-                    onClick={pasteResumeSelectionToChat}
-                  >
-                    <span>{t('pasteSelectionToChat')}</span>
-                  </button>
-                </div>
-              )}
               <div className="mb-3 flex-shrink-0 pr-12 text-lg font-semibold text-[#0a0b0d]">
                 简历智能体
               </div>
@@ -1043,20 +792,6 @@ export default function ResumeEditPage() {
                   onScroll={handleMessagesScroll}
                   className="relative flex-1 overflow-y-auto mb-4 min-h-0 max-h-full hide-scrollbar"
                 >
-                  {resumeSelectionAction?.source === 'chat' && resumeSelectionAction.mode === 'toolbar' && resumeSelectionAction.highlightRects.map((rect, index) => (
-                    <div
-                      key={`${rect.top}-${rect.left}-${index}`}
-                      data-testid="chat-selection-highlight"
-                      className="pointer-events-none absolute z-20 rounded-[2px]"
-                      style={{
-                        top: rect.top,
-                        left: rect.left,
-                        width: rect.width,
-                        height: rect.height,
-                        backgroundColor: 'rgba(0,82,255,0.22)',
-                      }}
-                    />
-                  ))}
                   <div className="space-y-3">
                   {messages.map((message: ChatMessage) => (
                     <div

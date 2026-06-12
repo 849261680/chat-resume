@@ -4,13 +4,13 @@ import {
   MIN_RESUME_SPACING_SCALE,
   RESUME_SPACING_SCALE_STEP,
 } from '../../../lib/resumeSpacingScale'
-import { A4_HEIGHT, PAGE_PADDING, getPageContentHeight } from './useLineBasedPagination'
+import { getPageContentHeight } from './useLineBasedPagination'
 
 export const MIN_SPACING_SCALE = MIN_RESUME_SPACING_SCALE
 export const MAX_SPACING_SCALE = MAX_RESUME_SPACING_SCALE
 export const SPACING_SCALE_STEP = RESUME_SPACING_SCALE_STEP
-export const SMART_FIT_TARGET_BOTTOM_GAP = 36
-export const SMART_FIT_TARGET_TOLERANCE = 4
+export const SMART_FIT_PAGE_TOLERANCE = 4
+const SPACING_SCALE_PRECISION = (String(SPACING_SCALE_STEP).split('.')[1] ?? '').length
 
 export type TooMuchContentResult = {
   status: 'too_much_content'
@@ -36,12 +36,6 @@ export function getSmartFitPageBottom(fullBleed = false): number {
   return getPageContentHeight({ fullBleed })
 }
 
-// 用于计算智能适配期望的内容底线。
-export function getSmartFitTargetBottom(fullBleed = false): number {
-  const verticalPadding = fullBleed ? 0 : PAGE_PADDING * 2
-  return A4_HEIGHT - verticalPadding - SMART_FIT_TARGET_BOTTOM_GAP
-}
-
 // 将试算结果落到可控步长，避免布局滑块出现过细的小数。
 function roundToSpacingStep(scale: number) {
   return Math.round(scale / SPACING_SCALE_STEP) * SPACING_SCALE_STEP
@@ -57,16 +51,26 @@ function clampSpacingScale(scale: number) {
   return Math.max(MIN_SPACING_SCALE, Math.min(MAX_SPACING_SCALE, scale))
 }
 
+// 将 scale 对齐到滑块步长的小数精度。
+function normalizeSpacingScale(scale: number) {
+  return Number(scale.toFixed(SPACING_SCALE_PRECISION))
+}
+
+// 计算下一个可尝试的滑块步长。
+function getNextSpacingStep(scale: number) {
+  return clampSpacingScale(normalizeSpacingScale(scale + SPACING_SCALE_STEP))
+}
+
 // 判断两个 scale 是否已经落在同一个滑块步长内。
 function isSameSpacingStep(scale: number, currentScale: number) {
   return Math.abs(scale - currentScale) < SPACING_SCALE_STEP / 2
 }
 
-// 在区间内搜索不超过目标底线的最大 scale。
+// 在区间内搜索不超过页面底线的最大 scale。
 async function searchLargestFittingScale(
   loScale: number,
   hiScale: number,
-  targetBottom: number,
+  limitBottom: number,
   measure: (scale: number) => Promise<number>,
   shouldAbort: () => boolean,
 ) {
@@ -78,7 +82,7 @@ async function searchLargestFittingScale(
     if (shouldAbort()) return null
     const mid = (lo + hi) / 2
     const height = await measure(mid)
-    if (height <= targetBottom) {
+    if (height <= limitBottom) {
       bestScale = mid
       lo = mid
       continue
@@ -93,11 +97,11 @@ async function searchLargestFittingScale(
 async function findScaleForFittingContent(
   currentScale: number,
   currentContentBottom: number,
-  targetBottom: number,
+  pageBottom: number,
   measure: (scale: number) => Promise<number>,
   shouldAbort: () => boolean,
 ) {
-  if (Math.abs(currentContentBottom - targetBottom) <= SMART_FIT_TARGET_TOLERANCE) {
+  if (Math.abs(currentContentBottom - pageBottom) <= SMART_FIT_PAGE_TOLERANCE) {
     return currentScale
   }
 
@@ -107,17 +111,17 @@ async function findScaleForFittingContent(
   const maxContentBottom = await measure(MAX_SPACING_SCALE)
   if (shouldAbort()) return null
 
-  if (maxContentBottom <= targetBottom) {
+  if (maxContentBottom <= pageBottom) {
     return MAX_SPACING_SCALE
   }
-  if (minContentBottom > targetBottom) {
+  if (minContentBottom > pageBottom) {
     return MIN_SPACING_SCALE
   }
 
   const bestScale = await searchLargestFittingScale(
     MIN_SPACING_SCALE,
     MAX_SPACING_SCALE,
-    targetBottom,
+    pageBottom,
     measure,
     shouldAbort,
   )
@@ -166,6 +170,27 @@ async function backOffUntilFits(
   return bestScale
 }
 
+// 向上补探步长，避免二分搜索的浮点误差少放大一档。
+async function advanceUntilLimitExceeded(
+  scale: number,
+  limitBottom: number,
+  measure: (scale: number) => Promise<number>,
+  shouldAbort: () => boolean,
+) {
+  let bestScale = scale
+
+  while (bestScale < MAX_SPACING_SCALE) {
+    if (shouldAbort()) return null
+    const nextScale = getNextSpacingStep(bestScale)
+    if (nextScale <= bestScale) return bestScale
+    const nextBottom = await measure(nextScale)
+    if (nextBottom > limitBottom) return bestScale
+    bestScale = nextScale
+  }
+
+  return bestScale
+}
+
 // 用于执行智能一页的纯搜索逻辑。
 export async function calculateSmartFitScale({
   currentScale,
@@ -184,17 +209,24 @@ export async function calculateSmartFitScale({
   if (shouldAbort()) return { status: 'failed', finalMeasureScale }
 
   if (currentContentBottom <= currentPageBottom) {
-    const targetBottom = getSmartFitTargetBottom(fullBleed)
     const relaxedScale = await findScaleForFittingContent(
       currentScale,
       currentContentBottom,
-      targetBottom,
+      currentPageBottom,
       measure,
       shouldAbort,
     )
     if (relaxedScale === null) return { status: 'failed', finalMeasureScale }
 
-    const bestScale = clampSpacingScale(floorToSpacingStep(relaxedScale))
+    const steppedScale = clampSpacingScale(floorToSpacingStep(relaxedScale))
+    const bestScale = await advanceUntilLimitExceeded(
+      steppedScale,
+      currentPageBottom,
+      measure,
+      shouldAbort,
+    )
+    if (bestScale === null) return { status: 'failed', finalMeasureScale }
+
     if (isSameSpacingStep(bestScale, currentScale)) {
       finalMeasureScale = currentScale
       return { status: 'already_fits', finalMeasureScale }

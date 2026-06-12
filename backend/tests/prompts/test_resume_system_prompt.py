@@ -160,7 +160,7 @@ def test_tool_schema_has_function_dict(tool_name: str):
 
 
 def test_prompt_prefers_conservative_rewrite_when_existing_facts_are_enough():
-    """已有事实足够改写时，prompt 不应鼓励因为缺少量化指标而追问。"""
+    """已有事实足够改写时，prompt 应优先直接使用工具。"""
     rendered = _render(
         target_title="后端工程师",
         target_company="",
@@ -171,13 +171,13 @@ def test_prompt_prefers_conservative_rewrite_when_existing_facts_are_enough():
         ),
     )
 
-    assert "也要做保守改写" in rendered
+    assert "用 update_bullet 做保守改写" in rendered
     assert "不要为了满足格式编造数字" in rendered
-    assert "不要把所有优化请求都变成追问" in rendered
+    assert "需要修改简历时不询问用户，请直接调用工具" in rendered
 
 
 def test_prompt_blocks_unsupported_jd_capability_claims_in_conservative_rewrite():
-    """prompt 应说明 JD、update_bullet 和 ask_user 的事实边界。"""
+    """prompt 应保留 JD、改写工具和追问的当前事实边界。"""
     rendered = _render(
         target_title="后端工程师",
         target_company="",
@@ -190,7 +190,7 @@ def test_prompt_blocks_unsupported_jd_capability_claims_in_conservative_rewrite(
     )
 
     assert "JD 只提供匹配方向，不是经历事实来源" in rendered
-    assert "`update_bullet`：改写已有 bullet" in rendered
+    assert "用 update_bullet 做保守改写" in rendered
     assert "缺少会影响事实边界或改写质量的信息时" in rendered
 
 
@@ -207,8 +207,8 @@ def test_prompt_blocks_unsupported_jd_keywords_before_mutation():
         ),
     )
 
-    assert "JD 核心要求的技术/角色/规模全部缺少证据" in rendered
-    assert "`ask_user`" in rendered
+    assert "JD 核心要求的技术、角色、规模全部缺少证据" in rendered
+    assert "ask_user" in rendered
 
 
 def test_prompt_rewrites_when_resume_supports_part_of_jd():
@@ -224,8 +224,8 @@ def test_prompt_rewrites_when_resume_supports_part_of_jd():
         ),
     )
 
-    assert "JD 关键词可以**通过改写现有 bullet** 融入" in rendered
-    assert "`update_bullet`" in rendered
+    assert "先从原文、技能或用户补充里找可支撑的岗位词" in rendered
+    assert "update_bullet" in rendered
 
 
 def test_prompt_preserves_facts_and_adds_supported_role_terms_when_concise_rewriting():
@@ -243,7 +243,7 @@ def test_prompt_preserves_facts_and_adds_supported_role_terms_when_concise_rewri
 
     assert "精简或优化已有 bullet" in rendered
     assert "前端工程化" in rendered
-    assert "3 秒缩短至 1.2 秒" in rendered
+    assert "3 秒缩短到 1.2 秒" in rendered
 
 
 # ── P1: 参数化更新类工具的 reason 字段 ─────────────────────

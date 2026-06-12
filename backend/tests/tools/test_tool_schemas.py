@@ -60,8 +60,6 @@ _TOOL_FORBIDDEN_PARAMS: dict[str, list[str]] = {
 # 语义标签 → (工具, 参数字段) — None=主 description, str=param description
 _SCHEMA_TAG_CHECKS: list[tuple[str, str, str | None]] = [
     ("bullet_section_constraint", "update_bullet", None),
-    ("bullet_section_constraint", "add_bullet", None),
-    ("bullet_section_constraint", "remove_bullet", None),
     ("bullet_id_source", "update_bullet", None),
     ("overview_section_constraint", "update_overview", None),
     ("is_current_protected", "update_item_fields", None),
@@ -137,16 +135,15 @@ def test_tool_excludes_forbidden_params(tool_name: str, forbidden: list[str]):
 
 
 def test_update_bullet_text_requires_source_backed_facts():
-    """update_bullet 的 text 参数必须声明事实来源边界。"""
+    """update_bullet 的 text 参数必须声明当前事实来源边界。"""
     tool = next(
         t for t in RESUME_TOOLS_SCHEMA if t["function"]["name"] == "update_bullet"
     )
     desc = tool["function"]["parameters"]["properties"]["text"]["description"]
 
     assert "当前简历、用户补充或背景档案" in desc
-    assert "JD 只能提供匹配方向" in desc
-    assert "不能写入 text" in desc
-    assert "ask_user" in desc
+    assert "不得传入原文" in desc
+    assert "只调整空格、标点或语序" in desc
 
 
 @pytest.mark.parametrize("tag,tool_name,field_path", _SCHEMA_TAG_CHECKS)

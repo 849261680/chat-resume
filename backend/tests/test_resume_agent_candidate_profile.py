@@ -68,7 +68,7 @@ def test_candidate_profile_context_reads_user_and_resume_memory():
 
 
 def test_resume_system_prompt_includes_candidate_profile_rules():
-    """用于验证真实系统提示词包含候选人背景档案和追问规则。"""
+    """用于验证真实系统提示词包含候选人背景档案和当前追问规则。"""
     context = build_resume_prompt_context(
         {
             "resume_content": {"projects": []},
@@ -79,10 +79,9 @@ def test_resume_system_prompt_includes_candidate_profile_rules():
 
     assert "## 候选人背景档案" in prompt
     assert "缺失关键信息：目标岗位" in prompt
-    assert "先问最多 3 个关键问题" in prompt
-    assert "update_memory" in prompt
-    assert "question 必须是直接问用户的疑问句" in prompt
-    assert "不要把 question 写成" in prompt
+    assert "缺少会影响事实边界或改写质量的信息时" in prompt
+    assert "question 必须是直接疑问句" in prompt
+    assert "记录为记忆" in prompt
 
 
 def test_resume_system_prompt_includes_current_time_context():

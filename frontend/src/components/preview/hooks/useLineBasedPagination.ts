@@ -3,7 +3,7 @@ import { startTransition, useState, useEffect, useCallback, useRef } from 'react
 // A4纸张尺寸常量。
 export const A4_WIDTH = 794
 export const A4_HEIGHT = Math.floor(A4_WIDTH * 297 / 210)
-export const PAGE_PADDING = 38
+export const PAGE_PADDING = 40
 export const SAFETY_MARGIN = 20 // 容错余量，防止累计误差导致内容被切
 
 const LINE_BOX_TOLERANCE = 2

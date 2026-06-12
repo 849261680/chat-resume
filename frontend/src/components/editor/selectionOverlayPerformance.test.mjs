@@ -33,10 +33,22 @@ test('resume selection toolbar is isolated from the edit page root state', async
 test('selection toolbar is centered near the selected text before clamping', async () => {
   const { overlaySource } = await readSelectionOverlaySources()
 
-  assert.match(overlaySource, /SELECTION_TOOLBAR_WIDTH_BY_SOURCE/)
+  assert.match(overlaySource, /ESTIMATED_SELECTION_TOOLBAR_WIDTH_BY_SOURCE/)
   assert.match(overlaySource, /selectionCenter = rangeRect\.left - panelRect\.left \+ rangeRect\.width \/ 2/)
-  assert.match(overlaySource, /selectionCenter - actionWidth \/ 2/)
+  assert.match(overlaySource, /action\.anchorCenter - overlayWidth \/ 2/)
   assert.match(overlaySource, /clampOverlayLeft/)
   assert.doesNotMatch(overlaySource, /Math\.min\(560/)
   assert.doesNotMatch(overlaySource, /rangeRect\.right - panelRect\.left \+ 8/)
+})
+
+test('selection toolbar uses measured size and avoids covering nearby text when possible', async () => {
+  const { overlaySource } = await readSelectionOverlaySources()
+
+  assert.match(overlaySource, /useLayoutEffect/)
+  assert.match(overlaySource, /toolbarRef/)
+  assert.match(overlaySource, /toolbar\.offsetWidth/)
+  assert.match(overlaySource, /toolbar\.offsetHeight/)
+  assert.match(overlaySource, /selectionTop - overlayHeight - SELECTION_OVERLAY_GAP/)
+  assert.match(overlaySource, /selectionBottom \+ SELECTION_OVERLAY_GAP/)
+  assert.doesNotMatch(overlaySource, /selectionTop - 40/)
 })

@@ -1,7 +1,7 @@
 'use client'
 // 用于把简历/聊天选区工具条隔离到独立渲染层。
 
-import { forwardRef, useCallback, useImperativeHandle, useState } from 'react'
+import { forwardRef, useCallback, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react'
 import type {
   ClipboardEvent as ReactClipboardEvent,
   PointerEvent as ReactPointerEvent,
@@ -12,10 +12,14 @@ import QuickEditPopover from './QuickEditPopover'
 
 type ResumeSelectionSource = 'preview' | 'chat'
 
-const SELECTION_TOOLBAR_WIDTH_BY_SOURCE: Record<ResumeSelectionSource, number> = {
+const ESTIMATED_SELECTION_TOOLBAR_WIDTH_BY_SOURCE: Record<ResumeSelectionSource, number> = {
   preview: 336,
   chat: 168,
 }
+const ESTIMATED_SELECTION_TOOLBAR_HEIGHT = 34
+const QUICK_EDIT_POPOVER_WIDTH = 360
+const QUICK_EDIT_POPOVER_HEIGHT = 64
+const SELECTION_OVERLAY_GAP = 8
 
 interface ResumeSelectionAction {
   source: ResumeSelectionSource
@@ -23,6 +27,12 @@ interface ResumeSelectionAction {
   top: number
   quickEditTop: number
   left: number
+  quickEditLeft: number
+  anchorCenter: number
+  selectionTop: number
+  selectionBottom: number
+  panelWidth: number
+  panelHeight: number
   highlightRects: Array<{
     top: number
     left: number
@@ -54,6 +64,29 @@ function clampOverlayLeft(anchorLeft: number, panelWidth: number, overlayWidth: 
   const safeOverlayWidth = Math.min(overlayWidth, panelWidth - 16)
   const maxLeft = Math.max(8, panelWidth - safeOverlayWidth - 8)
   return Math.min(Math.max(anchorLeft, 8), maxLeft)
+}
+
+/** 将浮层顶部位置限制在容器可视范围内。 */
+function clampOverlayTop(anchorTop: number, panelHeight: number, overlayHeight: number): number {
+  const safeOverlayHeight = Math.min(overlayHeight, panelHeight - 16)
+  const maxTop = Math.max(8, panelHeight - safeOverlayHeight - 8)
+  return Math.min(Math.max(anchorTop, 8), maxTop)
+}
+
+/** 按选区中心计算浮层位置，优先贴近选区上方，空间不足则放到下方。 */
+function getSelectionOverlayPosition(
+  action: Pick<ResumeSelectionAction, 'anchorCenter' | 'selectionTop' | 'selectionBottom' | 'panelWidth' | 'panelHeight'>,
+  overlayWidth: number,
+  overlayHeight: number
+) {
+  const left = clampOverlayLeft(action.anchorCenter - overlayWidth / 2, action.panelWidth, overlayWidth)
+  const topAbove = action.selectionTop - overlayHeight - SELECTION_OVERLAY_GAP
+  if (topAbove >= 8) return { left, top: topAbove }
+
+  return {
+    left,
+    top: clampOverlayTop(action.selectionBottom + SELECTION_OVERLAY_GAP, action.panelHeight, overlayHeight),
+  }
 }
 
 /** 从当前浏览器选区里读取所属元素。 */
@@ -102,19 +135,34 @@ function buildSelectionAction(
   const selectionTop = rangeRect.top - panelRect.top
   const selectionBottom = rangeRect.bottom - panelRect.top
   const selectionCenter = rangeRect.left - panelRect.left + rangeRect.width / 2
-  const actionWidth = SELECTION_TOOLBAR_WIDTH_BY_SOURCE[source]
-  const left = clampOverlayLeft(
-    selectionCenter - actionWidth / 2,
-    panelRect.width,
-    actionWidth
+  const basePosition = {
+    anchorCenter: selectionCenter,
+    selectionTop,
+    selectionBottom,
+    panelWidth: panelRect.width,
+    panelHeight: panelRect.height,
+  }
+  const toolbarPosition = getSelectionOverlayPosition(
+    basePosition,
+    ESTIMATED_SELECTION_TOOLBAR_WIDTH_BY_SOURCE[source],
+    ESTIMATED_SELECTION_TOOLBAR_HEIGHT
   )
-  const top = Math.max(selectionTop - 40, 8)
-  const quickEditHeight = 64
-  const quickEditGap = 8
-  const quickEditTop = selectionTop > quickEditHeight + quickEditGap
-    ? selectionTop - quickEditHeight - quickEditGap
-    : selectionBottom + quickEditGap
-  return { source, text, top, quickEditTop, left, highlightRects, mode: 'toolbar' }
+  const quickEditPosition = getSelectionOverlayPosition(
+    basePosition,
+    QUICK_EDIT_POPOVER_WIDTH,
+    QUICK_EDIT_POPOVER_HEIGHT
+  )
+  return {
+    source,
+    text,
+    top: toolbarPosition.top,
+    quickEditTop: quickEditPosition.top,
+    left: toolbarPosition.left,
+    quickEditLeft: quickEditPosition.left,
+    ...basePosition,
+    highlightRects,
+    mode: 'toolbar',
+  }
 }
 
 // 用于渲染选区工具条和高亮层，并向父页面暴露事件入口。
@@ -129,6 +177,23 @@ const ResumeSelectionOverlay = forwardRef<ResumeSelectionOverlayHandle, ResumeSe
   sendMessageWithContext,
 }, ref) {
   const [selectionAction, setSelectionAction] = useState<ResumeSelectionAction | null>(null)
+  const toolbarRef = useRef<HTMLDivElement | null>(null)
+
+  useLayoutEffect(() => {
+    const toolbar = toolbarRef.current
+    if (!toolbar || selectionAction?.mode !== 'toolbar') return
+
+    const measuredPosition = getSelectionOverlayPosition(
+      selectionAction,
+      toolbar.offsetWidth,
+      toolbar.offsetHeight
+    )
+    if (Math.abs(measuredPosition.left - selectionAction.left) < 1 &&
+      Math.abs(measuredPosition.top - selectionAction.top) < 1
+    ) return
+
+    setSelectionAction({ ...selectionAction, ...measuredPosition })
+  }, [selectionAction])
 
   const clearSelectionAction = useCallback(() => {
     clearResumeSelectionVisualsAfterEvents()
@@ -220,6 +285,7 @@ const ResumeSelectionOverlay = forwardRef<ResumeSelectionOverlayHandle, ResumeSe
     <>
       {previewPanel && selectionAction?.source === 'preview' && selectionAction.mode === 'toolbar' && createPortal(
         <div
+          ref={toolbarRef}
           data-resume-selection-action="true"
           className="absolute z-30 inline-flex items-center overflow-hidden whitespace-nowrap text-sm font-normal shadow-sm print:hidden"
           style={{
@@ -272,7 +338,7 @@ const ResumeSelectionOverlay = forwardRef<ResumeSelectionOverlayHandle, ResumeSe
           <QuickEditPopover
             selectedText={selectionAction.text}
             top={selectionAction.quickEditTop}
-            left={selectionAction.left}
+            left={selectionAction.quickEditLeft}
             disabled={isSending || isStreaming}
             onClose={clearSelectionAction}
             onSubmit={(selectedText, prompt) => void submitQuickEditSelection(selectedText, prompt)}
@@ -283,6 +349,7 @@ const ResumeSelectionOverlay = forwardRef<ResumeSelectionOverlayHandle, ResumeSe
 
       {agentPanel && selectionAction?.source === 'chat' && selectionAction.mode === 'toolbar' && createPortal(
         <div
+          ref={toolbarRef}
           data-resume-selection-action="true"
           className="absolute z-30 inline-flex items-center overflow-hidden whitespace-nowrap text-sm font-normal shadow-sm"
           style={{

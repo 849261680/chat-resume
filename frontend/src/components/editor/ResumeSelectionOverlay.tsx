@@ -12,6 +12,11 @@ import QuickEditPopover from './QuickEditPopover'
 
 type ResumeSelectionSource = 'preview' | 'chat'
 
+const SELECTION_TOOLBAR_WIDTH_BY_SOURCE: Record<ResumeSelectionSource, number> = {
+  preview: 336,
+  chat: 168,
+}
+
 interface ResumeSelectionAction {
   source: ResumeSelectionSource
   text: string
@@ -42,6 +47,13 @@ interface ResumeSelectionOverlayProps {
   isStreaming: boolean
   appendToInputMessage: (text: string) => void
   sendMessageWithContext: (selectedText: string, userPrompt: string) => Promise<void>
+}
+
+/** 将浮层左侧位置限制在容器可视范围内。 */
+function clampOverlayLeft(anchorLeft: number, panelWidth: number, overlayWidth: number): number {
+  const safeOverlayWidth = Math.min(overlayWidth, panelWidth - 16)
+  const maxLeft = Math.max(8, panelWidth - safeOverlayWidth - 8)
+  return Math.min(Math.max(anchorLeft, 8), maxLeft)
 }
 
 /** 从当前浏览器选区里读取所属元素。 */
@@ -87,13 +99,14 @@ function buildSelectionAction(
       width: rect.width,
       height: rect.height,
     }))
-  const actionWidth = Math.min(560, Math.max(230, panelRect.width - 16))
-  const maxLeft = Math.max(8, panelRect.width - actionWidth - 8)
   const selectionTop = rangeRect.top - panelRect.top
   const selectionBottom = rangeRect.bottom - panelRect.top
-  const left = Math.min(
-    Math.max(rangeRect.right - panelRect.left + 8, 8),
-    maxLeft
+  const selectionCenter = rangeRect.left - panelRect.left + rangeRect.width / 2
+  const actionWidth = SELECTION_TOOLBAR_WIDTH_BY_SOURCE[source]
+  const left = clampOverlayLeft(
+    selectionCenter - actionWidth / 2,
+    panelRect.width,
+    actionWidth
   )
   const top = Math.max(selectionTop - 40, 8)
   const quickEditHeight = 64

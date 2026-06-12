@@ -29,3 +29,14 @@ test('resume selection toolbar is isolated from the edit page root state', async
   assert.match(overlaySource, /createPortal/)
   assert.match(overlaySource, /<QuickEditPopover/)
 })
+
+test('selection toolbar is centered near the selected text before clamping', async () => {
+  const { overlaySource } = await readSelectionOverlaySources()
+
+  assert.match(overlaySource, /SELECTION_TOOLBAR_WIDTH_BY_SOURCE/)
+  assert.match(overlaySource, /selectionCenter = rangeRect\.left - panelRect\.left \+ rangeRect\.width \/ 2/)
+  assert.match(overlaySource, /selectionCenter - actionWidth \/ 2/)
+  assert.match(overlaySource, /clampOverlayLeft/)
+  assert.doesNotMatch(overlaySource, /Math\.min\(560/)
+  assert.doesNotMatch(overlaySource, /rangeRect\.right - panelRect\.left \+ 8/)
+})

@@ -25,8 +25,10 @@ import {
   XMarkIcon
 } from '@heroicons/react/24/outline'
 import JobApplicationEditor from '@/components/editor/JobApplicationEditor'
-import { AgentToolActivity } from '@/components/editor/AgentToolActivity'
-import { DiffGroupCards } from '@/components/editor/DiffReviewCard'
+import {
+  AgentStreamEventList,
+  summarizeRenderedToolEvents,
+} from '@/components/editor/AgentStreamEventList'
 import PersonalInfoEditor from '@/components/editor/PersonalInfoEditor'
 import SummaryEditor from '@/components/editor/SummaryEditor'
 import EducationEditor from '@/components/editor/EducationEditor'
@@ -36,73 +38,15 @@ import ProjectsEditor from '@/components/editor/ProjectsEditor'
 import ResumePreview from '@/components/preview/ResumePreview'
 import ResumeLayoutControls from '@/components/preview/ResumeLayoutControls'
 import MarkdownMessage from '@/components/ui/MarkdownMessage'
-import StreamingMessage from '@/components/ui/StreamingMessage'
 import type { ChatMessage, StreamEvent } from '@/hooks/useStreamingChat'
 import { usePanelLayout } from '@/hooks/usePanelLayout'
 import { useResumeChatPanel } from '@/hooks/useResumeChatPanel'
 import { useResumeEditor } from '@/hooks/useResumeEditor'
-import SectionVisibilityConfirmCard from '@/components/editor/SectionVisibilityConfirmCard'
 import ChatInputBox from '@/components/editor/ChatInputBox'
 import UserInputRequestCard from '@/components/editor/UserInputRequestCard'
 import { useLocale, useTranslations } from 'next-intl'
 import { toInterviewLanguage, type AppLocale } from '@/i18n/routing'
 import toast from 'react-hot-toast'
-
-// 用于压缩编辑页工具事件渲染状态。
-function summarizeRenderedToolEvents(events: StreamEvent[]): string[] {
-  return events
-    .filter((event) =>
-      event.type === 'tool_call' ||
-      event.type === 'tool_result' ||
-      event.type === 'tool_failed' ||
-      event.type === 'tool_pending' ||
-      event.type === 'tool_confirmed' ||
-      event.type === 'tool_rejected'
-    )
-    .map((event, index) => `${index}:${event.type}:${'callId' in event ? event.callId : 'none'}:${'toolName' in event ? event.toolName : ''}`)
-}
-
-// 用于识别记忆工具，避免把记忆写入当成简历 diff 确认卡展示。
-function isMemoryToolEvent(event: StreamEvent): boolean {
-  if (!('toolName' in event)) return false
-  const toolName = event.toolName || ''
-  return toolName === 'update_memory' || toolName === '更新记忆'
-}
-
-// 用于识别显隐板块工具：纯开关操作没有可重写的内容，确认卡不应出现反馈框和重写按钮。
-function isVisibilityToolEvent(event: StreamEvent): boolean {
-  if (!('toolName' in event)) return false
-  const toolName = event.toolName || ''
-  return ['show_section', 'hide_section', '显示板块', '隐藏板块'].includes(toolName)
-}
-
-// 用于判断同一工具调用是否已有上方状态行可展示。
-function hasToolActivityForCall(events: StreamEvent[], callId: string): boolean {
-  return events.some((event) =>
-    (event.type === 'tool_call' || event.type === 'tool_result' || event.type === 'tool_failed') &&
-    event.callId === callId
-  )
-}
-
-// 用于把历史里的记忆确认事件降级成工具状态行，避免出现二级确认卡。
-function renderMemoryToolDecisionActivity(
-  event: Extract<StreamEvent, { type: 'tool_pending' | 'tool_confirmed' | 'tool_rejected' }>,
-  events: StreamEvent[],
-  key: number,
-) {
-  if (!isMemoryToolEvent(event)) return undefined
-  if (hasToolActivityForCall(events, event.callId)) return null
-  return (
-    <AgentToolActivity
-      key={key}
-      event={{
-        type: event.type === 'tool_rejected' ? 'tool_failed' : 'tool_result',
-        callId: event.callId,
-        toolName: event.toolName,
-      }}
-    />
-  )
-}
 
 type ResumeSelectionSource = 'preview' | 'chat'
 
@@ -1194,43 +1138,10 @@ export default function ResumeEditPage() {
                           <>
                             {/* 有 streamEvents 时按事件顺序交错渲染；否则直接渲染完整文本 */}
                             {message.streamEvents && message.streamEvents.length > 0 ? (
-                              message.streamEvents!.map((event: StreamEvent, idx: number) => {
-                                if (event.type === 'tool_confirmed' || event.type === 'tool_rejected') {
-                                  const memoryActivity = renderMemoryToolDecisionActivity(event, message.streamEvents!, idx)
-                                  if (memoryActivity !== undefined) return memoryActivity
-                                  const isConfirmed = event.type === 'tool_confirmed'
-                                  // 显隐工具做出决策后不再渲染任何卡片或按钮
-                                  if (isVisibilityToolEvent(event)) return null
-                                  return (
-                                    <div key={idx} className="mb-2 rounded-2xl border border-gray-200 bg-white overflow-hidden text-xs shadow-sm">
-                                      <div className="px-4 py-3 flex items-center gap-2 bg-white border-b border-gray-200">
-                                        <span className="font-medium text-gray-900">{event.toolName}</span>
-                                        <span className="ml-auto" />
-                                        {isConfirmed ? (
-                                          <svg className="w-3.5 h-3.5 flex-shrink-0 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                                        ) : (
-                                          <svg className="w-3.5 h-3.5 flex-shrink-0 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                                        )}
-                                      </div>
-                                      <DiffGroupCards
-                                        diffSummary={event.diffSummary}
-                                        diffItems={event.diffItems}
-                                        isConfirmed={isConfirmed}
-                                      />
-                                    </div>
-                                  )
-                                }
-                                if (event.type === 'tool_call' || event.type === 'tool_result' || event.type === 'tool_failed') {
-                                  return <AgentToolActivity key={idx} event={event} />
-                                }
-                                if (event.type === 'user_input_request') return null
-                                if (event.type === 'text') return (
-                                  <div key={idx}>
-                                    <MarkdownMessage content={event.content} />
-                                  </div>
-                                )
-                                return null
-                              })
+                              <AgentStreamEventList
+                                events={message.streamEvents}
+                                mode="history"
+                              />
                             ) : (
                               <MarkdownMessage content={message.content} />
                             )}
@@ -1244,134 +1155,17 @@ export default function ResumeEditPage() {
                   {isStreaming && streamEvents.length > 0 && (
                     <div className="flex w-full justify-start">
                       <div className="max-w-[93%] px-4 py-3" style={{ color: '#0a0b0d' }}>
-                        {streamEvents.map((event: StreamEvent, idx: number) => {
-                          if (event.type === 'tool_pending') {
-                            const memoryActivity = renderMemoryToolDecisionActivity(event, streamEvents, idx)
-                            if (memoryActivity !== undefined) return memoryActivity
-                            const isActivePending = event.callId === latestPendingCallId
-                            const feedbackDraft = toolFeedbackDrafts[event.callId] || ''
-                            if (isVisibilityToolEvent(event)) {
-                              return (
-                                <SectionVisibilityConfirmCard
-                                  key={idx}
-                                  isActivePending={isActivePending}
-                                  confirmLabel={t('confirm')}
-                                  cancelLabel={t('cancel')}
-                                  onConfirm={() => confirmTool(event.callId, true, 'resume_edit_accept_button')}
-                                  onReject={() => confirmTool(event.callId, false, 'resume_edit_reject_button')}
-                                />
-                              )
-                            }
-                            return (
-                              <div key={idx} className="mb-2 rounded-2xl border border-gray-200 bg-white overflow-hidden text-xs shadow-sm">
-                                {/* 标题栏 */}
-                                <div className="px-4 py-3 bg-white flex items-center gap-2 border-b border-gray-200">
-                                  <span className="font-medium text-gray-900">{event.toolName}</span>
-                                  <span className="ml-auto" />
-                                  {isActivePending ? (
-                                    <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
-                                  ) : (
-                                    <span className="text-[11px] text-gray-400">{t('expired')}</span>
-                                  )}
-                                </div>
-                                {/* diff 内容区 */}
-                                <DiffGroupCards
-                                  diffSummary={event.diffSummary}
-                                  diffItems={event.diffItems}
-                                  isConfirmed={true}
-                                />
-                                <div className="px-4 py-3 bg-white border-t border-gray-100">
-                                  <textarea
-                                    value={feedbackDraft}
-                                    disabled={!isActivePending}
-                                    rows={2}
-                                    placeholder={t('toolFeedbackPlaceholder')}
-                                    onChange={(changeEvent) => updateToolFeedbackDraft(event.callId, changeEvent.target.value)}
-                                    className="w-full resize-none rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs leading-5 text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-blue-500 focus:bg-white disabled:cursor-not-allowed disabled:opacity-50"
-                                  />
-                                </div>
-                                {/* 操作按钮 */}
-                                <div className="px-4 py-3 bg-white border-t border-gray-200 flex gap-2">
-                                  <button
-                                    disabled={!isActivePending}
-                                    onClick={() => confirmTool(event.callId, true, 'resume_edit_accept_button')}
-                                    className="flex-1 py-1.5 text-xs font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-                                    style={{
-                                      borderRadius: '56px',
-                                      backgroundColor: isActivePending ? '#0052ff' : '#94a3b8',
-                                    }}
-                                  >
-                                    {t('acceptChange')}
-                                  </button>
-                                  <button
-                                    disabled={!isActivePending}
-                                    onClick={() => confirmTool(event.callId, false, 'resume_edit_reject_button')}
-                                    className="flex-1 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-                                    style={{
-                                      borderRadius: '56px',
-                                      border: '1px solid rgba(91,97,110,0.2)',
-                                      backgroundColor: '#ffffff',
-                                      color: '#0a0b0d',
-                                    }}
-                                  >
-                                    {t('reject')}
-                                  </button>
-                                  <button
-                                    disabled={!isActivePending}
-                                    onClick={() => retryToolWithFeedback(event.callId)}
-                                    className="flex-1 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-                                    style={{
-                                      borderRadius: '56px',
-                                      border: '1px solid rgba(0,82,255,0.22)',
-                                      backgroundColor: '#eef4ff',
-                                      color: '#0052ff',
-                                    }}
-                                  >
-                                    {t('retryWithFeedback')}
-                                  </button>
-                                </div>
-                              </div>
-                            )
-                          }
-                          if (event.type === 'tool_confirmed' || event.type === 'tool_rejected') {
-                            const memoryActivity = renderMemoryToolDecisionActivity(event, streamEvents, idx)
-                            if (memoryActivity !== undefined) return memoryActivity
-                            // 显隐工具做出决策后不再渲染任何卡片或按钮
-                            if (isVisibilityToolEvent(event)) return null
-                            const isConfirmed = event.type === 'tool_confirmed'
-                            return (
-                              <div key={idx} className="mb-2 rounded-2xl border border-gray-200 bg-white overflow-hidden text-xs shadow-sm">
-                                {/* 标题栏 */}
-                                <div className="px-4 py-3 flex items-center gap-2 bg-white border-b border-gray-200">
-                                  <span className="font-medium text-gray-900">{event.toolName}</span>
-                                  <span className="ml-auto" />
-                                  {isConfirmed ? (
-                                    <svg className="w-3.5 h-3.5 flex-shrink-0 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                                  ) : (
-                                    <svg className="w-3.5 h-3.5 flex-shrink-0 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                                  )}
-                                </div>
-                                {/* diff 内容 */}
-                                <DiffGroupCards
-                                  diffSummary={event.diffSummary}
-                                  diffItems={event.diffItems}
-                                  isConfirmed={isConfirmed}
-                                />
-                              </div>
-                            )
-                          }
-                          if (event.type === 'tool_call' || event.type === 'tool_result' || event.type === 'tool_failed') {
-                            return <AgentToolActivity key={idx} event={event} live />
-                          }
-                          if (event.type === 'user_input_request') return null
-                          // text event
-                          const isLastEvent = idx === streamEvents.length - 1
-                          return (
-                            <div key={idx} className={idx > 0 ? 'mt-2' : ''}>
-                              <StreamingMessage content={event.content} isComplete={!isLastEvent} />
-                            </div>
-                          )
-                        })}
+                        <AgentStreamEventList
+                          events={streamEvents}
+                          mode="live"
+                          latestPendingCallId={latestPendingCallId}
+                          toolFeedbackDrafts={toolFeedbackDrafts}
+                          onFeedbackChange={updateToolFeedbackDraft}
+                          onConfirmTool={(callId, confirmed, source) => {
+                            void confirmTool(callId, confirmed, source)
+                          }}
+                          onRetryToolWithFeedback={(callId) => retryToolWithFeedback(callId)}
+                        />
                         {shouldShowStreamingThinking && (
                           <div className="mt-2 px-4 py-3 text-sm" style={{ color: '#5b616e' }}>
                             <span className="inline-block thinking-shimmer">{t('thinking')}</span>

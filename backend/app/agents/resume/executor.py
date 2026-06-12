@@ -7,77 +7,17 @@ from inspect import isawaitable
 from typing import Any, Literal, overload
 
 from app.tools.base import ToolExecutor
-from app.tools.resume.registry import execute_resume_tool
+from app.tools.resume.registry import (
+    RESUME_TOOL_DISPLAY_NAMES,
+    RESUME_TOOL_REQUIRED_ARGS,
+    RESUME_TOOL_SECTION_ENUMS,
+    RESUME_VISIBILITY_TOOL_NAMES,
+    execute_resume_tool,
+)
 
-TOOL_REQUIRED_ARGS: dict[str, set[str]] = {
-    "ask_user": {"question", "options"},
-    "update_summary": {"text"},
-    "update_profile": {"fields"},
-    "update_item_fields": {"section", "item_id", "fields"},
-    "upsert_job_application": {"fields"},
-    "update_skills": {"category_id", "items"},
-    "show_section": {"section"},
-    "hide_section": {"section"},
-    "update_overview": {"section", "item_id", "overview"},
-    "update_bullet": {"section", "item_id", "bullet_id", "text"},
-    "add_bullet": {"section", "item_id", "text"},
-    "remove_bullet": {"section", "item_id", "bullet_id"},
-    "evaluate_bullet": {"section", "item_id", "bullet_id"},
-    "list_job_posts": set(),
-    "read_job_post": {"job_post_id"},
-    "read_memory": {"scope"},
-    "update_memory": {"operation", "scope"},
-}
-
-TOOL_SECTION_ENUMS: dict[str, set[str]] = {
-    "update_overview": {"projects"},
-    "update_item_fields": {"education", "work_experience", "projects"},
-    # 接受模块 id 以及 _SECTION_ALIASES 归一化后的 content key（如 work→work_experience）
-    "show_section": {
-        "personal",
-        "summary",
-        "education",
-        "work",
-        "work_experience",
-        "projects",
-        "open_source",
-        "skills",
-    },
-    "hide_section": {
-        "personal",
-        "summary",
-        "education",
-        "work",
-        "work_experience",
-        "projects",
-        "open_source",
-        "skills",
-    },
-    "update_bullet": {"education", "work_experience", "projects", "open_source"},
-    "add_bullet": {"education", "work_experience", "projects", "open_source"},
-    "remove_bullet": {"education", "work_experience", "projects", "open_source"},
-    "evaluate_bullet": {"education", "work_experience", "projects", "open_source"},
-}
-
-TOOL_DISPLAY_NAMES = {
-    "update_summary": "优化总结",
-    "update_profile": "优化个人信息",
-    "upsert_job_application": "更新求职目标",
-    "update_item_fields": "优化条目字段",
-    "update_skills": "优化技能",
-    "show_section": "显示板块",
-    "hide_section": "隐藏板块",
-    "update_overview": "优化简介",
-    "update_bullet": "优化要点",
-    "add_bullet": "新增要点",
-    "remove_bullet": "删除要点",
-    "evaluate_bullet": "评价要点",
-    "list_job_posts": "读取JD列表",
-    "read_job_post": "读取JD",
-    "read_memory": "读取记忆",
-    "update_memory": "更新记忆",
-    "ask_user": "询问信息",
-}
+TOOL_REQUIRED_ARGS = RESUME_TOOL_REQUIRED_ARGS
+TOOL_SECTION_ENUMS = RESUME_TOOL_SECTION_ENUMS
+TOOL_DISPLAY_NAMES = RESUME_TOOL_DISPLAY_NAMES
 _SYNC_TOOL_NAME = Literal[
     "ask_user",
     "update_summary",
@@ -135,12 +75,11 @@ class ResumeToolExecutor(ToolExecutor):
         allowed_sections = context.get("allowed_sections")
         target_section = tool_input.get("section")
 
-        _VISIBILITY_TOOLS = {"show_section", "hide_section"}
         if (
             allowed_sections is not None
             and target_section
             and target_section not in allowed_sections
-            and tool_name not in _VISIBILITY_TOOLS
+            and tool_name not in RESUME_VISIBILITY_TOOL_NAMES
         ):
             return self.error_result(
                 tool_name,

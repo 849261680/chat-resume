@@ -25,6 +25,129 @@ _ITEM_FIELD_SECTIONS = ["education", "work_experience", "projects"]
 _BULLET_SECTIONS = ["education", "work_experience", "projects", "open_source"]
 ResumeToolResult = dict[str, Any] | Awaitable[dict[str, Any]]
 
+RESUME_AUTO_EXECUTE_TOOL_NAMES: set[str] = {
+    "ask_user",
+    "list_job_posts",
+    "read_job_post",
+    "read_memory",
+    "update_memory",
+}
+
+RESUME_TOOL_PROFILES: dict[str, set[str]] = {
+    "resume_edit": {
+        "ask_user",
+        "update_summary",
+        "update_profile",
+        "upsert_job_application",
+        "update_item_fields",
+        "update_skills",
+        "show_section",
+        "hide_section",
+        "update_overview",
+        "update_bullet",
+        "add_bullet",
+        "remove_bullet",
+        "list_job_posts",
+        "read_job_post",
+        "read_memory",
+        "update_memory",
+    },
+    "read_only": {
+        "ask_user",
+        "list_job_posts",
+        "read_job_post",
+        "read_memory",
+    },
+}
+
+RESUME_TOOL_REQUIRED_ARGS: dict[str, set[str]] = {
+    "ask_user": {"question", "options"},
+    "update_summary": {"text"},
+    "update_profile": {"fields"},
+    "update_item_fields": {"section", "item_id", "fields"},
+    "upsert_job_application": {"fields"},
+    "update_skills": {"category_id", "items"},
+    "show_section": {"section"},
+    "hide_section": {"section"},
+    "update_overview": {"section", "item_id", "overview"},
+    "update_bullet": {"section", "item_id", "bullet_id", "text"},
+    "add_bullet": {"section", "item_id", "text"},
+    "remove_bullet": {"section", "item_id", "bullet_id"},
+    "evaluate_bullet": {"section", "item_id", "bullet_id"},
+    "list_job_posts": set(),
+    "read_job_post": {"job_post_id"},
+    "read_memory": {"scope"},
+    "update_memory": {"operation", "scope"},
+}
+
+RESUME_TOOL_SECTION_ENUMS: dict[str, set[str]] = {
+    "update_overview": {"projects"},
+    "update_item_fields": {"education", "work_experience", "projects"},
+    # 接受模块 id 以及 agent 参数归一化后的 content key（如 work→work_experience）
+    "show_section": {
+        "personal",
+        "summary",
+        "education",
+        "work",
+        "work_experience",
+        "projects",
+        "open_source",
+        "skills",
+    },
+    "hide_section": {
+        "personal",
+        "summary",
+        "education",
+        "work",
+        "work_experience",
+        "projects",
+        "open_source",
+        "skills",
+    },
+    "update_bullet": {"education", "work_experience", "projects", "open_source"},
+    "add_bullet": {"education", "work_experience", "projects", "open_source"},
+    "remove_bullet": {"education", "work_experience", "projects", "open_source"},
+    "evaluate_bullet": {"education", "work_experience", "projects", "open_source"},
+}
+
+RESUME_TOOL_DISPLAY_NAMES = {
+    "update_summary": "优化总结",
+    "update_profile": "优化个人信息",
+    "upsert_job_application": "更新求职目标",
+    "update_item_fields": "优化条目字段",
+    "update_skills": "优化技能",
+    "show_section": "显示板块",
+    "hide_section": "隐藏板块",
+    "update_overview": "优化简介",
+    "update_bullet": "优化要点",
+    "add_bullet": "新增要点",
+    "remove_bullet": "删除要点",
+    "evaluate_bullet": "评价要点",
+    "list_job_posts": "读取JD列表",
+    "read_job_post": "读取JD",
+    "read_memory": "读取记忆",
+    "update_memory": "更新记忆",
+    "ask_user": "询问信息",
+}
+
+RESUME_SECTION_ALIASES = {
+    "work": "work_experience",
+    "work_experiences": "work_experience",
+    "experience": "work_experience",
+    "project": "projects",
+    "project_experience": "projects",
+    "edu": "education",
+}
+
+RESUME_TOOL_ARGUMENT_ALIASES: dict[str, dict[str, str]] = {
+    "update_bullet": {"highlight_id": "bullet_id"},
+    "remove_bullet": {"highlight_id": "bullet_id"},
+    "update_overview": {"text": "overview", "description": "overview"},
+    "update_skills": {"skills": "items"},
+}
+
+RESUME_VISIBILITY_TOOL_NAMES = {"show_section", "hide_section"}
+
 
 @dataclass(frozen=True)
 class ResumeToolDefinition:
@@ -735,7 +858,15 @@ def execute_resume_tool(
 
 
 __all__ = [
+    "RESUME_AUTO_EXECUTE_TOOL_NAMES",
+    "RESUME_SECTION_ALIASES",
     "RESUME_TOOL_CATALOG",
+    "RESUME_TOOL_ARGUMENT_ALIASES",
+    "RESUME_TOOL_DISPLAY_NAMES",
+    "RESUME_TOOL_PROFILES",
+    "RESUME_TOOL_REQUIRED_ARGS",
+    "RESUME_TOOL_SECTION_ENUMS",
+    "RESUME_VISIBILITY_TOOL_NAMES",
     "RESUME_TOOLS_SCHEMA",
     "ResumeToolDefinition",
     "ResumeToolResult",

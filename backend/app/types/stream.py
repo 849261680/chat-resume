@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any, Literal, TypedDict
 
 ResumeStreamEventType = Literal[
@@ -93,6 +94,45 @@ def public_resume_stream_event(
     }
 
 
+def parse_resume_stream_event_id(value: str | None) -> tuple[str, int] | None:
+    """用于把 Resume Agent Last-Event-ID 解析为 session_id 和事件序号。"""
+    if not value or ":" not in value:
+        return None
+    session_id, sequence_text = value.rsplit(":", 1)
+    if not session_id or not sequence_text.isdigit():
+        return None
+    return session_id, int(sequence_text)
+
+
+def format_resume_sse_event(
+    payload: dict[str, Any],
+    *,
+    event_id: str | None = None,
+) -> str:
+    """用于把 Resume Agent 公开事件 payload 格式化为 SSE 文本块。"""
+    data = json.dumps(payload, ensure_ascii=False)
+    if event_id:
+        return f"id: {event_id}\ndata: {data}\n\n"
+    return f"data: {data}\n\n"
+
+
+def is_public_resume_tool_event(payload: dict[str, Any]) -> bool:
+    """用于判断公开 SSE payload 是否属于工具生命周期事件。"""
+    event_type = payload.get("event_type")
+    return (
+        isinstance(event_type, str)
+        and event_type
+        in {
+            "tool_call",
+            "tool_pending",
+            "tool_confirmed",
+            "tool_rejected",
+            "tool_result",
+            "tool_call_failed",
+        }
+    )
+
+
 def session_started_event(session_id: str) -> ResumeStreamEvent:
     """用于构造简历 Agent 流式会话开始事件。"""
     return {
@@ -133,6 +173,9 @@ __all__ = [
     "DiffItem",
     "ResumeStreamEvent",
     "ResumeStreamEventType",
+    "format_resume_sse_event",
+    "is_public_resume_tool_event",
+    "parse_resume_stream_event_id",
     "public_resume_stream_event",
     "session_started_event",
     "stream_done_event",

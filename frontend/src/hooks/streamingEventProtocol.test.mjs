@@ -93,3 +93,104 @@ test('user_input_request payload requires a question and options', () => {
     },
   )
 })
+
+test('stream reducer coalesces text events and content', () => {
+  const first = protocol.reduceStreamSsePayload(
+    protocol.createStreamProtocolState(),
+    { event_type: 'text_delta', content: '先改' },
+    'Tool call',
+  )
+  const second = protocol.reduceStreamSsePayload(
+    first.state,
+    { event_type: 'text_delta', content: '项目。' },
+    'Tool call',
+  )
+  assert.equal(second.state.content, '先改项目。')
+  assert.deepEqual(second.state.events, [{ type: 'text', content: '先改项目。' }])
+})
+
+test('stream reducer completes a tool_call with tool_result', () => {
+  const started = protocol.reduceStreamSsePayload(
+    protocol.createStreamProtocolState(),
+    {
+      event_type: 'tool_call',
+      call_id: 'call_1',
+      tool_id: 'update_bullet',
+      tool_display_name: 'update_bullet',
+    },
+    'Tool call',
+  )
+  const completed = protocol.reduceStreamSsePayload(
+    started.state,
+    {
+      event_type: 'tool_result',
+      call_id: 'call_1',
+      tool_id: 'update_bullet',
+      tool_display_name: 'update_bullet',
+      display_message: '已更新',
+      result: { success: true },
+    },
+    'Tool call',
+  )
+  assert.equal(completed.completedToolCallId, 'call_1')
+  assert.deepEqual(completed.state.events, [{
+    type: 'tool_result',
+    callId: 'call_1',
+    toolName: 'update_bullet',
+    toolId: 'update_bullet',
+    displayMessage: '已更新',
+  }])
+})
+
+test('stream reducer turns pending into confirmed decision', () => {
+  const pending = protocol.reduceStreamSsePayload(
+    protocol.createStreamProtocolState(),
+    {
+      event_type: 'tool_pending',
+      tool_pending: true,
+      call_id: 'call_1',
+      tool_id: 'update_bullet',
+      tool_display_name: 'update_bullet',
+      diff_summary: '更新项目亮点',
+      diff_items: [{ before: 'old', after: 'new' }],
+    },
+    'Tool call',
+  )
+  const confirmed = protocol.reduceStreamSsePayload(
+    pending.state,
+    {
+      event_type: 'tool_confirmed',
+      tool_confirmed: true,
+      call_id: 'call_1',
+      tool_id: 'update_bullet',
+      tool_display_name: 'update_bullet',
+      diff_summary: '更新项目亮点',
+      diff_items: [{ before: 'old', after: 'new' }],
+    },
+    'Tool call',
+  )
+  assert.equal(confirmed.decisionToolCallId, 'call_1')
+  assert.deepEqual(confirmed.state.events, [{
+    type: 'tool_confirmed',
+    callId: 'call_1',
+    toolName: 'update_bullet',
+    toolId: 'update_bullet',
+    diffSummary: '更新项目亮点',
+    diffItems: [{ before: 'old', after: 'new' }],
+  }])
+})
+
+test('stream reducer hides ask_user lifecycle tool events', () => {
+  const reduced = protocol.reduceStreamSsePayload(
+    protocol.createStreamProtocolState(),
+    {
+      event_type: 'tool_call',
+      call_id: 'call_ask',
+      tool_id: 'ask_user',
+      tool_display_name: 'ask_user',
+    },
+    'Tool call',
+  )
+  assert.equal(reduced.ignoredAskUserToolEvent, true)
+  assert.deepEqual(reduced.state.events, [])
+})

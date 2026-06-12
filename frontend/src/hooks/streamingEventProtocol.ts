@@ -70,6 +70,21 @@ export type StreamEvent =
       request: UserInputRequest
     }
 
+export type StreamProtocolState = {
+  content: string
+  events: StreamEvent[]
+  userInputRequest: UserInputRequest | null
+}
+
+export type StreamProtocolReduction = {
+  state: StreamProtocolState
+  event: StreamEvent | null
+  ignoredAskUserToolEvent: boolean
+  completedToolCallId?: string
+  pendingToolCallId?: string
+  decisionToolCallId?: string
+}
+
 const TOOL_NAME_ALIASES: Record<string, string> = {
   update_highlight: 'update_bullet',
   add_highlight: 'add_bullet',
@@ -108,6 +123,72 @@ export function resolveToolId(data: Record<string, unknown>): string {
   const fn = (toolCall as { function?: unknown }).function
   if (!fn || typeof fn !== 'object' || !('name' in fn)) return ''
   return normalizeToolName(String((fn as { name?: unknown }).name || ''))
+}
+
+// 用于生成空的前端流协议状态。
+export function createStreamProtocolState(): StreamProtocolState {
+  return {
+    content: '',
+    events: [],
+    userInputRequest: null,
+  }
+}
+
+// 用于判断单个 SSE payload 是否属于工具生命周期事件。
+export function isToolLifecyclePayload(data: Record<string, unknown>): boolean {
+  const eventType = typeof data.event_type === 'string' ? data.event_type : ''
+  return (
+    eventType.startsWith('tool_') ||
+    Boolean(data.tool_pending || data.tool_confirmed || data.tool_rejected)
+  )
+}
+
+// 用于从 SSE id 行和 payload 中解析下一次 replay cursor。
+export function resolveStreamCursor(
+  data: Record<string, unknown>,
+  pendingSseEventId: string | null,
+): string | null {
+  if (typeof data.event_id === 'string') return data.event_id
+  return pendingSseEventId
+}
+
+// 用于压缩工具流事件，便于诊断前端状态切换。
+export function summarizeToolEvents(events: StreamEvent[]): string[] {
+  return events
+    .filter((event) =>
+      event.type === 'tool_call' ||
+      event.type === 'tool_result' ||
+      event.type === 'tool_failed' ||
+      event.type === 'tool_pending' ||
+      event.type === 'tool_confirmed' ||
+      event.type === 'tool_rejected'
+    )
+    .map((event, index) => `${index}:${event.type}:${'callId' in event ? event.callId : 'none'}:${'toolName' in event ? event.toolName : ''}`)
+}
+
+// 用于把单个 SSE payload 规约到稳定的前端流协议状态。
+export function reduceStreamSsePayload(
+  state: StreamProtocolState,
+  data: Record<string, unknown>,
+  fallbackToolName: string,
+): StreamProtocolReduction {
+  const decision = toolDecisionFromSsePayload(data, fallbackToolName)
+  if (decision) {
+    return reduceToolDecision(state, decision, data)
+  }
+
+  const event = streamEventFromSsePayload(data, fallbackToolName)
+  if (!event) return reduction(state, null)
+  if (isAskUserToolLifecycleEvent(event, data)) {
+    return { ...reduction(state, event), ignoredAskUserToolEvent: true }
+  }
+  if (event.type === 'text') return reduceTextEvent(state, event)
+  if (event.type === 'tool_result') return reduceToolCompletion(state, event)
+  if (event.type === 'tool_failed') return reduceToolCompletion(state, event)
+  if (event.type === 'tool_pending') return reduceToolPending(state, event)
+  if (event.type === 'user_input_request') return reduceUserInputRequest(state, event)
+  if (event.type === 'tool_call') return reduceAppendOnlyEvent(state, event)
+  return reduction(state, event)
 }
 
 // 用于解析工具输入。
@@ -284,5 +365,150 @@ function userInputEventFromPayload(data: Record<string, unknown>): Extract<Strea
     callId: data.call_id ? String(data.call_id) : undefined,
     toolName: data.tool_display_name ? String(data.tool_display_name) : undefined,
     request,
+  }
+}
+
+// 用于生成无副作用规约结果。
+function reduction(
+  state: StreamProtocolState,
+  event: StreamEvent | null,
+): StreamProtocolReduction {
+  return {
+    state,
+    event,
+    ignoredAskUserToolEvent: false,
+  }
+}
+
+// 用于判断 ask_user 的底层工具调用是否应从工具活动流里隐藏。
+function isAskUserToolLifecycleEvent(
+  event: StreamEvent,
+  data: Record<string, unknown>,
+): boolean {
+  if (resolveToolId(data) !== 'ask_user') return false
+  return event.type === 'tool_call' || event.type === 'tool_result' || event.type === 'tool_failed'
+}
+
+// 用于把文本增量合并进内容和事件列表。
+function reduceTextEvent(
+  state: StreamProtocolState,
+  event: Extract<StreamEvent, { type: 'text' }>,
+): StreamProtocolReduction {
+  const last = state.events[state.events.length - 1]
+  const events = last?.type === 'text'
+    ? [...state.events.slice(0, -1), { type: 'text' as const, content: last.content + event.content }]
+    : [...state.events, event]
+  return reduction({
+    ...state,
+    content: state.content + event.content,
+    events,
+  }, event)
+}
+
+// 用于追加不需要状态转移的事件。
+function reduceAppendOnlyEvent(
+  state: StreamProtocolState,
+  event: Extract<StreamEvent, { type: 'tool_call' }>,
+): StreamProtocolReduction {
+  return reduction({
+    ...state,
+    events: [...state.events, event],
+  }, event)
+}
+
+// 用于把工具调用事件推进到完成或失败状态。
+function reduceToolCompletion(
+  state: StreamProtocolState,
+  event: Extract<StreamEvent, { type: 'tool_result' | 'tool_failed' }>,
+): StreamProtocolReduction {
+  const callId = event.callId || ''
+  if (!callId) {
+    return reduction({
+      ...state,
+      events: [...state.events, event],
+    }, event)
+  }
+  let updated = false
+  const events = state.events.map((existingEvent) => {
+    if (existingEvent.type !== 'tool_call' || existingEvent.callId !== callId) {
+      return existingEvent
+    }
+    updated = true
+    return {
+      type: event.type,
+      callId,
+      toolName: existingEvent.toolName || event.toolName,
+      toolId: existingEvent.toolId || event.toolId,
+      displayMessage: event.displayMessage,
+    }
+  })
+  const nextEvents = updated || events.some((existingEvent) => (
+    existingEvent.type === event.type && existingEvent.callId === callId
+  ))
+    ? events
+    : [...events, event]
+  return {
+    ...reduction({ ...state, events: nextEvents }, event),
+    completedToolCallId: callId,
+  }
+}
+
+// 用于追加等待确认的工具事件。
+function reduceToolPending(
+  state: StreamProtocolState,
+  event: Extract<StreamEvent, { type: 'tool_pending' }>,
+): StreamProtocolReduction {
+  return {
+    ...reduction({
+      ...state,
+      events: [...state.events, event],
+    }, event),
+    pendingToolCallId: event.callId,
+  }
+}
+
+// 用于记录需要用户补充信息的事件。
+function reduceUserInputRequest(
+  state: StreamProtocolState,
+  event: Extract<StreamEvent, { type: 'user_input_request' }>,
+): StreamProtocolReduction {
+  return reduction({
+    ...state,
+    events: [...state.events, event],
+    userInputRequest: event.request,
+  }, event)
+}
+
+// 用于把工具待确认状态推进为已确认或已拒绝。
+function reduceToolDecision(
+  state: StreamProtocolState,
+  decision: Extract<StreamEvent, { type: 'tool_confirmed' | 'tool_rejected' }>,
+  data: Record<string, unknown>,
+): StreamProtocolReduction {
+  const events = state.events.flatMap((event) => {
+    if (event.type === 'tool_call' && event.callId === decision.callId) {
+      return [{
+        type: 'tool_result' as const,
+        callId: decision.callId,
+        toolName: event.toolName,
+        toolId: event.toolId,
+        displayMessage: data.display_message ? String(data.display_message) : undefined,
+      }]
+    }
+    if (event.type !== 'tool_pending' || event.callId !== decision.callId) {
+      return [event]
+    }
+    return [{
+      type: decision.type,
+      callId: event.callId,
+      toolName: event.toolName || decision.toolName,
+      toolId: event.toolId || decision.toolId,
+      diffSummary: decision.diffSummary || event.diffSummary,
+      diffItems: decision.diffItems?.length ? decision.diffItems : event.diffItems,
+    }]
+  })
+  return {
+    ...reduction({ ...state, events }, decision),
+    decisionToolCallId: decision.callId,
   }
 }

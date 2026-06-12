@@ -9,7 +9,13 @@ from typing import Any, AsyncGenerator, Dict, List, Optional, cast
 
 from app.prompts import load_prompt
 from app.runtime.contracts import AgentDefinition
-from app.tools.resume.registry import RESUME_TOOLS_SCHEMA
+from app.tools.resume.registry import (
+    RESUME_AUTO_EXECUTE_TOOL_NAMES,
+    RESUME_SECTION_ALIASES,
+    RESUME_TOOL_ARGUMENT_ALIASES,
+    RESUME_TOOL_PROFILES,
+    RESUME_TOOLS_SCHEMA,
+)
 from app.types.stream import ResumeStreamEvent
 
 from .candidate_profile import load_candidate_profile_context
@@ -20,54 +26,7 @@ from .stream_events import normalize_resume_stream_payload
 
 logger = logging.getLogger(__name__)
 
-_AUTO_EXECUTE_TOOL_NAMES: set[str] = {
-    "ask_user",
-    "list_job_posts",
-    "read_job_post",
-    "read_memory",
-    "update_memory",
-}
-_TOOL_PROFILES: dict[str, set[str]] = {
-    "resume_edit": {
-        "ask_user",
-        "update_summary",
-        "update_profile",
-        "upsert_job_application",
-        "update_item_fields",
-        "update_skills",
-        "show_section",
-        "hide_section",
-        "update_overview",
-        "update_bullet",
-        "add_bullet",
-        "remove_bullet",
-        "list_job_posts",
-        "read_job_post",
-        "read_memory",
-        "update_memory",
-    },
-    "read_only": {
-        "ask_user",
-        "list_job_posts",
-        "read_job_post",
-        "read_memory",
-    },
-}
 _LOG_VALUE_LIMIT = 64
-_SECTION_ALIASES = {
-    "work": "work_experience",
-    "work_experiences": "work_experience",
-    "experience": "work_experience",
-    "project": "projects",
-    "project_experience": "projects",
-    "edu": "education",
-}
-_ARGUMENT_ALIASES_BY_TOOL = {
-    "update_bullet": {"highlight_id": "bullet_id"},
-    "remove_bullet": {"highlight_id": "bullet_id"},
-    "update_overview": {"text": "overview", "description": "overview"},
-    "update_skills": {"skills": "items"},
-}
 
 
 def _parse_tool_arguments(raw: Any) -> Dict[str, Any]:
@@ -116,9 +75,9 @@ def _normalize_tool_args(tool_name: str, tool_args: dict[str, Any]) -> dict[str,
     normalized = dict(tool_args)
     section = normalized.get("section")
     if isinstance(section, str):
-        normalized["section"] = _SECTION_ALIASES.get(section, section)
+        normalized["section"] = RESUME_SECTION_ALIASES.get(section, section)
 
-    for source, target in _ARGUMENT_ALIASES_BY_TOOL.get(tool_name, {}).items():
+    for source, target in RESUME_TOOL_ARGUMENT_ALIASES.get(tool_name, {}).items():
         if target not in normalized and source in normalized:
             normalized[target] = normalized[source]
         if source in normalized and source != target:
@@ -139,9 +98,9 @@ class ResumeAgent:
             tools_schema=RESUME_TOOLS_SCHEMA,
             tool_executor=self._run_tool,
             prompt_context_builder=build_resume_prompt_context,
-            auto_execute_tool_names=_AUTO_EXECUTE_TOOL_NAMES,
+            auto_execute_tool_names=RESUME_AUTO_EXECUTE_TOOL_NAMES,
             default_tool_profile="resume_edit",
-            tool_profiles=_TOOL_PROFILES,
+            tool_profiles=RESUME_TOOL_PROFILES,
         )
 
     async def optimize(

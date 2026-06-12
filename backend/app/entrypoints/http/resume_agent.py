@@ -4,7 +4,6 @@
 提供与 AI Agent 聊天交互的 API 端点，包括简历优化。
 """
 
-import json
 import logging
 from time import perf_counter
 from typing import cast
@@ -28,7 +27,12 @@ from app.services.agent import (
 )
 from app.services.llm import ChatService
 from app.state import AgentSessionStore
-from app.types.stream import public_resume_stream_event
+from app.types.stream import (
+    format_resume_sse_event,
+    is_public_resume_tool_event,
+    parse_resume_stream_event_id,
+    public_resume_stream_event,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -60,22 +64,8 @@ def log_stream_phase(
     )
 
 
-def parse_sse_event_id(value: str | None) -> tuple[str, int] | None:
-    """用于把 Last-Event-ID 解析为 session_id 和事件序号。"""
-    if not value or ":" not in value:
-        return None
-    session_id, sequence_text = value.rsplit(":", 1)
-    if not session_id or not sequence_text.isdigit():
-        return None
-    return session_id, int(sequence_text)
-
-
-def format_sse_event(payload: dict, *, event_id: str | None = None) -> str:
-    """用于把事件 payload 格式化为 SSE 文本块。"""
-    data = json.dumps(payload, ensure_ascii=False)
-    if event_id:
-        return f"id: {event_id}\ndata: {data}\n\n"
-    return f"data: {data}\n\n"
+parse_sse_event_id = parse_resume_stream_event_id
+format_sse_event = format_resume_sse_event
 
 
 class ChatRequest(BaseModel):
@@ -252,14 +242,7 @@ async def chat_with_resume_stream(
                     event_id=event_id or "-",
                     had_content=first_content_sent,
                 )
-            if event_type in {
-                "tool_call",
-                "tool_pending",
-                "tool_confirmed",
-                "tool_rejected",
-                "tool_result",
-                "tool_call_failed",
-            }:
+            if is_public_resume_tool_event(payload):
                 logger.info(
                     "resume_agent.sse.tool_event.sent",
                     extra={

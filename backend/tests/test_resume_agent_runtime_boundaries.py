@@ -1148,6 +1148,67 @@ async def test_resume_tool_execution_stage_runs_confirmed_tool_independently():
     assert stream_state["confirmed_diff_items"]
 
 
+
+@pytest.mark.asyncio
+async def test_resume_tool_execution_stage_hides_noop_preview_failure():
+    """用于验证同文改写失败只回灌模型，不污染前端工具卡片。"""
+    agent = ResumeAgent()
+    stage = ResumeToolExecutionStage()
+    resume = {
+        "work_experience": [
+            {
+                "id": "work_1",
+                "company": "某科技公司",
+                "position": "Python 开发工程师",
+                "highlights": [{"id": "hl_1", "text": "维护多个后台服务"}],
+            }
+        ]
+    }
+    confirmation_queue: asyncio.Queue[bool] = asyncio.Queue()
+    event_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+    stream_state = {
+        "visible_tool_call_ids": set(),
+        "confirmed_diff_items": [],
+        "confirmation_wait_ms": 0.0,
+        "chunk_index": 0,
+        "response_parts": [],
+    }
+    executed_tools: list[dict[str, Any]] = []
+
+    result = await stage.execute_tool_result(
+        agent=agent.definition,
+        run_id="run_noop",
+        call_id="call_noop",
+        tool_name="update_bullet",
+        tool_input={
+            "section": "work_experience",
+            "item_id": "work_1",
+            "bullet_id": "hl_1",
+            "text": "维护多个后台服务",
+            "reason": "模型误判需要精简",
+        },
+        context={
+            "resume_content": resume,
+            "allowed_sections": {"work_experience"},
+            "user_message": "优化要点可读性",
+        },
+        confirmation_queue=confirmation_queue,
+        event_queue=event_queue,
+        event_callback=None,
+        executed_tools=executed_tools,
+        stream_state=stream_state,
+    )
+
+    events: list[dict[str, Any]] = []
+    while not event_queue.empty():
+        events.append(event_queue.get_nowait())
+
+    assert result.details["success"] is False
+    assert "未执行修改" in result.details["message"]
+    assert events == []
+    assert executed_tools == []
+    assert stream_state["visible_tool_call_ids"] == set()
+
 @pytest.mark.asyncio
 async def test_resume_tool_execution_stage_blocks_unsupported_claims_before_confirmation():
     """用于验证无来源事实不会进入用户确认卡。"""

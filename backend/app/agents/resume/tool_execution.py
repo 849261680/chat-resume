@@ -110,14 +110,6 @@ class ResumeToolExecutionStage:
         )
         needs_confirmation = confirmation_decision.requires_confirmation
         tool_call = self.tool_call_payload(call_id, tool_name, tool_input)
-        if self.remember_visible_tool_call(stream_state, call_id):
-            await self.publish_visible_tool_call(
-                call_id=call_id,
-                tool_name=tool_name,
-                tool_input=tool_input,
-                event_queue=event_queue,
-                event_callback=event_callback,
-            )
         self.trace_tool_requested(
             agent,
             run_id,
@@ -127,6 +119,14 @@ class ResumeToolExecutionStage:
             needs_confirmation,
         )
         if self.has_tool_argument_parse_error(tool_input):
+            await self.publish_visible_tool_call_once(
+                call_id=call_id,
+                tool_name=tool_name,
+                tool_input=tool_input,
+                event_queue=event_queue,
+                event_callback=event_callback,
+                stream_state=stream_state,
+            )
             return await self.publish_invalid_tool_arguments(
                 agent=agent,
                 run_id=run_id,
@@ -155,6 +155,15 @@ class ResumeToolExecutionStage:
             tool_started_at=tool_started_at,
             stream_state=stream_state,
         )
+        if not needs_confirmation:
+            await self.publish_visible_tool_call_once(
+                call_id=call_id,
+                tool_name=tool_name,
+                tool_input=tool_input,
+                event_queue=event_queue,
+                event_callback=event_callback,
+                stream_state=stream_state,
+            )
         auto_quality_failure = await self.maybe_block_auto_execute_tool(
             agent=agent,
             run_id=run_id,
@@ -288,6 +297,16 @@ class ResumeToolExecutionStage:
                 preview_result,
                 tool_started_at,
             )
+            if self.is_noop_preview_failure(preview_result):
+                return json.dumps(result, ensure_ascii=False)
+            await self.publish_visible_tool_call_once(
+                call_id=call_id,
+                tool_name=tool_name,
+                tool_input=tool_input,
+                event_queue=event_queue,
+                event_callback=event_callback,
+                stream_state=stream_state,
+            )
             executed_tools.append(self.executed_tool_summary(preview_result, result))
             await self.publish_tool_result(
                 call_id=call_id,
@@ -332,6 +351,14 @@ class ResumeToolExecutionStage:
                 needs_confirmation=False,
             )
             return json.dumps(quality_result, ensure_ascii=False)
+        await self.publish_visible_tool_call_once(
+            call_id=call_id,
+            tool_name=tool_name,
+            tool_input=tool_input,
+            event_queue=event_queue,
+            event_callback=event_callback,
+            stream_state=stream_state,
+        )
         await self.publish_event(
             event_queue=event_queue,
             event_callback=event_callback,
@@ -579,6 +606,26 @@ class ResumeToolExecutionStage:
                 display_message=f"正在{tool_name}",
                 tool_calls=[],
             ),
+        )
+    async def publish_visible_tool_call_once(
+        self,
+        *,
+        call_id: str,
+        tool_name: str,
+        tool_input: dict[str, Any],
+        event_queue: asyncio.Queue[Any] | None,
+        event_callback: RuntimeEventCallback | None,
+        stream_state: dict[str, Any],
+    ) -> None:
+        """用于确保同一个工具调用最多发布一次开始事件。"""
+        if not self.remember_visible_tool_call(stream_state, call_id):
+            return
+        await self.publish_visible_tool_call(
+            call_id=call_id,
+            tool_name=tool_name,
+            tool_input=tool_input,
+            event_queue=event_queue,
+            event_callback=event_callback,
         )
 
     async def publish_tool_result(
@@ -948,6 +995,14 @@ class ResumeToolExecutionStage:
         """用于判断工具结果是否失败。"""
         result = tool_result.get("result")
         return isinstance(result, dict) and result.get("success") is False
+    @staticmethod
+    def is_noop_preview_failure(tool_result: dict[str, Any]) -> bool:
+        """用于识别不会落库的同文改写失败，避免污染用户工具卡片。"""
+        result = tool_result.get("result")
+        message = tool_result.get("display_message")
+        if isinstance(result, dict):
+            message = result.get("message") or result.get("error") or message
+        return isinstance(message, str) and "新旧" in message and "未执行修改" in message
 
     @staticmethod
     def has_tool_argument_parse_error(tool_input: dict[str, Any]) -> bool:

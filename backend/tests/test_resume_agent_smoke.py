@@ -1513,7 +1513,7 @@ class ResumeAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_resume_agent_runtime_noop_update_skips_confirmation_card(self):
-        """用于验证空修改走失败事件而不是展示待确认卡片。"""
+        """用于验证空修改只回灌模型，不展示失败或待确认卡片。"""
         agent = ResumeAgent()
         agent.runtime = ResumeAgentRuntime(
             stream_fn=FakePiAgentStream(
@@ -1547,7 +1547,7 @@ class ResumeAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
         ):
             events.append(event)
 
-        self.assertTrue(any(event.get("tool_call_failed") for event in events))
+        self.assertFalse(any(event.get("tool_call_failed") for event in events))
         self.assertFalse(any(event.get("tool_pending") for event in events))
         self.assertEqual(
             resume["work_experience"][0]["highlights"][0]["text"],

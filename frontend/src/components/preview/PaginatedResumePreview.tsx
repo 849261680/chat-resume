@@ -46,6 +46,7 @@ interface PaginatedResumePreviewProps {
   onRenderReady?: (ready: boolean) => void
   smartFitTriggerRef?: React.MutableRefObject<(() => Promise<import('./hooks/useSmartFit').SmartFitResult>) | null>
   viewportPadding?: number
+  isContainerResizing?: boolean
 }
 
 // 用于渲染 PaginatedResumePreview 组件。
@@ -58,13 +59,15 @@ export default function PaginatedResumePreview({
   onTotalPagesChange,
   onRenderReady,
   smartFitTriggerRef,
-  viewportPadding = 8
+  viewportPadding = 8,
+  isContainerResizing = false,
 }: PaginatedResumePreviewProps) {
   const t = useTranslations('resume.layout')
   const previewT = useTranslations('resume.preview')
   const containerRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const smartFitPageRef = useRef<HTMLDivElement>(null)
+  const scaleFrameRef = useRef<number | null>(null)
   const [scale, setScale] = React.useState(1)
   const paginationSpacingScale = useDeferredValue(spacingScale)
 
@@ -135,6 +138,23 @@ export default function PaginatedResumePreview({
     onTotalPagesChange?.(totalPages)
   }, [totalPages, onTotalPagesChange])
 
+  // 用于把预览容器缩放计算合并到浏览器下一帧，避免拖拽分隔条时频繁 setState。
+  const scheduleScaleCalculation = useCallback(() => {
+    if (isContainerResizing) return
+    if (scaleFrameRef.current !== null) return
+
+    scaleFrameRef.current = requestAnimationFrame(() => {
+      scaleFrameRef.current = null
+      if (isContainerResizing) return
+      if (!containerRef.current) return
+
+      const nextScale = calculatePreviewScale(containerRef.current, viewportPadding)
+      setScale(currentScale => (
+        Math.abs(currentScale - nextScale) < 0.001 ? currentScale : nextScale
+      ))
+    })
+  }, [isContainerResizing, viewportPadding])
+
   // 通知打印页真实分页内容已经渲染，避免 Playwright 抢在测量完成前打印空白页。
   React.useEffect(() => {
     const hasRenderedPages = !isCalculating && pages.some(page => page.lines.length > 0)
@@ -143,41 +163,32 @@ export default function PaginatedResumePreview({
 
   // 计算合适的缩放比例
   React.useEffect(() => {
-    // 用于计算缩放。
-    const calculateScale = () => {
-      if (!containerRef.current) return
-
-      setScale(calculatePreviewScale(containerRef.current, viewportPadding))
-    }
-
-    calculateScale()
+    scheduleScaleCalculation()
 
     // 用于处理尺寸变化。
-    const handleResize = () => calculateScale()
-    window.addEventListener('resize', handleResize)
+    window.addEventListener('resize', scheduleScaleCalculation)
 
-    const resizeObserver = new ResizeObserver(calculateScale)
+    const resizeObserver = new ResizeObserver(scheduleScaleCalculation)
     if (containerRef.current) {
       resizeObserver.observe(containerRef.current)
     }
 
     return () => {
-      window.removeEventListener('resize', handleResize)
+      window.removeEventListener('resize', scheduleScaleCalculation)
       resizeObserver.disconnect()
+      if (scaleFrameRef.current !== null) {
+        cancelAnimationFrame(scaleFrameRef.current)
+        scaleFrameRef.current = null
+      }
     }
-  }, [viewportPadding])
+  }, [scheduleScaleCalculation])
 
   // 分页完成后再次校准缩放，避免数据后加载时沿用旧页面比例。
   React.useEffect(() => {
-    if (isCalculating || !containerRef.current) return
+    if (isCalculating) return
 
-    const animationFrame = requestAnimationFrame(() => {
-      if (containerRef.current) {
-        setScale(calculatePreviewScale(containerRef.current, viewportPadding))
-      }
-    })
-    return () => cancelAnimationFrame(animationFrame)
-  }, [isCalculating, pages.length, totalPages, viewportPadding])
+    scheduleScaleCalculation()
+  }, [isCalculating, pages.length, totalPages, scheduleScaleCalculation])
 
   // 根据模块类型渲染组件
   const renderSection = (sectionId: string, children: ReactNode): JSX.Element => (

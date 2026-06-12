@@ -254,10 +254,9 @@ export default function ResumeEditPage() {
   const {
     editorOpen,
     setEditorOpen,
-    agentFlex,
-    previewFlex,
-    collapsedAgentFlex,
     editorAnimateWidth,
+    isResizingPanels,
+    panelLayoutStyle,
     mainPanelsRef,
     handleEditorDividerPointerDown,
     handleAgentDividerPointerDown,
@@ -716,6 +715,7 @@ export default function ResumeEditPage() {
         <div
           ref={mainPanelsRef}
           className="flex gap-0 h-[calc(100vh-120px)]"
+          style={panelLayoutStyle}
         >
           {/* Left Panel - Editor */}
           <AnimatePresence initial={false}>
@@ -866,12 +866,12 @@ export default function ResumeEditPage() {
           {/* Middle Panel - Preview */}
           <motion.div
             ref={previewPanelRef}
-            layout
+            layout={!isResizingPanels}
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ layout: { duration: 0.35, ease: 'easeInOut' }, opacity: { duration: 0.8, delay: 0.2 }, x: { duration: 0.8, delay: 0.2 } }}
             className="preview-panel relative flex flex-col min-h-0 min-w-0 print:w-full print:h-auto print:absolute print:top-0 print:left-0 print:m-0 print:p-0"
-            style={{ flex: `0 0 calc(${previewFlex}% - 16px)` }}
+            style={{ flex: '0 0 var(--preview-panel-width)' }}
           >
             {resumeSelectionAction?.source === 'preview' && resumeSelectionAction.mode === 'toolbar' && (
               <div
@@ -989,6 +989,7 @@ export default function ResumeEditPage() {
                 }
                 onTotalPagesChange={setPreviewTotalPages}
                 smartFitTriggerRef={smartFitTriggerRef}
+                isContainerResizing={isResizingPanels}
               />
             </div>
           </motion.div>
@@ -1003,12 +1004,12 @@ export default function ResumeEditPage() {
 
           {/* Right Panel - AI Chat */}
           <motion.div
-            layout
+            layout={!isResizingPanels}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ layout: { duration: 0.35, ease: 'easeInOut' }, opacity: { duration: 0.8, delay: 0.4 }, y: { duration: 0.8, delay: 0.4 } }}
             className="agent-panel flex flex-col min-h-0 min-w-0 print:hidden"
-            style={{ flex: `0 0 calc(${editorOpen ? agentFlex : collapsedAgentFlex}% - 8px)` }}
+            style={{ flex: '0 0 var(--agent-panel-width)' }}
           >
             <div
               ref={agentPanelRef}

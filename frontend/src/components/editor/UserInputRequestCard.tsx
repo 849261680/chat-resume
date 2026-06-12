@@ -60,7 +60,7 @@ export default function UserInputRequestCard({
         borderColor: 'rgba(17,24,39,0.1)',
       }}
     >
-      <div className="flex items-start gap-3 px-5 pb-4 pt-5">
+      <div className="flex items-start gap-3 px-5 pb-3 pt-4">
         <div className="min-w-0 flex-1">
           <div className="text-[15px] font-semibold leading-5 text-gray-950">{request.question}</div>
         </div>
@@ -102,23 +102,23 @@ export default function UserInputRequestCard({
             type="button"
             disabled={disabled}
             onClick={() => onSubmit(option)}
-            className="group flex min-h-[58px] w-full items-center gap-4 border-t border-gray-200 px-5 text-left transition-colors hover:bg-gray-100 focus:bg-gray-100 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+            className="group flex min-h-[52px] w-full items-center gap-4 border-t border-gray-200 px-5 text-left transition-colors hover:bg-gray-100 focus:bg-gray-100 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-[15px] font-medium text-gray-500 transition-colors group-hover:bg-gray-200 group-hover:text-gray-950">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-sm font-medium text-gray-500 transition-colors group-hover:bg-gray-200 group-hover:text-gray-950">
               {index + 1}
             </span>
-            <span className="min-w-0 flex-1 text-[15px] font-medium leading-5 text-gray-700 group-hover:text-gray-950">
+            <span className="min-w-0 flex-1 text-sm font-medium leading-5 text-gray-700 group-hover:text-gray-950">
               {option}
             </span>
             <ArrowRightIcon className="h-5 w-5 shrink-0 text-gray-400 opacity-0 transition-opacity group-hover:opacity-100 group-focus:opacity-100" />
           </button>
         ))}
         {request.allowCustom && (
-          <div className={`border-t border-gray-200 px-5 py-3 ${customOpen ? 'bg-gray-100' : ''}`}>
+          <div className={`border-t border-gray-200 px-5 py-2.5 ${customOpen ? 'bg-gray-100' : ''}`}>
             <div className="flex items-center gap-3">
               <div
                 onClick={openCustomInput}
-                className={`group flex min-h-[42px] min-w-0 flex-1 items-center gap-4 text-left text-[15px] font-medium text-gray-500 transition-colors hover:text-gray-950 ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-text'}`}
+                className={`group flex min-h-[38px] min-w-0 flex-1 items-center gap-4 text-left text-sm font-medium text-gray-500 transition-colors hover:text-gray-950 ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-text'}`}
               >
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-gray-600 transition-colors group-hover:bg-gray-200 group-hover:text-gray-950">
                   <PencilSquareIcon className="h-5 w-5" />
@@ -140,7 +140,7 @@ export default function UserInputRequestCard({
                       }
                     }}
                     placeholder={t('userInputRequestCustom')}
-                    className="min-w-0 flex-1 bg-transparent text-[15px] font-medium text-gray-950 outline-none placeholder:text-gray-400"
+                    className="min-w-0 flex-1 bg-transparent text-sm font-medium text-gray-950 outline-none placeholder:text-gray-400"
                   />
                 ) : (
                   <span className="truncate">{t('userInputRequestCustom')}</span>

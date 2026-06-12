@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { startTransition, useState, useEffect, useCallback, useRef } from 'react'
 
 // A4纸张尺寸常量。
 export const A4_WIDTH = 794
@@ -151,6 +151,7 @@ export function useLineBasedPagination({
   const [contentHeight, setContentHeight] = useState(0)
   const [isCalculating, setIsCalculating] = useState(false)
   const calculationTimeoutRef = useRef<NodeJS.Timeout>()
+  const hasCalculatedPagesRef = useRef(false)
 
   // 测量所有可分页的视觉行元素。
   const measureLines = useCallback((): RenderableLine[] => {
@@ -198,7 +199,10 @@ export function useLineBasedPagination({
       clearTimeout(calculationTimeoutRef.current)
     }
 
-    setIsCalculating(true)
+    const shouldShowCalculating = !hasCalculatedPagesRef.current
+    if (shouldShowCalculating) {
+      setIsCalculating(true)
+    }
 
     try {
       // 等待DOM更新完成
@@ -210,15 +214,26 @@ export function useLineBasedPagination({
       const calculatedPages = calculatePages(lines)
       const totalHeight = lines.reduce((sum: number, l: RenderableLine) => sum + l.height, 0)
 
-      setPages(calculatedPages)
-      setTotalPages(calculatedPages.length)
-      setContentHeight(totalHeight)
+      hasCalculatedPagesRef.current = true
+      const updatePaginationState = () => {
+        setPages(calculatedPages)
+        setTotalPages(calculatedPages.length)
+        setContentHeight(totalHeight)
+      }
+      if (shouldShowCalculating) {
+        updatePaginationState()
+      } else {
+        startTransition(updatePaginationState)
+      }
     } catch (error) {
       console.error('Pagination calculation error:', error)
+      hasCalculatedPagesRef.current = true
       setPages([{ lines: [], height: 0, startOffset: 0, endOffset: 0 }])
       setTotalPages(1)
     } finally {
-      setIsCalculating(false)
+      if (shouldShowCalculating) {
+        setIsCalculating(false)
+      }
     }
   }, [containerRef, contentRef, measureLines, calculatePages])
 

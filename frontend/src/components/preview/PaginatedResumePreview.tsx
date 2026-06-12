@@ -1,7 +1,7 @@
 'use client'
 // 用于提供 components/preview/PaginatedResumePreview.tsx 模块。
 
-import React, { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { ReactNode, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useLineBasedPagination, measureRenderableLines, A4_HEIGHT, A4_WIDTH, PAGE_PADDING } from './hooks/useLineBasedPagination'
 import { useSmartFit } from './hooks/useSmartFit'
 import ResumePage from './ResumePage'
@@ -65,14 +65,11 @@ export default function PaginatedResumePreview({
   const contentRef = useRef<HTMLDivElement>(null)
   const smartFitPageRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = React.useState(1)
+  const paginationSpacingScale = useDeferredValue(spacingScale)
 
-  // 独立的测量容器 scale state，仅供 SmartFit 二分搜索时切换，不影响实际渲染
-  // spacingScale prop 变化时（包括 SmartFit 完成后 onComplete 触发的更新）同步重置
+  // 独立的测量容器 scale state，仅供 SmartFit 二分搜索时切换，不跟随手动拖动重渲染。
   const [measureScale, setMeasureScale] = useState(spacingScale)
   const measureScaleRef = useRef(spacingScale)
-  useEffect(() => {
-    setMeasureScale(spacingScale)
-  }, [spacingScale])
   // 每次 measureScale 变化后 resolve 所有等待中的 Promise
   const measureScaleResolversRef = useRef<Array<() => void>>([])
   useEffect(() => {
@@ -246,13 +243,13 @@ export default function PaginatedResumePreview({
       style={{
         width: `${pageContentWidth}px`,
         boxSizing: 'border-box',
-        ['--spacing-scale' as string]: String(spacingScale)
+        ['--spacing-scale' as string]: String(paginationSpacingScale)
       }}
     >
       {renderVisibleModules()}
     </div>
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  ), [content, visibleModules, moduleOrderKey, spacingScale, templateStyle, pageContentWidth])
+  ), [content, visibleModules, moduleOrderKey, paginationSpacingScale, templateStyle, pageContentWidth])
 
   // 智能一页试算专用页面；保留真实页面盒模型，但不裁剪溢出内容，避免误判为一页。
   const smartFitMeasurementContent = useMemo(() => (

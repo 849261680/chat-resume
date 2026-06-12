@@ -10,6 +10,10 @@ const {
   getPageContentHeight,
 } = await import('./useLineBasedPagination.ts')
 
+test('page padding uses 38px resume margins', () => {
+  assert.equal(PAGE_PADDING, 38)
+})
+
 test('getPageContentHeight uses fixed page margins', () => {
   assert.equal(getPageContentHeight(), A4_HEIGHT - PAGE_PADDING * 2 - SAFETY_MARGIN)
   assert.equal(getPageContentHeight({ pageHeight: 720 }), 720)

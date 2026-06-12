@@ -30,7 +30,7 @@ test('emerald keeps a fixed bottom page margin', async () => {
   const paginatedPreview = await readPreviewSource('PaginatedResumePreview.tsx')
   const paginationHook = await readFile(new URL('useLineBasedPagination.ts', hooksRoot), 'utf8')
 
-  assert.match(globalsCss, /\.resume-page\.resume-template-emerald\s*\{[\s\S]*padding-bottom:\s*40px !important;/)
+  assert.match(globalsCss, /\.resume-page\.resume-template-emerald\s*\{[\s\S]*padding-bottom:\s*38px !important;/)
   assert.match(paginatedPreview, /paddingBottom:\s*`\$\{PAGE_PADDING\}px`/)
   assert.match(paginationHook, /options\.fullBleed \? PAGE_PADDING : PAGE_PADDING \* 2/)
 })

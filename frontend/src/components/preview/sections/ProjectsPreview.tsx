@@ -166,7 +166,7 @@ function ProjectItem({
         </div>
 
         {linkItems.length > 0 && (
-          <p className="text-sm text-gray-900" style={{ lineHeight: '1.72', marginBottom: 'calc(var(--spacing-scale, 1) * 6px)' }}>
+          <p className="text-sm text-gray-900" style={{ lineHeight: 'var(--resume-formal-line-height)', marginBottom: 'calc(var(--spacing-scale, 1) * 6px)' }}>
             {linkItems.map((item, index) => (
               <span key={item.label}>
                 {index > 0 && ' | '}
@@ -177,14 +177,14 @@ function ProjectItem({
         )}
 
         {project.overview && (
-          <p className="text-sm text-gray-900" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 8px)', lineHeight: '1.72' }}>
+          <p className="text-sm text-gray-900" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 8px)', lineHeight: 'var(--resume-formal-line-height)' }}>
             {descriptionLabel && <span className="font-semibold">{descriptionLabel}</span>}
             {project.overview}
           </p>
         )}
 
         {highlights.length > 0 && (
-          <ul className="list-disc text-sm text-gray-900" style={{ lineHeight: '1.72', paddingLeft: 18 }}>
+          <ul className="list-disc text-sm text-gray-900" style={{ lineHeight: 'var(--resume-formal-line-height)', paddingLeft: 18 }}>
             {highlights.map((achievement, achIndex) => (
               <li key={achIndex} style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 6px)' }}><BulletLeadText text={achievement} /></li>
             ))}
@@ -258,7 +258,7 @@ function ProjectItem({
           className="text-sm text-gray-900"
           style={{
             marginBottom: 'calc(var(--spacing-scale, 1) * 8px)',
-            lineHeight: 'calc(1.35 + var(--spacing-scale, 1) * 0.25)'
+            lineHeight: 'var(--resume-body-line-height)'
           }}
         >
           <span className="font-semibold text-gray-900">{descriptionLabel || t('projectDescription')}</span>{project.overview}
@@ -270,7 +270,7 @@ function ProjectItem({
           <ul
             className="list-disc list-inside text-sm text-gray-900"
             style={{
-              lineHeight: 'calc(1.35 + var(--spacing-scale, 1) * 0.25)'
+              lineHeight: 'var(--resume-body-line-height)'
             }}
           >
             {highlights.map((achievement, achIndex) => (

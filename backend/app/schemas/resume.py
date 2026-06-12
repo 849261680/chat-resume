@@ -12,7 +12,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -512,6 +512,51 @@ def dump_resume_preview_content_for_list(
     return _prune_empty_frontend_value(preview_content) or {}
 
 
+LayoutDensity = Literal["comfortable", "normal", "compact", "custom"]
+LayoutModule = Literal[
+    "personal",
+    "summary",
+    "education",
+    "work",
+    "projects",
+    "open_source",
+    "skills",
+]
+LayoutTemplateStyle = Literal["classic", "modern", "formal", "emerald"]
+
+
+class LayoutConfigUpdate(BaseModel):
+    density: LayoutDensity
+    moduleOrder: list[LayoutModule]
+    visibleModules: list[LayoutModule]
+    spacingScale: float = Field(ge=0.5, le=1.3)
+    templateStyle: LayoutTemplateStyle = "classic"
+
+    @field_validator("moduleOrder")
+    @classmethod
+    def validate_module_order(cls, value: list[LayoutModule]) -> list[LayoutModule]:
+        """用于拒绝重复模块顺序。"""
+        if len(value) != len(set(value)):
+            raise ValueError("moduleOrder contains duplicate modules")
+        return value
+
+    @model_validator(mode="after")
+    def validate_visible_modules(self) -> "LayoutConfigUpdate":
+        """用于确保可见模块来自当前模块顺序。"""
+        if not set(self.visibleModules).issubset(set(self.moduleOrder)):
+            raise ValueError("visibleModules must be a subset of moduleOrder")
+        return self
+
+
+def validate_layout_config_value(value: Any) -> dict[str, Any] | None:
+    """用于复用 layout_config 校验并输出可存 JSON 的字典。"""
+    if value is None:
+        return None
+    if isinstance(value, LayoutConfigUpdate):
+        return value.model_dump()
+    return LayoutConfigUpdate.model_validate(value).model_dump()
+
+
 class ResumeCreate(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -520,6 +565,12 @@ class ResumeCreate(BaseModel):
     layout_config: Optional[dict[str, Any]] = None
     original_filename: Optional[str] = None
 
+    @field_validator("layout_config", mode="before")
+    @classmethod
+    def validate_layout_config(cls, value: Any) -> dict[str, Any] | None:
+        """用于创建简历时复用布局配置校验。"""
+        return validate_layout_config_value(value)
+
 
 class ResumeUpdate(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -527,14 +578,6 @@ class ResumeUpdate(BaseModel):
     title: Optional[str] = None
     content: Optional[ResumeContent] = None
     original_filename: Optional[str] = None
-
-
-class LayoutConfigUpdate(BaseModel):
-    density: str
-    moduleOrder: list[str]
-    visibleModules: list[str]
-    spacingScale: float
-    templateStyle: str = "classic"
 
 
 class ResumeResponse(BaseModel):

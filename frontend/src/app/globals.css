@@ -315,6 +315,14 @@
   }
 }
 
+.resume-template-classic,
+.resume-template-modern,
+.resume-template-formal,
+.resume-template-emerald {
+  /* 正文行高随 spacingScale 变化：scale=1≈1.64，scale=0.5≈1.47，下限保护可读性。 */
+  --resume-body-line-height: clamp(1.42, calc(1.3 + var(--spacing-scale, 1) * 0.34), 1.9);
+}
+
 .resume-template-modern {
   --resume-accent: #1d4ed8;
   --resume-accent-soft: #eff6ff;
@@ -356,6 +364,7 @@
 .resume-template-formal {
   --resume-formal-text: #050505;
   --resume-formal-rule: #111111;
+  --resume-formal-line-height: var(--resume-body-line-height);
   color: var(--resume-formal-text);
   font-family: Arial, "Noto Sans SC", "Microsoft YaHei", sans-serif;
 }
@@ -392,11 +401,11 @@
 }
 
 .resume-template-formal .resume-formal-contact {
-  line-height: 1.65;
+  line-height: var(--resume-formal-line-height);
 }
 
 .resume-template-formal .resume-formal-item {
-  line-height: 1.65;
+  line-height: var(--resume-formal-line-height);
 }
 
 .resume-template-emerald {
@@ -406,8 +415,7 @@
   --resume-emerald-rule: #e5e7eb;
   --resume-emerald-text: #111827;
   --resume-emerald-muted: #6b7280;
-  /* 正文行高随 spacingScale 压缩：scale=1≈1.64，scale=0.5≈1.47，下限1.42保可读，上限1.9防松散 */
-  --resume-emerald-line-height: clamp(1.42, calc(1.3 + var(--spacing-scale, 1) * 0.34), 1.9);
+  --resume-emerald-line-height: var(--resume-body-line-height);
   color: var(--resume-emerald-text);
   font-family: Arial, "Noto Sans SC", "Microsoft YaHei", sans-serif;
 }
@@ -451,7 +459,7 @@
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 18px;
   font-size: 12px;
-  line-height: 1.65;
+  line-height: var(--resume-emerald-line-height);
 }
 
 .resume-template-emerald .resume-emerald-contact-col {
@@ -528,7 +536,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  line-height: 1.6;
+  line-height: var(--resume-emerald-line-height);
 }
 
 .resume-template-emerald .resume-emerald-strong {
@@ -558,7 +566,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px 14px;
-  line-height: 1.55;
+  line-height: var(--resume-emerald-line-height);
 }
 
 .resume-template-emerald a,

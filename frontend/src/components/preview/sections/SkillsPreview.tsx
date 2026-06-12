@@ -49,7 +49,7 @@ export default function SkillsPreview({ data, renderLines, templateStyle = 'clas
               key={group.id || `${group.category}-${categoryIndex}`}
               data-line-index={lineIndex}
               className={isEmerald ? 'resume-emerald-list text-sm' : 'list-disc text-sm text-gray-900'}
-              style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 8px)', paddingLeft: 18, lineHeight: isEmerald ? 'var(--resume-emerald-line-height)' : '1.72' }}
+              style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 8px)', paddingLeft: 18, lineHeight: isEmerald ? 'var(--resume-emerald-line-height)' : 'var(--resume-formal-line-height)' }}
             >
               <li>
                 <span className="font-semibold">{group.category}：</span>

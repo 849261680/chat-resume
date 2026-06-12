@@ -7,7 +7,9 @@
 
 from typing import Any, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
+
+from app.schemas.resume import validate_layout_config_value
 
 
 class ExportRequest(BaseModel):
@@ -16,6 +18,12 @@ class ExportRequest(BaseModel):
     format: str  # pdf, docx, html
     template: Optional[str] = "default"
     layout_config: Optional[dict[str, Any]] = None
+
+    @field_validator("layout_config", mode="before")
+    @classmethod
+    def validate_layout_config(cls, value: Any) -> dict[str, Any] | None:
+        """用于导出时复用布局配置校验。"""
+        return validate_layout_config_value(value)
 
 
 class ExportResponse(BaseModel):

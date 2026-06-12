@@ -12,6 +12,12 @@ import {
   DENSITY_SPACING_SCALE,
   ResumeTemplateStyle,
 } from '@/lib/resumeLayoutConfig'
+import {
+  MAX_RESUME_SPACING_SCALE,
+  MIN_RESUME_SPACING_SCALE,
+  RESUME_SPACING_SCALE_STEP,
+  clampResumeSpacingScale,
+} from '@/lib/resumeSpacingScale'
 import { useTranslations } from 'next-intl'
 
 interface ResumeLayoutControlsProps {
@@ -87,7 +93,7 @@ export default function ResumeLayoutControls({
       density: 'custom',
       moduleOrder: [...config.moduleOrder],
       visibleModules: new Set(config.visibleModules),
-      spacingScale: value,
+      spacingScale: clampResumeSpacingScale(value),
       templateStyle: config.templateStyle,
     })
   }
@@ -269,10 +275,10 @@ export default function ResumeLayoutControls({
                     </div>
                     <input
                       type="range"
-                      min="0.5"
-                      max="4"
-                      step="0.05"
-                      value={config.spacingScale ?? 1}
+                      min={MIN_RESUME_SPACING_SCALE}
+                      max={MAX_RESUME_SPACING_SCALE}
+                      step={RESUME_SPACING_SCALE_STEP}
+                      value={clampResumeSpacingScale(config.spacingScale ?? 1)}
                       onChange={(e) => handleSpacingScaleChange(parseFloat(e.target.value))}
                       className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
                       style={{ accentColor: '#0052ff', backgroundColor: '#eef0f3' }}

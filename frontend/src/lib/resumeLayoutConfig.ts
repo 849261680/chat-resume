@@ -6,6 +6,7 @@
 
 import type { ModuleConfig, ResumeModule, ResumeTemplateStyle } from '@/types/resumeLayout'
 import { apiUrl } from '@/lib/httpClient'
+import { clampResumeSpacingScale } from './resumeSpacingScale'
 
 export type { ModuleConfig, ResumeModule, ResumeTemplateStyle } from '@/types/resumeLayout'
 
@@ -96,7 +97,7 @@ export interface ResumeLayoutConfig {
   density: LayoutDensity
   moduleOrder: ResumeModule[]
   visibleModules: Set<ResumeModule>
-  spacingScale: number  // 连续间距缩放，范围 0.5–4.0，默认 1.0
+  spacingScale: number  // 连续间距缩放，范围 0.5–1.6，默认 1.0
   templateStyle: ResumeTemplateStyle
 }
 
@@ -127,7 +128,7 @@ export function deserializeLayoutConfig(raw: Record<string, unknown> | null | un
     return {
       density: (raw.density as LayoutDensity) || 'normal',
       moduleOrder: normalizeModuleOrder(raw.moduleOrder),
-      spacingScale: typeof raw.spacingScale === 'number' ? raw.spacingScale : 1.0,
+      spacingScale: typeof raw.spacingScale === 'number' ? clampResumeSpacingScale(raw.spacingScale) : 1.0,
       visibleModules: normalizeVisibleModules(raw.visibleModules),
       templateStyle,
     }

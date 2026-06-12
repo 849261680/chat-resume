@@ -260,8 +260,8 @@ export default function PaginatedResumePreview({
       style={{
         width: `${A4_WIDTH}px`,
         aspectRatio: `${A4_WIDTH / A4_HEIGHT}`,
-        paddingTop: `calc(var(--spacing-scale, 1) * ${PAGE_PADDING}px)`,
-        paddingBottom: `calc(var(--spacing-scale, 1) * ${PAGE_PADDING}px)`,
+        paddingTop: `${PAGE_PADDING}px`,
+        paddingBottom: `${PAGE_PADDING}px`,
         paddingLeft: `${PAGE_PADDING}px`,
         paddingRight: `${PAGE_PADDING}px`,
         boxSizing: 'border-box',

@@ -4584,6 +4584,75 @@ class TestNegativeCases:
         )
         assert resp.status_code == 422
 
+    def test_update_layout_rejects_invalid_density_values(self):
+        """用于验证布局配置拒绝非法密度、模板、模块和间距。"""
+        invalid_payloads = [
+            {
+                "density": "cramped",
+                "moduleOrder": ["personal", "education", "work", "projects", "skills"],
+                "visibleModules": ["personal", "education", "work", "projects", "skills"],
+                "spacingScale": 1.0,
+                "templateStyle": "classic",
+            },
+            {
+                "density": "normal",
+                "moduleOrder": ["personal", "education", "work", "projects", "skills"],
+                "visibleModules": ["personal", "education", "work", "projects", "skills"],
+                "spacingScale": 0.49,
+                "templateStyle": "classic",
+            },
+            {
+                "density": "normal",
+                "moduleOrder": ["personal", "education", "work", "projects", "skills"],
+                "visibleModules": ["personal", "education", "work", "projects", "skills"],
+                "spacingScale": 1.61,
+                "templateStyle": "classic",
+            },
+            {
+                "density": "normal",
+                "moduleOrder": ["personal", "education", "unknown", "work", "projects", "skills"],
+                "visibleModules": ["personal", "education", "work", "projects", "skills"],
+                "spacingScale": 1.0,
+                "templateStyle": "classic",
+            },
+            {
+                "density": "normal",
+                "moduleOrder": ["personal", "education", "work", "projects", "skills"],
+                "visibleModules": ["personal", "education", "work", "projects", "skills"],
+                "spacingScale": 1.0,
+                "templateStyle": "poster",
+            },
+        ]
+
+        for payload in invalid_payloads:
+            resp = self.client.put(
+                f"/api/resumes/{self.resume_id}/layout",
+                json=payload,
+                headers=_auth_headers(self.token),
+            )
+
+            assert resp.status_code == 422
+
+    def test_create_resume_rejects_invalid_layout_config(self):
+        """用于验证创建简历时也校验布局配置。"""
+        resp = self.client.post(
+            "/api/resumes/",
+            json={
+                "title": "非法布局简历",
+                "content": _empty_resume_content(),
+                "layout_config": {
+                    "density": "normal",
+                    "moduleOrder": ["personal", "work"],
+                    "visibleModules": ["personal", "skills"],
+                    "spacingScale": 1.0,
+                    "templateStyle": "classic",
+                },
+            },
+            headers=_auth_headers(self.token),
+        )
+
+        assert resp.status_code == 422
+
     # ── 跨用户布局配置权限 ────────────────────────────────────────────────
 
     def test_other_user_cannot_update_layout(self):

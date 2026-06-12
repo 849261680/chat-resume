@@ -14,6 +14,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError
+from pydantic import ValidationError
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
@@ -21,6 +22,7 @@ if str(BACKEND_DIR) not in sys.path:
 
 import app.services.processing.export_service as export_service_module
 from app.infra.config import settings
+from app.schemas.export import ExportRequest
 from app.services.processing.export_service import ExportService
 
 
@@ -151,6 +153,27 @@ def test_build_frontend_print_url_preserves_layout_config(monkeypatch):
 
     assert payload["template"] == "emerald"
     assert payload["layout_config"] == layout_config
+
+
+def test_export_request_rejects_invalid_layout_config():
+    """用于验证导出请求也会校验布局配置。"""
+    try:
+        ExportRequest.model_validate(
+            {
+                "format": "pdf",
+                "layout_config": {
+                    "density": "normal",
+                    "moduleOrder": ["personal", "work"],
+                    "visibleModules": ["personal", "work"],
+                    "spacingScale": 4.5,
+                    "templateStyle": "classic",
+                },
+            }
+        )
+    except ValidationError as error:
+        assert "layout_config" in str(error)
+    else:
+        raise AssertionError("invalid layout_config should be rejected")
 
 
 def test_render_pdf_with_playwright_uses_expected_page_settings(tmp_path, monkeypatch):

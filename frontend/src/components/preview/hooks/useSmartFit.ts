@@ -10,7 +10,7 @@ import {
   SMART_FIT_TARGET_TOLERANCE,
   SPACING_SCALE_STEP,
 } from './smartFitCore'
-import { A4_HEIGHT, PAGE_PADDING, SAFETY_MARGIN } from './useLineBasedPagination'
+import { A4_HEIGHT, PAGE_PADDING, SAFETY_MARGIN, getPageContentHeight } from './useLineBasedPagination'
 import type { RenderableLine } from './useLineBasedPagination'
 import type { TooMuchContentResult } from './smartFitCore'
 
@@ -31,14 +31,14 @@ interface UseSmartFitOptions {
   measureLines: () => RenderableLine[]
 }
 
-// 对于给定的 scale，计算页面内最后一行允许到达的视觉底线。
-function effectivePageBottom(scale: number) {
-  return A4_HEIGHT - PAGE_PADDING * 2 * scale - SAFETY_MARGIN
+// 用于计算固定页边距下最后一行允许到达的视觉底线。
+function effectivePageBottom() {
+  return getPageContentHeight()
 }
 
-// 目标是让最后一行到底部边距线保留固定距离。
-function targetPageBottom(scale: number) {
-  return A4_HEIGHT - PAGE_PADDING * 2 * scale - SMART_FIT_TARGET_BOTTOM_GAP
+// 用于让最后一行到底部边距线保留固定距离。
+function targetPageBottom() {
+  return A4_HEIGHT - PAGE_PADDING * 2 - SMART_FIT_TARGET_BOTTOM_GAP
 }
 
 // 将试算结果落到可控步长，避免布局滑块出现过细的小数。
@@ -81,7 +81,7 @@ export function useSmartFit({
     try {
       // 当前 scale 下内容在真实页面中的视觉底线
       const currentContentBottom = await measureContentBottom(currentScale)
-      const currentPageBottom = effectivePageBottom(currentScale)
+      const currentPageBottom = effectivePageBottom()
 
       if (abortRef.current) return { status: 'failed' }
 
@@ -91,20 +91,20 @@ export function useSmartFit({
       let bestScale = currentFits ? currentScale : MIN_SPACING_SCALE
 
       if (currentFits) {
-        const targetBottom = targetPageBottom(currentScale)
+        const targetBottom = targetPageBottom()
         if (Math.abs(currentContentBottom - targetBottom) <= SMART_FIT_TARGET_TOLERANCE) {
           return { status: 'already_fits' }
         }
 
         const minContentBottom = await measureContentBottom(MIN_SPACING_SCALE)
-        const minTargetBottom = targetPageBottom(MIN_SPACING_SCALE)
+        const minTargetBottom = targetPageBottom()
         if (abortRef.current) return { status: 'failed' }
         if (minContentBottom > minTargetBottom) {
           bestScale = MIN_SPACING_SCALE
         }
 
         const maxContentBottom = await measureContentBottom(MAX_SPACING_SCALE)
-        const maxTargetBottom = targetPageBottom(MAX_SPACING_SCALE)
+        const maxTargetBottom = targetPageBottom()
         if (abortRef.current) return { status: 'failed' }
         if (maxContentBottom <= maxTargetBottom) {
           bestScale = MAX_SPACING_SCALE
@@ -117,7 +117,7 @@ export function useSmartFit({
             if (abortRef.current) return { status: 'failed' }
             const mid = (lo + hi) / 2
             const h = await measureContentBottom(mid)
-            if (h <= targetPageBottom(mid)) {
+            if (h <= targetPageBottom()) {
               bestScale = mid
               lo = mid
             } else {
@@ -140,7 +140,7 @@ export function useSmartFit({
       } else {
         // 检查最小 scale 能否放下；仍放不下时不再尝试布局密度调整。
         const minContentBottom = await measureContentBottom(MIN_SPACING_SCALE)
-        const minPageBottom = effectivePageBottom(MIN_SPACING_SCALE)
+        const minPageBottom = effectivePageBottom()
 
         if (abortRef.current) return { status: 'failed' }
 
@@ -156,7 +156,7 @@ export function useSmartFit({
         if (abortRef.current) return { status: 'failed' }
         const mid = (lo + hi) / 2
         const h = await measureContentBottom(mid)
-        if (h <= effectivePageBottom(mid)) {
+        if (h <= effectivePageBottom()) {
           bestScale = mid
           lo = mid
         } else {
@@ -170,7 +170,7 @@ export function useSmartFit({
 
       // 验证取整后仍能放下
       let verifyBottom = await measureContentBottom(bestScale)
-      while (verifyBottom > effectivePageBottom(bestScale) && bestScale > MIN_SPACING_SCALE) {
+      while (verifyBottom > effectivePageBottom() && bestScale > MIN_SPACING_SCALE) {
         bestScale = Math.max(MIN_SPACING_SCALE, bestScale - SPACING_SCALE_STEP)
         verifyBottom = await measureContentBottom(bestScale)
       }

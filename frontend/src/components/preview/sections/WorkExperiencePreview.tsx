@@ -52,7 +52,7 @@ function WorkExperienceItem({ work, lineIndex, templateStyle = 'classic' }: { wo
         </div>
 
         {highlights.length > 0 && (
-          <ul className="list-disc text-sm text-gray-900" style={{ lineHeight: '1.72', paddingLeft: 18 }}>
+          <ul className="list-disc text-sm text-gray-900" style={{ lineHeight: 'var(--resume-formal-line-height)', paddingLeft: 18 }}>
             {highlights.map((line, itemIndex) => (
               <li key={itemIndex} style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 6px)' }}><BulletLeadText text={line} /></li>
             ))}
@@ -90,7 +90,7 @@ function WorkExperienceItem({ work, lineIndex, templateStyle = 'classic' }: { wo
           className="text-sm text-gray-900"
           style={{
             marginTop: 'calc(var(--spacing-scale, 1) * 8px)',
-            lineHeight: 'calc(1.35 + var(--spacing-scale, 1) * 0.25)'
+            lineHeight: 'var(--resume-body-line-height)'
           }}
         >
           <ul className="list-disc list-inside">

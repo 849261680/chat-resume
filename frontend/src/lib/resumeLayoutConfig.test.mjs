@@ -12,11 +12,18 @@ registerHooks({
         url: new URL('./httpClient.ts', import.meta.url).href,
       }
     }
+    if (specifier === './resumeSpacingScale') {
+      return {
+        shortCircuit: true,
+        url: new URL('./resumeSpacingScale.ts', import.meta.url).href,
+      }
+    }
     return nextResolve(specifier, context)
   },
 })
 
 const { deserializeLayoutConfig } = await import('./resumeLayoutConfig.ts')
+const { MAX_RESUME_SPACING_SCALE } = await import('./resumeSpacingScale.ts')
 
 const layoutModules = ['personal', 'summary', 'education', 'work', 'projects', 'open_source', 'skills']
 
@@ -49,6 +56,18 @@ test('deserializeLayoutConfig appends the open source module to old layouts', ()
 
   assert.equal(config.moduleOrder.includes('open_source'), true)
   assert.equal(config.visibleModules.has('open_source'), false)
+})
+
+test('deserializeLayoutConfig clamps old overly loose spacing values', () => {
+  const config = deserializeLayoutConfig({
+    density: 'custom',
+    moduleOrder: ['personal', 'summary', 'work'],
+    visibleModules: ['personal', 'summary', 'work'],
+    spacingScale: 3.05,
+    templateStyle: 'classic',
+  })
+
+  assert.equal(config.spacingScale, MAX_RESUME_SPACING_SCALE)
 })
 
 test('resume layout module translations cover every module id', async () => {

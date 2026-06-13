@@ -114,7 +114,7 @@
     "messagePlaceholder": "输入消息...",
     "pasteSelectionToChat": "添加至对话框",
     "acceptChange": "确认修改",
-    "retryWithFeedback": "重写修改",
+    "retryWithFeedback": "重新修改",
     "rewriteFeedbackFallback": "请重写修改这处内容。",
     "toolFeedbackPlaceholder": "输入你希望 Agent 重新生成时参考的反馈...",
     "userInputRequestCustom": "自己输入文字",

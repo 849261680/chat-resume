@@ -1547,7 +1547,7 @@ test.describe('编辑页工作流', () => {
 
     await expect(page.getByPlaceholder('输入你希望 Agent 重新生成时参考的反馈...')).toBeVisible()
     await page.getByPlaceholder('输入你希望 Agent 重新生成时参考的反馈...').fill('补充量化结果，不要只写高并发')
-    await page.getByRole('button', { name: '重写修改' }).click()
+    await page.getByRole('button', { name: '重新修改' }).click()
 
     await expect(page.getByText('已按反馈重新生成修改。')).toBeVisible()
     const confirmCalls = await readResumeAgentConfirmCalls(page)
@@ -1573,8 +1573,8 @@ test.describe('编辑页工作流', () => {
     await input.press('Enter')
 
     await expect(page.getByPlaceholder('输入你希望 Agent 重新生成时参考的反馈...')).toBeVisible()
-    await expect(page.getByRole('button', { name: '重写修改' })).toBeEnabled()
-    await page.getByRole('button', { name: '重写修改' }).click()
+    await expect(page.getByRole('button', { name: '重新修改' })).toBeEnabled()
+    await page.getByRole('button', { name: '重新修改' }).click()
 
     await expect(page.getByText('已按反馈重新生成修改。')).toBeVisible()
     const confirmCalls = await readResumeAgentConfirmCalls(page)

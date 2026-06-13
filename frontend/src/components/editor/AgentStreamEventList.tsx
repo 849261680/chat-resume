@@ -244,9 +244,9 @@ function ToolPendingDiffCard({
         <textarea
           ref={feedbackRef}
           disabled={!isActivePending}
-          rows={2}
+          rows={1}
           placeholder={labels.toolFeedbackPlaceholder}
-          className="w-full resize-none rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs leading-5 text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-blue-500 focus:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+          className="hide-scrollbar h-9 w-full resize-none rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs leading-5 text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-blue-500 focus:bg-white disabled:cursor-not-allowed disabled:opacity-50"
         />
       </div>
       <div className="px-4 py-3 bg-white border-t border-gray-200 flex gap-2">

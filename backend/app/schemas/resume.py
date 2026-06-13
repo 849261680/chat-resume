@@ -480,6 +480,30 @@ def _prune_empty_frontend_value(value: Any) -> Any:
     return value
 
 
+def _prune_empty_agent_value(value: Any) -> Any:
+    """用于裁剪 Agent 上下文里的空白值。"""
+    if isinstance(value, dict):
+        pruned = {key: _prune_empty_agent_value(item) for key, item in value.items()}
+        return {key: item for key, item in pruned.items() if item not in (None, "", [], {})}
+
+    if isinstance(value, list):
+        pruned = [_prune_empty_agent_value(item) for item in value]
+        return [item for item in pruned if item not in (None, "", [], {})]
+
+    if isinstance(value, str) and not value.strip():
+        return ""
+
+    return value
+
+
+def _remove_agent_only_media_fields(content: dict[str, Any]) -> dict[str, Any]:
+    """用于移除 Agent 不需要读取的媒体正文。"""
+    personal_info = content.get("personal_info")
+    if isinstance(personal_info, dict):
+        personal_info.pop("photo_url", None)
+    return content
+
+
 def dump_resume_content_for_frontend(
     content: "ResumeContent | dict[str, Any]",
 ) -> dict[str, Any]:
@@ -494,6 +518,19 @@ def dump_resume_content_for_frontend(
         include=_FRONTEND_RESUME_CONTENT_INCLUDE,
     )
     return _prune_empty_frontend_value(frontend_content) or {}
+
+
+def dump_resume_content_for_agent(
+    content: "ResumeContent | dict[str, Any]",
+) -> dict[str, Any]:
+    """输出 Agent 提示词可读取的完整简历结构。"""
+    normalized = (
+        content
+        if isinstance(content, ResumeContent)
+        else ResumeContent.model_validate(content)
+    )
+    agent_content = normalized.model_dump(mode="json")
+    return _prune_empty_agent_value(_remove_agent_only_media_fields(agent_content)) or {}
 
 
 def dump_resume_preview_content_for_list(

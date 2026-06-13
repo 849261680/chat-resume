@@ -6,23 +6,41 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
+from .add_resume_item_tool import add_resume_item
 from .add_bullet_tool import add_bullet
 from .ask_user_tool import ask_user
 from .job_post_tool import list_job_posts, read_job_post
 from .memory_tool import read_memory, update_memory
 from .remove_bullet_tool import remove_bullet
+from .remove_resume_item_tool import remove_resume_item
 from .resume_item_tool import hide_section, show_section
 from .update_bullet_tool import update_bullet
-from .update_item_fields_tool import update_item_fields
+from .update_item_fields_tool import ITEM_FIELD_WHITELIST, update_item_fields
 from .update_overview_tool import update_overview
 from .update_profile_tool import update_profile
 from .update_skills_tool import update_skills
 from .update_summary_tool import update_summary
 from .upsert_job_application_tool import upsert_job_application
-from .evaluate_bullet_tool import evaluate_bullet
 
-_ITEM_FIELD_SECTIONS = ["education", "work_experience", "projects"]
+_ITEM_FIELD_SECTIONS = ["education", "work_experience", "projects", "open_source"]
 _BULLET_SECTIONS = ["education", "work_experience", "projects", "open_source"]
+_RESUME_LINK_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "id": {"type": "string"},
+        "label": {"type": "string"},
+        "url": {"type": "string"},
+    },
+}
+_ITEM_FIELD_SCHEMA_PROPERTIES: dict[str, Any] = {
+    field: {"type": "string"}
+    for fields in ITEM_FIELD_WHITELIST.values()
+    for field in fields
+}
+_ITEM_FIELD_SCHEMA_PROPERTIES["links"] = {
+    "type": "array",
+    "items": _RESUME_LINK_SCHEMA,
+}
 ResumeToolResult = dict[str, Any] | Awaitable[dict[str, Any]]
 
 RESUME_AUTO_EXECUTE_TOOL_NAMES: set[str] = {
@@ -40,6 +58,8 @@ RESUME_TOOL_PROFILES: dict[str, set[str]] = {
         "update_profile",
         "upsert_job_application",
         "update_item_fields",
+        "add_resume_item",
+        "remove_resume_item",
         "update_skills",
         "show_section",
         "hide_section",
@@ -65,15 +85,16 @@ RESUME_TOOL_REQUIRED_ARGS: dict[str, set[str]] = {
     "update_summary": {"text"},
     "update_profile": {"fields"},
     "update_item_fields": {"section", "item_id", "fields"},
+    "add_resume_item": {"section", "fields"},
+    "remove_resume_item": {"section", "item_id"},
     "upsert_job_application": {"fields"},
-    "update_skills": {"category_id", "items"},
+    "update_skills": {"category_id"},
     "show_section": {"section"},
     "hide_section": {"section"},
     "update_overview": {"section", "item_id", "overview"},
     "update_bullet": {"section", "item_id", "bullet_id", "text"},
     "add_bullet": {"section", "item_id", "text"},
     "remove_bullet": {"section", "item_id", "bullet_id"},
-    "evaluate_bullet": {"section", "item_id", "bullet_id"},
     "list_job_posts": set(),
     "read_job_post": {"job_post_id"},
     "read_memory": {"scope"},
@@ -82,7 +103,9 @@ RESUME_TOOL_REQUIRED_ARGS: dict[str, set[str]] = {
 
 RESUME_TOOL_SECTION_ENUMS: dict[str, set[str]] = {
     "update_overview": {"projects"},
-    "update_item_fields": {"education", "work_experience", "projects"},
+    "update_item_fields": {"education", "work_experience", "projects", "open_source"},
+    "add_resume_item": {"education", "work_experience", "projects", "open_source"},
+    "remove_resume_item": {"education", "work_experience", "projects", "open_source"},
     # 接受模块 id 以及 agent 参数归一化后的 content key（如 work→work_experience）
     "show_section": {
         "personal",
@@ -107,7 +130,6 @@ RESUME_TOOL_SECTION_ENUMS: dict[str, set[str]] = {
     "update_bullet": {"education", "work_experience", "projects", "open_source"},
     "add_bullet": {"education", "work_experience", "projects", "open_source"},
     "remove_bullet": {"education", "work_experience", "projects", "open_source"},
-    "evaluate_bullet": {"education", "work_experience", "projects", "open_source"},
 }
 
 RESUME_TOOL_DISPLAY_NAMES = {
@@ -115,6 +137,8 @@ RESUME_TOOL_DISPLAY_NAMES = {
     "update_profile": "优化个人信息",
     "upsert_job_application": "更新求职目标",
     "update_item_fields": "优化条目字段",
+    "add_resume_item": "新增经历条目",
+    "remove_resume_item": "删除经历条目",
     "update_skills": "优化技能",
     "show_section": "显示板块",
     "hide_section": "隐藏板块",
@@ -122,7 +146,6 @@ RESUME_TOOL_DISPLAY_NAMES = {
     "update_bullet": "优化要点",
     "add_bullet": "新增要点",
     "remove_bullet": "删除要点",
-    "evaluate_bullet": "评价要点",
     "list_job_posts": "读取JD列表",
     "read_job_post": "读取JD",
     "read_memory": "读取记忆",
@@ -280,8 +303,9 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
         "function": {
             "name": "update_skills",
             "description": (
-                "修改技能分类名称或技能列表。"
-                "category_id 必须来自当前简历；mode=replace 替换，mode=merge 追加去重。"
+                "新增、修改或删除技能分类。"
+                "category_id 命中当前简历时更新该分类；未命中且 mode 不是 remove 时创建新分类。"
+                "mode=replace 替换技能列表，mode=merge 追加去重，mode=remove 删除整个分类。"
                 "只能写入简历或用户明确提供的技能。"
             ),
             "parameters": {
@@ -298,19 +322,84 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
                     "skills": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "技能列表",
+                        "description": "技能列表；replace/merge 必填，remove 不需要",
                     },
                     "mode": {
                         "type": "string",
-                        "enum": ["replace", "merge"],
-                        "description": "replace 替换列表，merge 合并追加",
+                        "enum": ["replace", "merge", "remove"],
+                        "description": "replace 替换列表，merge 合并追加，remove 删除整个分类",
                     },
                     "reason": {
                         "type": "string",
                         "description": "本次修改的简短理由，供前端展示",
                     },
                 },
-                "required": ["category_id", "skills"],
+                "required": ["category_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "remove_resume_item",
+            "description": (
+                "删除一整条教育、工作、项目或开源经历。"
+                "section 只能是 education、work_experience、projects、open_source；item_id 必须来自当前简历。"
+                "只在用户明确要求删除整段经历/项目/教育/开源条目时使用；删除单条 bullet 用 remove_bullet。"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "section": {"type": "string", "enum": _ITEM_FIELD_SECTIONS},
+                    "item_id": {
+                        "type": "string",
+                        "description": "要删除的教育/工作/项目/开源条目的 id",
+                    },
+                    "reason": {
+                        "type": "string",
+                        "description": "本次删除的简短理由，供前端展示",
+                    },
+                },
+                "required": ["section", "item_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "add_resume_item",
+            "description": (
+                "新增教育、工作、项目或开源条目。"
+                "从零创建简历或目标条目不存在时使用；新增后再用 add_bullet 追加亮点。"
+                "section 只能是 education、work_experience、projects、open_source。"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "section": {"type": "string", "enum": _ITEM_FIELD_SECTIONS},
+                    "item_id": {
+                        "type": "string",
+                        "description": "可选条目 id；缺省时系统自动生成",
+                    },
+                    "fields": {
+                        "type": "object",
+                        "description": (
+                            "要新增的条目字段。education 支持 school/major/degree/duration/"
+                            "start_date/end_date/location/gpa；work_experience 支持 "
+                            "company/position/duration/start_date/end_date/"
+                            "location/employment_type；projects/open_source 支持 "
+                            "name/overview/role/duration/start_date/end_date/"
+                            "github_url/demo_url/links。"
+                        ),
+                        "properties": _ITEM_FIELD_SCHEMA_PROPERTIES,
+                        "additionalProperties": False,
+                    },
+                    "reason": {
+                        "type": "string",
+                        "description": "本次新增的简短理由，供前端展示",
+                    },
+                },
+                "required": ["section", "fields"],
             },
         },
     },
@@ -319,9 +408,9 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
         "function": {
             "name": "update_item_fields",
             "description": (
-                "修改工作、项目、教育条目的非 bullet 字段。"
-                "section 只能是 education、work_experience、projects；item_id 必须来自当前简历。"
-                "不修改亮点文本；改 bullet 用 update_bullet；不允许修改 is_current。"
+                "修改工作、项目、开源、教育条目的非 bullet 字段。"
+                "section 只能是 education、work_experience、projects、open_source；item_id 必须来自当前简历。"
+                "目标条目不存在时先用 add_resume_item；不修改亮点文本；改 bullet 用 update_bullet；不允许修改 is_current。"
             ),
             "parameters": {
                 "type": "object",
@@ -337,10 +426,12 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
                             "要更新的字段。education 支持 school/major/degree/duration/"
                             "start_date/end_date/location/gpa；work_experience 支持 "
                             "company/position/duration/start_date/end_date/"
-                            "location/employment_type；projects 支持 "
+                            "location/employment_type；projects/open_source 支持 "
                             "name/overview/role/duration/start_date/end_date/"
                             "github_url/demo_url/links。is_current 是内部派生字段，不允许直接修改。"
                         ),
+                        "properties": _ITEM_FIELD_SCHEMA_PROPERTIES,
+                        "additionalProperties": False,
                     },
                     "reason": {
                         "type": "string",
@@ -378,7 +469,7 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
                             "phone": {"type": "string"},
                             "links": {
                                 "type": "array",
-                                "items": {"type": "object"},
+                                "items": _RESUME_LINK_SCHEMA,
                             },
                         },
                         "additionalProperties": False,
@@ -529,35 +620,6 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
                     },
                 },
                 "required": ["job_post_id"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "evaluate_bullet",
-            "description": (
-                "评价单条 bullet/亮点质量，只读不改。"
-                "从量化、动作、结果影响、主导性和说服力维度打分。"
-                "section、item_id、bullet_id 必须来自当前简历。"
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "section": {
-                        "type": "string",
-                        "enum": _BULLET_SECTIONS,
-                    },
-                    "item_id": {
-                        "type": "string",
-                        "description": "经历/项目/教育条目的 id",
-                    },
-                    "bullet_id": {
-                        "type": "string",
-                        "description": "要评价的 bullet id",
-                    },
-                },
-                "required": ["section", "item_id", "bullet_id"],
             },
         },
     },
@@ -776,6 +838,16 @@ RESUME_TOOL_CATALOG: tuple[ResumeToolDefinition, ...] = (
         _SCHEMA_BY_NAME.get("upsert_job_application"),
     ),
     ResumeToolDefinition(
+        "add_resume_item",
+        add_resume_item,
+        _SCHEMA_BY_NAME.get("add_resume_item"),
+    ),
+    ResumeToolDefinition(
+        "remove_resume_item",
+        remove_resume_item,
+        _SCHEMA_BY_NAME.get("remove_resume_item"),
+    ),
+    ResumeToolDefinition(
         "update_item_fields",
         update_item_fields,
         _SCHEMA_BY_NAME.get("update_item_fields"),
@@ -810,11 +882,6 @@ RESUME_TOOL_CATALOG: tuple[ResumeToolDefinition, ...] = (
         "remove_bullet",
         remove_bullet,
         _SCHEMA_BY_NAME.get("remove_bullet"),
-    ),
-    ResumeToolDefinition(
-        "evaluate_bullet",
-        evaluate_bullet,
-        _SCHEMA_BY_NAME.get("evaluate_bullet"),
     ),
     ResumeToolDefinition(
         "list_job_posts",

@@ -36,6 +36,12 @@ from app.agents.resume.message_conversion import convert_resume_messages_to_llm
 from app.infra.config import settings
 from app.runtime.contracts import AgentDefinition
 from app.runtime.openai_agents_eval import current_openai_agents_trace_config
+from app.runtime.openai_agents_tools import (
+    compact_tool_arguments,
+    strict_tool_params_schema,
+    tool_input_guardrail,
+    tool_output_guardrail,
+)
 
 OPENAI_AGENTS_PROVIDER_OPENAI = "openai"
 OPENAI_AGENTS_PROVIDER_DEEPSEEK = "deepseek"
@@ -227,7 +233,7 @@ class OpenAIAgentsStreamAdapter:
     def provider_run_config(self, model: Model, options: SimpleStreamOptions) -> RunConfig:
         """用于按 provider 创建基础 SDK RunConfig。"""
         if self.sdk_model is not None:
-            return RunConfig()
+            return RunConfig(tracing_disabled=True)
         if model.provider == OPENAI_AGENTS_PROVIDER_DEEPSEEK:
             return RunConfig(
                 model=model.id,
@@ -260,23 +266,28 @@ class OpenAIAgentsStreamAdapter:
 
         async def on_invoke_tool(tool_context: Any, raw_input: str) -> str:
             """用于把 SDK 工具调用转交给现有业务工具执行器。"""
-            params = OpenAIAgentsStreamAdapter.parse_tool_arguments(raw_input)
+            params = compact_tool_arguments(
+                OpenAIAgentsStreamAdapter.parse_tool_arguments(raw_input)
+            )
             result = tool.execute(tool_context.tool_call_id, params)
             if inspect.isawaitable(result):
                 result = await result
             if result is None:
                 return ""
             return OpenAIAgentsStreamAdapter.text_from_content(result.content)
+        required = list(tool.parameters.required or [])
         return FunctionTool(
             name=str(tool.name),
             description=str(tool.description),
-            params_json_schema={
+            params_json_schema=strict_tool_params_schema({
                 "type": str(tool.parameters.type or "object"),
                 "properties": dict(tool.parameters.properties or {}),
-                "required": list(tool.parameters.required or []),
-            },
+                "required": required,
+            }),
             on_invoke_tool=on_invoke_tool,
-            strict_json_schema=False,
+            strict_json_schema=True,
+            tool_input_guardrails=[tool_input_guardrail(required)],
+            tool_output_guardrails=[tool_output_guardrail()],
             needs_approval=getattr(tool, "_sdk_needs_approval", False),
         )
 

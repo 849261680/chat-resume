@@ -71,6 +71,10 @@ from app.agents.resume.tool_execution import ResumeToolExecutionStage  # noqa: E
 from app.agents.resume.turn_context import ResumeTurnContextBuilder  # noqa: E402
 from app.infra.config import settings  # noqa: E402
 from app.agents.resume.message_conversion import convert_resume_messages_to_llm  # noqa: E402
+from app.agents.resume.observability import (  # noqa: E402
+    bind_observability_state,
+    reset_observability_state,
+)
 from app.runtime.openrouter_adapter import build_openrouter_config  # noqa: E402
 from app.runtime.openai_agents_adapter import (  # noqa: E402
     OpenAIAgentsStreamAdapter,
@@ -100,6 +104,7 @@ from agents.model_settings import ModelSettings  # noqa: E402
 from agents.models.interface import Model as OpenAIAgentsModel  # noqa: E402
 from agents.models.interface import ModelTracing  # noqa: E402
 from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel  # noqa: E402
+from agents.tool import FunctionTool  # noqa: E402
 from agents.tool import Tool  # noqa: E402
 from agents.usage import Usage as OpenAIAgentsUsage  # noqa: E402
 
@@ -684,16 +689,32 @@ def test_resume_turn_context_builder_prepares_profiled_tools_independently():
     assert config.convert_to_llm is not None
 
 
-def test_system_prompt_resume_json_hides_technologies_compat_fields():
-    """用于验证提示词中的简历 JSON 不暴露兼容用 technologies 字段。"""
+def test_system_prompt_resume_json_keeps_full_resume_fields():
+    """用于验证提示词中的简历 JSON 保留完整简历字段。"""
     agent = ResumeAgent()
     state = _new_test_stream_state()
     context = {
         "resume_content": {
+            "meta": {"target_role": "AI 工程负责人"},
+            "job_application": {
+                "target_company": "理想公司",
+                "target_title": "Agent 工程师",
+                "jd_text": "负责多 Agent 系统",
+            },
+            "personal_info": {
+                "name": "张三",
+                "email": "zhangsan@example.com",
+                "photo_url": "data:image/jpeg;base64,avatar-payload",
+            },
+            "summary": {"text": "5 年全栈开发经验"},
+            "education": [
+                {"id": "edu_1", "school": "浙江大学", "degree": "本科"}
+            ],
             "work_experience": [
                 {
                     "id": "work_1",
                     "company": "某科技公司",
+                    "position": "后端工程师",
                     "technologies": ["Python"],
                 }
             ],
@@ -703,6 +724,14 @@ def test_system_prompt_resume_json_hides_technologies_compat_fields():
                     "name": "Deep Research Agent",
                     "technologies": ["LangChain"],
                 }
+            ],
+            "skills": [{"id": "skill_1", "category": "后端", "items": ["FastAPI"]}],
+            "open_source": [
+                {"id": "oss_1", "name": "Open Resume", "overview": "开源简历解析器"}
+            ],
+            "languages": [{"id": "lang_1", "name": "英语", "level": "CET-6"}],
+            "custom_sections": [
+                {"id": "custom_1", "title": "专利", "content": "一种简历优化方法"}
             ],
         }
     }
@@ -714,8 +743,52 @@ def test_system_prompt_resume_json_hides_technologies_compat_fields():
         state=state,
     )
 
-    assert "technologies" not in pi_context.system_prompt
+    assert "AI 工程负责人" in pi_context.system_prompt
+    assert "负责多 Agent 系统" in pi_context.system_prompt
+    assert "zhangsan@example.com" in pi_context.system_prompt
+    assert "photo_url" not in pi_context.system_prompt
+    assert "avatar-payload" not in pi_context.system_prompt
+    assert "5 年全栈开发经验" in pi_context.system_prompt
+    assert "浙江大学" in pi_context.system_prompt
+    assert "technologies" in pi_context.system_prompt
+    assert "Python" in pi_context.system_prompt
+    assert "LangChain" in pi_context.system_prompt
     assert "Deep Research Agent" in pi_context.system_prompt
+    assert "FastAPI" in pi_context.system_prompt
+    assert "开源简历解析器" in pi_context.system_prompt
+    assert "CET-6" in pi_context.system_prompt
+    assert "一种简历优化方法" in pi_context.system_prompt
+
+
+def test_system_prompt_resume_json_does_not_compact_long_resume():
+    """用于验证 Agent 当前简历上下文不被摘要替换。"""
+    agent = ResumeAgent()
+    state = _new_test_stream_state()
+    long_overview = "负责 Agent 简历优化" * 300
+    context = {
+        "resume_content": {
+            "summary": {"text": "长期负责 AI 产品工程化"},
+            "projects": [
+                {
+                    "id": "proj_long",
+                    "name": "Chat Resume",
+                    "overview": long_overview,
+                    "highlights": [{"id": "hl_1", "text": "实现流式优化"}],
+                }
+            ],
+        },
+        "conversation_history": [{"role": "user", "content": "优化项目" * 300}],
+    }
+
+    pi_context, _prompts, _config = _build_test_turn_inputs(
+        agent,
+        user_message="读取完整简历",
+        context=context,
+        state=state,
+    )
+
+    assert '"summary_mode"' not in pi_context.system_prompt
+    assert long_overview in pi_context.system_prompt
 
 
 def test_job_match_message_still_exposes_resume_tools_for_model_choice():
@@ -832,8 +905,8 @@ async def test_resume_agent_runner_runs_sync_independently():
 
 
 @pytest.mark.asyncio
-async def test_resume_react_stream_adapter_keeps_one_tool_call_per_turn():
-    """用于验证 ReAct stream adapter 可脱离 ResumeAgentRuntime 裁剪工具调用。"""
+async def test_resume_react_stream_adapter_preserves_tool_calls_per_turn():
+    """用于验证 ReAct stream adapter 保留同轮多个工具调用。"""
     message = AssistantMessage(
         content=[
             ToolCall(id="call_1", name="update_bullet", arguments={"text": "A"}),
@@ -850,7 +923,59 @@ async def test_resume_react_stream_adapter_keeps_one_tool_call_per_turn():
         result = await result
 
     assert isinstance(result, AssistantMessage)
-    assert [block.id for block in result.content if isinstance(block, ToolCall)] == ["call_1"]
+    assert [block.id for block in result.content if isinstance(block, ToolCall)] == [
+        "call_1",
+        "call_2",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_resume_agent_runner_executes_multiple_tool_calls_in_one_turn():
+    """用于验证同一轮多个工具调用会按顺序执行而不是静默丢弃。"""
+    agent = ResumeAgent()
+    stage = ResumeToolExecutionStage()
+    multi_tool_message = AssistantMessage(
+        content=[
+            ToolCall(
+                id="call_summary",
+                name="update_summary",
+                arguments={"text": "具备 AI Agent 工程经验。"},
+            ),
+            ToolCall(
+                id="call_profile",
+                name="update_profile",
+                arguments={"fields": {"headline": "AI Agent Engineer"}},
+            ),
+        ],
+        stop_reason="toolUse",
+    )
+    loop = ResumeAgentLoop(
+        stream_fn=FakeLoopStream([multi_tool_message, fake_loop_text("已完成两处修改。")]),
+        tool_stage=stage,
+    )
+    runner = ResumeAgentRunner(
+        agent_loop=loop,
+        turn_context_builder=ResumeTurnContextBuilder(tool_stage=stage),
+        lifecycle=ResumeRunLifecycle(model_name_provider=lambda: "test-model"),
+        model_name_provider=lambda: "test-model",
+    )
+    resume_content = {"summary": {"text": "旧总结"}, "personal_info": {}}
+
+    result = await runner.run(
+        agent=agent.definition,
+        user_message="同时优化总结和个人标题",
+        context={"resume_content": resume_content},
+        conversation_history=[],
+    )
+
+    assert result["content"] == "已完成两处修改。"
+    assert [item["name"] for item in result["tool_calls"]] == [
+        "优化总结",
+        "优化个人信息",
+    ]
+    assert all(item["success"] is True for item in result["tool_calls"])
+    assert resume_content["summary"]["text"] == "具备 AI Agent 工程经验。"
+    assert resume_content["personal_info"]["headline"] == "AI Agent Engineer"
 
 
 @pytest.mark.asyncio
@@ -864,11 +989,16 @@ async def test_openai_agents_adapter_returns_text_message_from_sdk_agent():
         tools=[],
     )
 
-    response = await adapter(
-        Model(api="responses", provider="openai-agents", id="test-model"),
-        context,
-        SimpleStreamOptions(api_key="test-key", temperature=0.2, max_tokens=128),
-    )
+    state = {"guardrail_rejected_count": 0}
+    token = bind_observability_state(state)
+    try:
+        response = await adapter(
+            Model(api="responses", provider="openai-agents", id="test-model"),
+            context,
+            SimpleStreamOptions(api_key="test-key", temperature=0.2, max_tokens=128),
+        )
+    finally:
+        reset_observability_state(token)
     result = response["result"]()
     if inspect.isawaitable(result):
         result = await result
@@ -886,7 +1016,7 @@ async def test_openai_agents_adapter_returns_text_message_from_sdk_agent():
 async def test_openai_agents_adapter_executes_function_tools_with_sdk_loop():
     """用于验证 SDK FunctionTool 直接执行业务工具并继续生成最终回复。"""
     sdk_model = FakeOpenAIAgentsModel([
-        [fake_sdk_tool_call("update_bullet", '{"section":"projects"}')],
+        [fake_sdk_tool_call("update_bullet", '{"section":"projects","reason":null}')],
         [fake_sdk_message("工具已执行。")],
     ])
     adapter = OpenAIAgentsStreamAdapter(sdk_model=sdk_model)
@@ -906,7 +1036,10 @@ async def test_openai_agents_adapter_executes_function_tools_with_sdk_loop():
                 description="更新已有简历要点。",
                 parameters=AgentToolSchema(
                     type="object",
-                    properties={"section": {"type": "string"}},
+                    properties={
+                        "section": {"type": "string"},
+                        "reason": {"type": "string"},
+                    },
                     required=["section"],
                 ),
                 execute=execute_tool,
@@ -928,8 +1061,128 @@ async def test_openai_agents_adapter_executes_function_tools_with_sdk_loop():
         "工具已执行。"
     ]
     assert len(sdk_model.inputs) == 2
-    assert sdk_model.tools[0][0].name == "update_bullet"
-    assert getattr(sdk_model.tools[0][0], "needs_approval") is False
+    sdk_tool = cast(FunctionTool, sdk_model.tools[0][0])
+    assert sdk_tool.name == "update_bullet"
+    assert getattr(sdk_tool, "strict_json_schema") is True
+    assert getattr(sdk_tool, "needs_approval") is False
+    assert getattr(sdk_tool, "tool_input_guardrails")
+    assert getattr(sdk_tool, "tool_output_guardrails")
+    assert set(sdk_tool.params_json_schema["required"]) == {"section", "reason"}
+    assert sdk_tool.params_json_schema["additionalProperties"] is False
+    assert sdk_tool.params_json_schema["properties"]["reason"]["anyOf"][1]["type"] == "null"
+
+
+@pytest.mark.asyncio
+async def test_openai_agents_adapter_rejects_invalid_tool_json_with_sdk_guardrail():
+    """用于验证 SDK tool input guardrail 会拦截非法 JSON 参数。"""
+    sdk_model = FakeOpenAIAgentsModel([
+        [fake_sdk_tool_call("update_bullet", "{bad-json")],
+        [fake_sdk_message("请重新提供工具参数。")],
+    ])
+    adapter = OpenAIAgentsStreamAdapter(sdk_model=sdk_model)
+
+    async def execute_tool(_tool_call_id: str, _params: dict[str, Any]) -> AgentToolResult:
+        """用于确保非法参数不会进入业务工具。"""
+        raise AssertionError("invalid tool arguments must be rejected before execution")
+
+    context = AgentContext(
+        system_prompt="你是简历优化 Agent。",
+        messages=[UserMessage(content=[TextContent(text="优化项目 bullet")])],
+        tools=[
+            AgentTool(
+                name="update_bullet",
+                description="更新已有简历要点。",
+                parameters=AgentToolSchema(
+                    type="object",
+                    properties={"section": {"type": "string"}},
+                    required=["section"],
+                ),
+                execute=execute_tool,
+            )
+        ],
+    )
+
+    state = {"guardrail_rejected_count": 0}
+    token = bind_observability_state(state)
+    try:
+        response = await adapter(
+            Model(api="responses", provider="openai-agents", id="test-model"),
+            context,
+            SimpleStreamOptions(api_key="test-key", temperature=0.2, max_tokens=128),
+        )
+    finally:
+        reset_observability_state(token)
+    result = response["result"]()
+    if inspect.isawaitable(result):
+        result = await result
+
+    assert [block.text for block in result.content if isinstance(block, TextContent)] == [
+        "请重新提供工具参数。"
+    ]
+    assert len(sdk_model.inputs) == 2
+    assert state["guardrail_rejected_count"] == 1
+
+
+def test_openai_agents_adapter_builds_strict_schema_for_real_update_item_fields_tool():
+    """用于验证真实字段更新工具可安全使用 SDK strict schema。"""
+    agent = ResumeAgent()
+    stage = ResumeToolExecutionStage()
+    builder = ResumeTurnContextBuilder(tool_stage=stage)
+    state = _new_test_stream_state()
+    pi_context, _prompts, _config = builder.build_loop_inputs(
+        agent=agent.definition,
+        user_message="更新项目简介",
+        context={"resume_content": {"projects": []}, "allowed_sections": {"projects"}},
+        conversation_history=[],
+        run_id="run_strict_schema",
+        confirmation_queue=None,
+        event_queue=None,
+        event_callback=None,
+        executed_tools=[],
+        stream_state=state,
+    )
+    tool = next(item for item in pi_context.tools if item.name == "update_item_fields")
+
+    sdk_tool = OpenAIAgentsStreamAdapter.function_tool(tool)
+    fields_schema = sdk_tool.params_json_schema["properties"]["fields"]
+
+    assert sdk_tool.strict_json_schema is True
+    assert fields_schema["additionalProperties"] is False
+    assert "overview" in fields_schema["properties"]
+    assert "is_current" not in fields_schema["properties"]
+    assert set(fields_schema["required"]) == set(fields_schema["properties"])
+    assert fields_schema["properties"]["overview"]["anyOf"][1]["type"] == "null"
+
+
+def test_openai_agents_adapter_builds_strict_schema_for_all_resume_tools():
+    """用于验证所有真实简历工具都能转换成 strict SDK FunctionTool。"""
+    agent = ResumeAgent()
+    stage = ResumeToolExecutionStage()
+    builder = ResumeTurnContextBuilder(tool_stage=stage)
+    state = _new_test_stream_state()
+    pi_context, _prompts, _config = builder.build_loop_inputs(
+        agent=agent.definition,
+        user_message="分析并优化简历",
+        context={"resume_content": {"projects": []}, "allowed_sections": None},
+        conversation_history=[],
+        run_id="run_all_strict_schema",
+        confirmation_queue=None,
+        event_queue=None,
+        event_callback=None,
+        executed_tools=[],
+        stream_state=state,
+    )
+
+    sdk_tools = [
+        OpenAIAgentsStreamAdapter.function_tool(tool)
+        for tool in pi_context.tools
+    ]
+
+    assert {tool.name for tool in sdk_tools} == {tool.name for tool in pi_context.tools}
+    assert all(tool.strict_json_schema is True for tool in sdk_tools)
+    assert all(tool.params_json_schema["additionalProperties"] is False for tool in sdk_tools)
+    assert all(tool.tool_input_guardrails for tool in sdk_tools)
+    assert all(tool.tool_output_guardrails for tool in sdk_tools)
 
 
 @pytest.mark.asyncio
@@ -1169,6 +1422,69 @@ async def test_openai_agents_adapter_uses_sdk_hitl_for_resume_confirmation():
     assert executed_tools[0]["success"] is True
     assert len(sdk_model.inputs) == 2
 
+
+@pytest.mark.asyncio
+async def test_openai_agents_adapter_executes_update_skills_schema_alias():
+    """用于验证 SDK 原生路径可执行 update_skills 的 schema 参数名。"""
+    agent = ResumeAgent()
+    stage = ResumeToolExecutionStage()
+    builder = ResumeTurnContextBuilder(tool_stage=stage)
+    resume = {
+        "skills": [{"id": "skill_1", "category": "AI", "items": ["Agent"]}]
+    }
+    state = _new_test_stream_state()
+    confirmation_queue: asyncio.Queue[bool] = asyncio.Queue()
+    confirmation_queue.put_nowait(True)
+    executed_tools: list[dict[str, Any]] = []
+    pi_context, prompts, _config = builder.build_loop_inputs(
+        agent=agent.definition,
+        user_message="把 AI 技能替换成 OpenAI Agents SDK 和 RAG",
+        context={"resume_content": resume, "allowed_sections": {"skills"}},
+        conversation_history=[],
+        run_id="run_sdk_update_skills",
+        confirmation_queue=confirmation_queue,
+        event_queue=None,
+        event_callback=None,
+        executed_tools=executed_tools,
+        stream_state=state,
+    )
+    sdk_model = FakeOpenAIAgentsModel([
+        [
+            fake_sdk_tool_call(
+                "update_skills",
+                (
+                    '{"category_id":"skill_1",'
+                    '"skills":["OpenAI Agents SDK","RAG"],'
+                    '"mode":"replace","reason":"用户要求替换 AI 技能"}'
+                ),
+            )
+        ],
+        [fake_sdk_message("已更新技能。")],
+    ])
+    adapter = OpenAIAgentsStreamAdapter(sdk_model=sdk_model)
+    sdk_context = AgentContext(
+        system_prompt=pi_context.system_prompt,
+        messages=[*pi_context.messages, *prompts],
+        tools=pi_context.tools,
+    )
+
+    response = await adapter(
+        Model(api="responses", provider="openai-agents", id="test-model"),
+        sdk_context,
+        SimpleStreamOptions(api_key="test-key", temperature=0.2, max_tokens=128),
+    )
+    result = response["result"]()
+    if inspect.isawaitable(result):
+        result = await result
+
+    assert [block.text for block in result.content if isinstance(block, TextContent)] == [
+        "已更新技能。"
+    ]
+    assert resume["skills"][0]["items"] == ["OpenAI Agents SDK", "RAG"]
+    assert executed_tools[0]["success"] is True
+    assert len(sdk_model.inputs) == 2
+
+
 @pytest.mark.asyncio
 async def test_openai_agents_adapter_stops_on_terminal_tool_result():
     """用于验证 SDK 原生工具循环保留 ask_user 等终止型工具语义。"""
@@ -1346,7 +1662,8 @@ def test_openai_agents_function_tool_keeps_deepseek_safe_skill_schema():
     properties = function_tool.params_json_schema["properties"]
     assert "skills" in properties
     assert "items" not in properties
-    assert function_tool.params_json_schema["required"] == ["category_id", "skills"]
+    assert set(function_tool.params_json_schema["required"]) == set(properties)
+    assert properties["category"]["anyOf"][1]["type"] == "null"
 
 
 def test_allowed_tool_call_uses_normal_detection_trace(
@@ -2473,8 +2790,10 @@ async def test_stream_assistant_turn_only_publishes_first_tool_call_event():
     assert tool_call_events[0]["call_id"] == "call_first"
     assert state["visible_tool_call_ids"] == {"call_first"}
     tool_calls_in_message = [b for b in assistant_message.content if isinstance(b, ToolCall)]
-    assert len(tool_calls_in_message) == 1
-    assert tool_calls_in_message[0].id == "call_first"
+    assert [tool_call.id for tool_call in tool_calls_in_message] == [
+        "call_first",
+        "call_second",
+    ]
 
 
 @pytest.mark.asyncio

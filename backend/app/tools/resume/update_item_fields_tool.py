@@ -37,6 +37,17 @@ ITEM_FIELD_WHITELIST = {
         "demo_url",
         "links",
     },
+    "open_source": {
+        "name",
+        "overview",
+        "role",
+        "duration",
+        "start_date",
+        "end_date",
+        "github_url",
+        "demo_url",
+        "links",
+    },
 }
 
 
@@ -47,7 +58,7 @@ def update_item_fields(
     fields: Any,
     reason: Any = None,
 ) -> dict[str, Any]:
-    """用于更新工作、项目或教育条目的非 bullet 字段。"""
+    """用于更新工作、项目、开源或教育条目的非 bullet 字段。"""
     if section not in ITEM_FIELD_WHITELIST:
         return {"success": False, "message": f"{section} 不支持字段更新"}
     if not isinstance(fields, dict) or not fields:

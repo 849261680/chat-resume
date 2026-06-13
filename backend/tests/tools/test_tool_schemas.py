@@ -25,6 +25,8 @@ _ALL_RESUME_TOOLS: list[str] = [
     "update_summary",
     "update_profile",
     "upsert_job_application",
+    "add_resume_item",
+    "remove_resume_item",
     "update_item_fields",
     "update_skills",
     "show_section",
@@ -33,7 +35,6 @@ _ALL_RESUME_TOOLS: list[str] = [
     "update_bullet",
     "add_bullet",
     "remove_bullet",
-    "evaluate_bullet",
     "list_job_posts",
     "read_job_post",
     "read_memory",
@@ -45,8 +46,10 @@ _TOOL_REQUIRED_PARAMS: dict[str, list[str]] = {
     "update_summary": ["text"],
     "update_profile": ["fields"],
     "upsert_job_application": ["fields"],
+    "add_resume_item": ["section", "fields"],
+    "remove_resume_item": ["section", "item_id"],
     "update_item_fields": ["section", "item_id", "fields"],
-    "update_skills": ["category_id", "skills"],
+    "update_skills": ["category_id"],
     "update_bullet": ["section", "item_id", "bullet_id", "text"],
     "add_bullet": ["section", "item_id", "text"],
     "remove_bullet": ["section", "item_id", "bullet_id"],
@@ -144,6 +147,19 @@ def test_update_bullet_text_requires_source_backed_facts():
     assert "当前简历、用户补充或背景档案" in desc
     assert "不得传入原文" in desc
     assert "只调整空格、标点或语序" in desc
+
+
+def test_update_skills_schema_supports_add_update_and_remove():
+    """update_skills 必须用一个工具覆盖技能分类的增删改。"""
+    tool = next(t for t in RESUME_TOOLS_SCHEMA if t["function"]["name"] == "update_skills")
+    function = tool["function"]
+    properties = function["parameters"]["properties"]
+
+    assert function["parameters"]["required"] == ["category_id"]
+    assert properties["mode"]["enum"] == ["replace", "merge", "remove"]
+    assert "创建新分类" in function["description"]
+    assert "删除整个分类" in function["description"]
+    assert "remove 不需要" in properties["skills"]["description"]
 
 
 @pytest.mark.parametrize("tag,tool_name,field_path", _SCHEMA_TAG_CHECKS)

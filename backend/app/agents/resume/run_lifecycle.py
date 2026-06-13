@@ -42,8 +42,18 @@ class ResumeRunLifecycle:
             "visible_tool_call_ids": set(),
             "unexpected_tool_call_names": set(),
             "prompt_chars": 0,
+            "message_count": 0,
+            "tool_count": 0,
+            "provider": "",
+            "model": "",
             "tool_call_count": 0,
+            "tool_requested_count": 0,
+            "tool_executed_count": 0,
+            "tool_confirmed_count": 0,
+            "tool_rejected_count": 0,
+            "guardrail_rejected_count": 0,
             "first_token_latency_ms": None,
+            "llm_total_ms": 0.0,
             "usage": {},
             "confirmation_wait_ms": 0.0,
             "mutation_claim_retry_count": 0,
@@ -159,6 +169,9 @@ class ResumeRunLifecycle:
         error_type: str | None,
     ) -> None:
         """用于记录一次 Resume Agent run 的单条结构化摘要。"""
+        total_ms = round((perf_counter() - state["started_at"]) * 1000, 2)
+        final_status = "completed" if success else "failed"
+        error_value = error_type or "-"
         logger.info(
             "resume_agent.run.summary",
             extra={
@@ -166,15 +179,30 @@ class ResumeRunLifecycle:
                 "agent_name": agent.prompt_spec.name,
                 "run_id": run_id,
                 "mode": mode,
-                "model": self.model_name_provider(),
+                "provider": str(state.get("provider") or ""),
+                "model": str(state.get("model") or self.model_name_provider()),
+                "prompt_chars": int(state.get("prompt_chars") or 0),
+                "message_count": int(state.get("message_count") or 0),
+                "tool_count": int(state.get("tool_count") or 0),
+                "first_token_ms": state.get("first_token_latency_ms"),
+                "llm_total_ms": round(float(state.get("llm_total_ms") or 0.0), 2),
+                "total_ms": total_ms,
+                "tool_requested": int(state.get("tool_requested_count") or 0),
+                "tool_executed": int(state.get("tool_executed_count") or 0),
+                "tool_confirmed": int(state.get("tool_confirmed_count") or 0),
+                "tool_rejected": int(state.get("tool_rejected_count") or 0),
+                "approval_wait_ms": round(float(state.get("confirmation_wait_ms") or 0.0), 2),
+                "guardrail_rejected": int(state.get("guardrail_rejected_count") or 0),
+                "final_status": final_status,
+                "error": error_value,
                 "tool_call_count": int(state.get("tool_call_count") or 0),
                 "confirmation_wait_ms": round(
                     float(state.get("confirmation_wait_ms") or 0.0),
                     2,
                 ),
-                "elapsed_ms": round((perf_counter() - state["started_at"]) * 1000, 2),
+                "elapsed_ms": total_ms,
                 "success": success,
-                "error_type": error_type or "-",
+                "error_type": error_value,
             },
         )
 

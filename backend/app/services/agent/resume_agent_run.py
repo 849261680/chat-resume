@@ -36,6 +36,16 @@ _RESUME_SNAPSHOT_KEYWORDS = (
     "列出我的简历",
     "把我的简历写出来",
 )
+_MODULE_TO_CONTENT_SECTION = {
+    "personal": "personal_info",
+    "summary": "summary",
+    "education": "education",
+    "work": "work_experience",
+    "work_experience": "work_experience",
+    "projects": "projects",
+    "open_source": "open_source",
+    "skills": "skills",
+}
 
 
 @dataclass(frozen=True)
@@ -286,7 +296,10 @@ class ResumeAgentRunOrchestrator:
             resume_content=resume_content,
             conversation_history=conversation_history,
             confirmation_queue=confirmation_queue,
-            allowed_sections=self._allowed_sections(resume_content),
+            allowed_sections=self._allowed_sections(
+                resume_content,
+                visible_modules=request.visible_modules,
+            ),
             event_callback=None,
             user_id=request.user_id,
             resume_id=request.resume_id,
@@ -389,8 +402,17 @@ class ResumeAgentRunOrchestrator:
         return ResumeAgentRunOrchestrator._dump_resume_content(resume)
 
     @staticmethod
-    def _allowed_sections(resume_content: dict[str, Any]) -> set[str]:
-        """用于从简历内容推导当前允许工具修改的顶层板块。"""
+    def _allowed_sections(
+        resume_content: dict[str, Any],
+        visible_modules: list[str] | None = None,
+    ) -> set[str]:
+        """用于按可见模块或简历内容推导当前允许工具修改的顶层板块。"""
+        if visible_modules:
+            return {
+                mapped
+                for module in visible_modules
+                if (mapped := _MODULE_TO_CONTENT_SECTION.get(str(module)))
+            }
         return {key for key in resume_content if not key.startswith("_")}
 
     @staticmethod

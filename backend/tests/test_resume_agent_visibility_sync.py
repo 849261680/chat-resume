@@ -97,3 +97,16 @@ def test_sync_visibility_noop_when_unchanged() -> None:
     )
 
     assert service.updates == []
+
+
+def test_allowed_sections_prefer_visible_modules_mapping() -> None:
+    """用于验证工具可编辑板块按可见模块映射，而不是按空 content key 误判。"""
+    allowed = ResumeAgentStreamService._allowed_sections(  # type: ignore[attr-defined]
+        {"summary": {"text": ""}},
+        visible_modules=["personal", "education", "work", "projects", "skills"],
+    )
+
+    assert "education" in allowed
+    assert "work_experience" in allowed
+    assert "personal_info" in allowed
+    assert "work" not in allowed

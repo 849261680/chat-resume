@@ -84,6 +84,47 @@ def test_text_sse_tool_event_log_includes_core_fields(tmp_path, monkeypatch):
     assert "client=ai_client_visible_123" not in file_output
 
 
+def test_text_run_summary_log_includes_observability_fields(tmp_path, monkeypatch):
+    """用于验证 run summary 文本日志包含本地验收指标。"""
+    log_file = tmp_path / "backend.log"
+    monkeypatch.setattr(settings, "LOG_FORMAT", "text")
+    monkeypatch.setattr(settings, "LOG_LEVEL", "INFO")
+    monkeypatch.setattr(settings, "BACKEND_LOG_FILE", str(log_file))
+
+    logging_setup.configure_logging()
+    logging.getLogger("app.agents.resume.runtime").info(
+        "resume_agent.run.summary",
+        extra={
+            "agent_trace": True,
+            "run_id": "345c127b099999999",
+            "client_request_id": "ai_client_visible_123",
+            "provider": "deepseek",
+            "model": "deepseek-v4-pro",
+            "prompt_chars": 4670,
+            "message_count": 2,
+            "tool_count": 16,
+            "first_token_ms": 120.5,
+            "llm_total_ms": 820.25,
+            "approval_wait_ms": 300.0,
+            "total_ms": 1300.75,
+            "tool_requested": 1,
+            "tool_executed": 1,
+            "tool_confirmed": 0,
+            "tool_rejected": 1,
+            "guardrail_rejected": 0,
+            "final_status": "completed",
+            "error": "-",
+        },
+    )
+
+    file_output = log_file.read_text(encoding="utf-8")
+
+    assert "run.summary client=ai_clien run=345c127b status=completed" in file_output
+    assert "provider=deepseek model=deepseek-v4-pro prompt=4670 msgs=2 tools=16" in file_output
+    assert "first=120.5ms llm=820.25ms approve=300.0ms total=1300.75ms" in file_output
+    assert "requested=1 executed=1 confirmed=0 rejected=1 guardrail=0 error=-" in file_output
+
+
 def test_text_openrouter_stream_log_uses_compact_mainline(tmp_path, monkeypatch):
     """用于验证 OpenRouter text 日志只展示人读主线。"""
     log_file = tmp_path / "backend.log"

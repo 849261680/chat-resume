@@ -7,21 +7,13 @@ import json
 from datetime import datetime
 from typing import Any
 
-from app.schemas.resume import dump_resume_content_for_frontend
-from app.agents.resume.session import maybe_compact_resume_context
+from app.schemas.resume import dump_resume_content_for_agent
 
 
 def strip_redundant_fields(resume_content: dict[str, Any]) -> dict[str, Any]:
-    """用于移除当前提示词阶段不需要的冗余字段。"""
-    content = dump_resume_content_for_frontend(copy.deepcopy(resume_content))
-    content.pop("summary", None)
+    """用于移除提示词不应读取的传输态字段。"""
+    content = dump_resume_content_for_agent(copy.deepcopy(resume_content))
     content.pop("_visible_modules", None)
-    for section in ("work_experience", "projects"):
-        items = content.get(section)
-        if isinstance(items, list):
-            for item in items:
-                item.pop("achievements", None)
-                item.pop("technologies", None)
     return content
 
 
@@ -67,11 +59,7 @@ def build_resume_prompt_context(context: dict[str, Any]) -> dict[str, Any]:
         else None
     )
     visible_modules = live_visible if isinstance(live_visible, list) else context.get("visible_modules")
-    prompt_resume = maybe_compact_resume_context(
-        resume_content=strip_redundant_fields(resume_content),
-        confirmed_diff_items=context.get("confirmed_diff_items"),
-        conversation_history=context.get("conversation_history"),
-    )
+    prompt_resume = strip_redundant_fields(resume_content)
     return {
         "target_title": str(job_application.get("target_title", "") or ""),
         "target_company": str(job_application.get("target_company", "") or ""),

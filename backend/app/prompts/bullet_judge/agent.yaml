@@ -1,9 +1,0 @@
-version: "1.0"
-agent:
-  name: bullet_judge
-  description: 单条简历要点评价 prompt
-  system_prompt_path: ./system.md
-  system_prompt_args: {}
-  model_defaults:
-    temperature: 0.3
-    max_tokens: 800

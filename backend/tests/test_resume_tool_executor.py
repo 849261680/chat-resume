@@ -107,3 +107,113 @@ class ResumeToolExecutorTests(unittest.TestCase):
         self.assertEqual(result["result"]["updated_section"], "skills")
         self.assertIn("skills", resume["_visible_modules"])
         self.assertEqual(resume["skills"], skills_data)
+
+    def test_add_resume_item_creates_visible_empty_education_section(self):
+        """用于验证从零创建简历时可新增可见教育条目。"""
+        resume: dict[str, Any] = {"summary": {"text": ""}}
+        executor = ResumeToolExecutor()
+
+        result = cast(dict[str, Any], executor.execute(
+            tool_name="add_resume_item",
+            tool_input={
+                "section": "education",
+                "item_id": "edu_1",
+                "fields": {"school": "东北大学", "major": "信息安全", "degree": "本科"},
+                "reason": "用户补充教育经历",
+            },
+            context={
+                "resume_content": resume,
+                "allowed_sections": {"education", "summary"},
+            },
+        ))
+
+        self.assertTrue(result["result"]["success"])
+        self.assertEqual(resume["education"][0]["id"], "edu_1")
+        self.assertEqual(resume["education"][0]["school"], "东北大学")
+
+    def test_remove_resume_item_deletes_project_item(self):
+        """用于验证删除条目工具可以删除整段项目经历。"""
+        resume: dict[str, Any] = {
+            "projects": [
+                {"id": "proj_1", "name": "Chat Resume"},
+                {"id": "proj_2", "name": "Other"},
+            ]
+        }
+        executor = ResumeToolExecutor()
+
+        result = cast(dict[str, Any], executor.execute(
+            tool_name="remove_resume_item",
+            tool_input={
+                "section": "projects",
+                "item_id": "proj_1",
+                "reason": "用户要求删除该项目",
+            },
+            context={"resume_content": resume, "allowed_sections": {"projects"}},
+        ))
+
+        self.assertTrue(result["result"]["success"])
+        self.assertEqual([item["id"] for item in resume["projects"]], ["proj_2"])
+        self.assertIn("Chat Resume", result["result"]["diff_summary"])
+
+    def test_remove_resume_item_respects_hidden_section_guard(self):
+        """用于验证删除整条经历也受隐藏板块保护。"""
+        resume: dict[str, Any] = {"projects": [{"id": "proj_1", "name": "Chat Resume"}]}
+        executor = ResumeToolExecutor()
+
+        result = cast(dict[str, Any], executor.execute(
+            tool_name="remove_resume_item",
+            tool_input={
+                "section": "projects",
+                "item_id": "proj_1",
+                "reason": "用户要求删除该项目",
+            },
+            context={"resume_content": resume, "allowed_sections": {"skills"}},
+        ))
+
+        self.assertFalse(result["result"]["success"])
+        self.assertEqual(result["result"]["error"]["type"], "hidden_section")
+        self.assertEqual(len(resume["projects"]), 1)
+
+    def test_update_skills_can_create_new_category(self):
+        """用于验证技能工具能新增技能分类，避免技能板块只能改不能增。"""
+        resume: dict[str, Any] = {"skills": []}
+        executor = ResumeToolExecutor()
+
+        result = cast(dict[str, Any], executor.execute(
+            tool_name="update_skills",
+            tool_input={
+                "category_id": "skill_ai",
+                "category": "AI Agent",
+                "items": ["OpenAI Agents SDK", "RAG"],
+                "mode": "replace",
+                "reason": "用户补充 Agent 技能",
+            },
+            context={"resume_content": resume, "allowed_sections": {"skills"}},
+        ))
+
+        self.assertTrue(result["result"]["success"])
+        self.assertEqual(resume["skills"][0]["id"], "skill_ai")
+        self.assertEqual(resume["skills"][0]["category"], "AI Agent")
+
+    def test_update_skills_can_remove_category(self):
+        """用于验证技能工具能删除整个技能分类。"""
+        resume: dict[str, Any] = {
+            "skills": [
+                {"id": "skill_ai", "category": "AI", "items": ["Agent"]},
+                {"id": "skill_web", "category": "Web", "items": ["React"]},
+            ]
+        }
+        executor = ResumeToolExecutor()
+
+        result = cast(dict[str, Any], executor.execute(
+            tool_name="update_skills",
+            tool_input={
+                "category_id": "skill_ai",
+                "mode": "remove",
+                "reason": "用户要求删除该技能分类",
+            },
+            context={"resume_content": resume, "allowed_sections": {"skills"}},
+        ))
+
+        self.assertTrue(result["result"]["success"])
+        self.assertEqual([item["id"] for item in resume["skills"]], ["skill_web"])

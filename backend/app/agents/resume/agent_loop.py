@@ -27,6 +27,10 @@ from app.agents.resume.stream_events import (
     text_delta_event,
     tool_call_failed_event,
 )
+from app.agents.resume.observability import (
+    bind_observability_state,
+    reset_observability_state,
+)
 from app.agents.resume.tool_execution import ResumeToolExecutionStage
 from app.agents.resume.event_publisher import publish_resume_runtime_event
 from app.infra.config import settings
@@ -85,8 +89,10 @@ _MUTATION_ACTION_WORDS = (
 )
 _PLANNING_TOOL_NAMES = {
     "add_bullet",
+    "add_resume_item",
     "hide_section",
     "remove_bullet",
+    "remove_resume_item",
     "show_section",
     "update_bullet",
     "update_item_fields",
@@ -196,39 +202,30 @@ class ResumeAgentLoop:
                 if should_retry:
                     continue
                 return
-            tool_call = tool_calls[0]
-            if len(tool_calls) > 1:
-                self.trace(
-                    "agent.trace.reasoning.extra_tool_calls_ignored",
-                    run_id=run_id,
-                    agent_name=agent.prompt_spec.name,
-                    tool_name=tool_call.name,
-                    tool_call_count=len(tool_calls),
-                    reason="one_tool_per_react_turn",
-                )
-            tool_result = await self.execute_react_tool(
-                agent=agent,
-                run_id=run_id,
-                tool_call=tool_call,
-                context=context,
-                confirmation_queue=confirmation_queue,
-                event_queue=event_queue,
-                event_callback=event_callback,
-                state=state,
-                executed_tools=executed_tools,
-            )
-            messages.append(tool_result)
-            if self.should_terminate_after_tool_result(tool_result):
-                self.trace_tool_result_terminated(agent, run_id, tool_result)
-                await self.publish_text_deltas(
+            for tool_call in tool_calls:
+                tool_result = await self.execute_react_tool(
                     agent=agent,
                     run_id=run_id,
+                    tool_call=tool_call,
+                    context=context,
+                    confirmation_queue=confirmation_queue,
                     event_queue=event_queue,
                     event_callback=event_callback,
                     state=state,
-                    text_deltas=[self.tool_result_terminal_text(tool_result)],
+                    executed_tools=executed_tools,
                 )
-                return
+                messages.append(tool_result)
+                if self.should_terminate_after_tool_result(tool_result):
+                    self.trace_tool_result_terminated(agent, run_id, tool_result)
+                    await self.publish_text_deltas(
+                        agent=agent,
+                        run_id=run_id,
+                        event_queue=event_queue,
+                        event_callback=event_callback,
+                        state=state,
+                        text_deltas=[self.tool_result_terminal_text(tool_result)],
+                    )
+                    return
 
     async def llm_context_for_turn(
         self,
@@ -261,25 +258,27 @@ class ResumeAgentLoop:
     ) -> tuple[AssistantMessage, list[str]]:
         """用于拉取一轮 assistant 流，并在工具调用前发布可见计划。"""
         cancel_event = asyncio.Event()
-        response = self.stream_fn(
-            config.model,
-            llm_context,
-            SimpleStreamOptions(
-                api_key=config.api_key,
-                temperature=config.temperature,
-                max_tokens=config.max_tokens,
-                reasoning=config.reasoning,
-                session_id=config.session_id,
-                transport=config.transport,
-                thinking_budgets=config.thinking_budgets,
-                max_retry_delay_ms=config.max_retry_delay_ms,
-                cancel_event=cancel_event,
-            ),
-        )
+        llm_started_at = perf_counter()
+        state_token = bind_observability_state(state)
         text_deltas: list[str] = []
         early_tool_call_published = False
         visible_early_tool_call: ToolCall | None = None
         try:
+            response = self.stream_fn(
+                config.model,
+                llm_context,
+                SimpleStreamOptions(
+                    api_key=config.api_key,
+                    temperature=config.temperature,
+                    max_tokens=config.max_tokens,
+                    reasoning=config.reasoning,
+                    session_id=config.session_id,
+                    transport=config.transport,
+                    thinking_budgets=config.thinking_budgets,
+                    max_retry_delay_ms=config.max_retry_delay_ms,
+                    cancel_event=cancel_event,
+                ),
+            )
             if inspect.isawaitable(response):
                 response = await response
             if not isinstance(response, dict) or "events" not in response or "result" not in response:
@@ -330,7 +329,7 @@ class ResumeAgentLoop:
                 result = await result
             if not isinstance(result, AssistantMessage):
                 raise TypeError("StreamFn result must be an AssistantMessage")
-            assistant_message = self.single_tool_message(result)
+            assistant_message = result
             state["last_assistant_text"] = self.assistant_text(assistant_message)
             state["usage"] = self.usage_to_dict(getattr(assistant_message, "usage", None))
             await self.publish_failed_visible_tool_call_on_stream_error(
@@ -341,6 +340,12 @@ class ResumeAgentLoop:
             )
             return assistant_message, text_deltas
         finally:
+            state["llm_total_ms"] = round(
+                float(state.get("llm_total_ms") or 0.0)
+                + (perf_counter() - llm_started_at) * 1000,
+                2,
+            )
+            reset_observability_state(state_token)
             cancel_event.set()
 
     @classmethod
@@ -689,6 +694,9 @@ class ResumeAgentLoop:
         """用于生成 LLM 请求事件。"""
         messages = [ResumeAgentLoop.message_to_dict(message) for message in context.messages + prompts]
         tool_names: list[str | None] = [tool.name for tool in context.tools]
+        state["message_count"] = len(messages)
+        state["tool_count"] = len(tool_names)
+        state["prompt_chars"] = int(state.get("prompt_chars") or len(context.system_prompt))
         return llm_request_event(
             agent_name=agent.prompt_spec.name,
             model=model_name,
@@ -791,21 +799,6 @@ class ResumeAgentLoop:
             if isinstance(block, TextContent):
                 parts.append(block.text)
         return "".join(parts)
-
-    @staticmethod
-    def single_tool_message(message: AssistantMessage) -> AssistantMessage:
-        """用于保留文本和首个工具调用，丢弃同一轮后续工具调用。"""
-        seen_tool = False
-        content: list[Any] = []
-        for block in message.content:
-            if not isinstance(block, ToolCall):
-                content.append(block)
-                continue
-            if seen_tool:
-                continue
-            seen_tool = True
-            content.append(block)
-        return message.model_copy(update={"content": content})
 
     @staticmethod
     async def publish_event(

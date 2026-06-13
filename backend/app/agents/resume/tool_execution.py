@@ -12,6 +12,7 @@ from typing import Any
 
 from pi_agent_core import AgentToolResult, TextContent
 
+from app.agents.resume.observability import increment_unique_counter
 from app.agents.resume.stream_events import (
     text_delta_event,
     tool_call_event,
@@ -113,6 +114,7 @@ class ResumeToolExecutionStage:
         if preapproval_output is not None:
             return preapproval_output
         if self.consume_sdk_approved_call(context, call_id):
+            self.record_tool_requested(stream_state, call_id)
             self.trace_tool_requested(
                 agent,
                 run_id,
@@ -135,6 +137,7 @@ class ResumeToolExecutionStage:
                 tool_started_at=tool_started_at,
                 stream_state=stream_state,
             )
+        self.record_tool_requested(stream_state, call_id)
         self.trace_tool_requested(
             agent,
             run_id,
@@ -163,6 +166,7 @@ class ResumeToolExecutionStage:
                 event_callback=event_callback,
                 executed_tools=executed_tools,
                 tool_started_at=tool_started_at,
+                stream_state=stream_state,
             )
         preview = await self.maybe_confirm_tool(
             agent=agent,
@@ -248,6 +252,7 @@ class ResumeToolExecutionStage:
             return False
         tool_started_at = perf_counter()
         tool_call = self.tool_call_payload(call_id, tool_name, tool_input)
+        self.record_tool_requested(stream_state, call_id)
         self.trace_tool_requested(agent, run_id, call_id, tool_name, tool_input, True)
         preview_result = await self.sdk_preview_result(agent, tool_call, context)
         result = preview_result.get("result", {})
@@ -369,6 +374,7 @@ class ResumeToolExecutionStage:
             event_callback=event_callback,
             executed_tools=executed_tools,
             tool_started_at=preview["tool_started_at"],
+            stream_state=stream_state,
         )
         await self.publish_terminal_text(
             agent=agent,
@@ -397,6 +403,7 @@ class ResumeToolExecutionStage:
         event_callback: RuntimeEventCallback | None,
         executed_tools: list[dict[str, Any]],
         tool_started_at: float,
+        stream_state: dict[str, Any],
     ) -> str:
         """用于把坏工具参数发布为可恢复工具错误。"""
         parse_error = tool_input.get(_TOOL_ARGUMENTS_PARSE_ERROR_KEY)
@@ -425,6 +432,7 @@ class ResumeToolExecutionStage:
             tool_result,
             tool_started_at,
         )
+        self.record_tool_executed(stream_state, call_id)
         executed_tools.append(self.executed_tool_summary(tool_result, result))
         await self.publish_tool_result(
             call_id=call_id,
@@ -484,6 +492,7 @@ class ResumeToolExecutionStage:
                 preview_result,
                 tool_started_at,
             )
+            self.record_tool_executed(stream_state, call_id)
             if self.is_noop_preview_failure(preview_result):
                 return json.dumps(result, ensure_ascii=False)
             await self.publish_visible_tool_call_once(
@@ -572,6 +581,7 @@ class ResumeToolExecutionStage:
             event_callback=event_callback,
             executed_tools=executed_tools,
             tool_started_at=tool_started_at,
+            stream_state=stream_state,
         )
         await self.publish_terminal_text(
             agent=agent,
@@ -640,6 +650,9 @@ class ResumeToolExecutionStage:
             tool_result,
             tool_started_at,
         )
+        self.record_tool_executed(stream_state, call_id)
+        if needs_confirmation:
+            self.record_tool_confirmed(stream_state, call_id)
         executed_tools.append(self.executed_tool_summary(tool_result, result))
         await self.publish_tool_result(
             call_id=call_id,
@@ -818,8 +831,10 @@ class ResumeToolExecutionStage:
         event_callback: RuntimeEventCallback | None,
         executed_tools: list[dict[str, Any]],
         tool_started_at: float,
+        stream_state: dict[str, Any],
     ) -> None:
         """用于发布用户拒绝工具事件。"""
+        self.record_tool_rejected(stream_state, call_id)
         self.trace(
             "agent.trace.tool.rejected",
             run_id=run_id,
@@ -841,6 +856,46 @@ class ResumeToolExecutionStage:
                 result=result,
                 tool_calls=executed_tools,
             ),
+        )
+
+    @staticmethod
+    def record_tool_requested(stream_state: dict[str, Any], call_id: str) -> None:
+        """用于记录唯一工具请求次数。"""
+        increment_unique_counter(
+            stream_state,
+            bucket_key="_tool_requested_call_ids",
+            value=call_id,
+            counter_key="tool_requested_count",
+        )
+
+    @staticmethod
+    def record_tool_executed(stream_state: dict[str, Any], call_id: str) -> None:
+        """用于记录唯一工具执行次数。"""
+        increment_unique_counter(
+            stream_state,
+            bucket_key="_tool_executed_call_ids",
+            value=call_id,
+            counter_key="tool_executed_count",
+        )
+
+    @staticmethod
+    def record_tool_confirmed(stream_state: dict[str, Any], call_id: str) -> None:
+        """用于记录唯一工具确认次数。"""
+        increment_unique_counter(
+            stream_state,
+            bucket_key="_tool_confirmed_call_ids",
+            value=call_id,
+            counter_key="tool_confirmed_count",
+        )
+
+    @staticmethod
+    def record_tool_rejected(stream_state: dict[str, Any], call_id: str) -> None:
+        """用于记录唯一工具拒绝次数。"""
+        increment_unique_counter(
+            stream_state,
+            bucket_key="_tool_rejected_call_ids",
+            value=call_id,
+            counter_key="tool_rejected_count",
         )
 
     def trace_tool_requested(

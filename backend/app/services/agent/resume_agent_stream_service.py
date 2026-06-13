@@ -57,6 +57,7 @@ class ResumeAgentStreamService:
         ResumeAgentRunOrchestrator.ensure_stream_supported(request)
 
     _load_resume_content = staticmethod(ResumeAgentRunOrchestrator._load_resume_content)
+    _allowed_sections = staticmethod(ResumeAgentRunOrchestrator._allowed_sections)
     _persist_resume_if_changed = staticmethod(
         ResumeAgentRunOrchestrator._persist_resume_if_changed
     )

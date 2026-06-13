@@ -79,6 +79,8 @@ class ResumeTurnContextBuilder:
         stream_state["prompt_chars"] = len(system_prompt)
         prompts: list[Message] = [UserMessage(content=[TextContent(text=user_message)])]
         config = build_openai_agents_loop_config(agent)
+        stream_state["provider"] = config.model.provider
+        stream_state["model"] = config.model.id
         return pi_context, prompts, config
 
     def build_tools(

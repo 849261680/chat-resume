@@ -22,6 +22,8 @@ _SYNC_TOOL_NAME = Literal[
     "ask_user",
     "update_summary",
     "update_profile",
+    "add_resume_item",
+    "remove_resume_item",
     "update_item_fields",
     "upsert_job_application",
     "update_skills",

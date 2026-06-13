@@ -176,6 +176,14 @@ def test_prompt_prefers_conservative_rewrite_when_existing_facts_are_enough():
     assert "需要修改简历时不询问用户，请直接调用工具" in rendered
 
 
+def test_prompt_routes_skill_category_changes_to_update_skills():
+    """技能分类增删改必须路由到 update_skills。"""
+    rendered = _render(resume_json='{"skills":[{"id":"skill_1","category":"后端","items":["Python"]}]}')
+
+    assert "新增、替换、合并或删除技能分类时：只用 update_skills" in rendered
+    assert "删除技能分类用 mode=remove" in rendered
+
+
 def test_prompt_blocks_unsupported_jd_capability_claims_in_conservative_rewrite():
     """prompt 应保留 JD、改写工具和追问的当前事实边界。"""
     rendered = _render(

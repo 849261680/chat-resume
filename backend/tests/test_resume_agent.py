@@ -145,6 +145,8 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertIn("update_summary", tool_names)
         self.assertIn("update_profile", tool_names)
         self.assertIn("upsert_job_application", tool_names)
+        self.assertIn("add_resume_item", tool_names)
+        self.assertIn("remove_resume_item", tool_names)
         self.assertIn("update_item_fields", tool_names)
         self.assertIn("update_skills", tool_names)
         self.assertIn("show_section", tool_names)
@@ -164,6 +166,22 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertNotIn("technologies", fields_description)
         self.assertIn("overview", fields_description)
         self.assertIn("employment_type", fields_description)
+
+    def test_add_resume_item_schema_uses_item_fields_payload(self):
+        """用于验证新增条目工具暴露可编辑字段并禁止隐藏技术栈字段。"""
+        schema = next(
+            tool
+            for tool in RESUME_TOOLS_SCHEMA
+            if tool["function"]["name"] == "add_resume_item"
+        )
+        fields_description = schema["function"]["parameters"]["properties"]["fields"][
+            "description"
+        ]
+
+        self.assertEqual(schema["function"]["parameters"]["required"], ["section", "fields"])
+        self.assertIn("overview", fields_description)
+        self.assertIn("employment_type", fields_description)
+        self.assertNotIn("technologies", fields_description)
 
     def test_resume_edit_profile_exposes_job_application_upsert_tool(self):
         """用于验证resume_edit工具profile暴露求职目标upsert工具。"""
@@ -1104,6 +1122,33 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
 
         self.assertTrue(result["result"]["success"])
         self.assertIn("下降 20%", resume_content["work_experience"][0]["highlights"][0]["text"])
+
+    def test_update_skills_tool_accepts_schema_skills_alias(self):
+        """用于验证模型按 schema 传 skills 时会归一化为内部 items。"""
+        agent = ResumeAgent()
+        resume_content = {
+            "skills": [{"id": "skill_1", "category": "AI", "items": ["Agent"]}]
+        }
+
+        result = agent._run_tool(
+            {
+                "function": {
+                    "name": "update_skills",
+                    "arguments": {
+                        "category_id": "skill_1",
+                        "skills": ["OpenAI Agents SDK", "RAG"],
+                        "mode": "replace",
+                    },
+                }
+            },
+            {"resume_content": resume_content},
+        )
+
+        self.assertTrue(result["result"]["success"])
+        self.assertEqual(
+            resume_content["skills"][0]["items"],
+            ["OpenAI Agents SDK", "RAG"],
+        )
 
     def test_resume_stream_event_contract_keeps_structured_diff(self):
         """用于验证简历stream事件contractkeepsstructureddiff。"""

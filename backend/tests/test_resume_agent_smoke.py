@@ -301,8 +301,8 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertNotIn("summary", cleaned)
 
-    def test_strip_redundant_fields_drops_summary_even_when_non_empty(self):
-        """用于验证stripredundantfieldsdropssummaryevenwhennonempty。"""
+    def test_strip_redundant_fields_keeps_summary_when_non_empty(self):
+        """用于验证 Agent 简历上下文保留非空个人简介。"""
         cleaned = ResumeAgent._strip_redundant_fields(
             {
                 "personal_info": {"name": "张三"},
@@ -312,7 +312,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
             }
         )
 
-        self.assertNotIn("summary", cleaned)
+        self.assertEqual(cleaned["summary"]["text"], "有 3 年后端开发经验")
 
     def test_run_tool_rejects_hidden_section(self):
         """用于验证runtoolrejectshiddensection。"""
@@ -725,8 +725,8 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(agent.runtime.stream_fn.calls, 2)
 
-    async def test_optimize_runs_react_one_tool_per_model_turn(self):
-        """用于验证 runtime 按 ReAct 方式每轮只执行一个工具。"""
+    async def test_optimize_runs_multiple_tools_from_one_model_turn(self):
+        """用于验证 runtime 会按顺序执行同一轮的多个工具。"""
         agent = self._build_agent(
             [
                 FakeModelResponse(
@@ -747,7 +747,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
                             args={
                                 "section": "projects",
                                 "item_id": "proj_1",
-                                "text": "同一轮多发出的工具调用不应被执行",
+                                "text": "同一轮多发出的工具调用会按顺序执行",
                             },
                         ),
                     ],
@@ -774,9 +774,13 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         result = await agent.optimize("优化项目内容，事实是工具结果回读链路支撑亮点持续新增", resume)
 
         self.assertEqual(result["content"], "已先完成第一步修改。")
-        self.assertEqual(len(result["tool_calls"]), 2)
+        self.assertEqual(len(result["tool_calls"]), 3)
         self.assertEqual(resume["projects"][0]["overview"], "新的项目简介")
-        self.assertEqual(len(resume["projects"][0]["highlights"]), 2)
+        self.assertEqual(len(resume["projects"][0]["highlights"]), 3)
+        self.assertEqual(
+            resume["projects"][0]["highlights"][-2]["text"],
+            "同一轮多发出的工具调用会按顺序执行",
+        )
         self.assertEqual(
             resume["projects"][0]["highlights"][-1]["text"],
             "优化工具结果回读链路，支撑亮点持续新增",
@@ -1103,10 +1107,10 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(agent.runtime.stream_fn.calls, 2)
 
-    async def test_optimize_stream_runs_one_tool_per_model_turn(
+    async def test_optimize_stream_runs_multiple_tools_from_one_model_turn(
         self,
     ):
-        """用于验证流式 runtime 不执行同一模型响应里的第二个工具。"""
+        """用于验证流式 runtime 会顺序确认并执行同轮多个工具。"""
         agent = self._build_agent(
             [
                 FakeModelResponse(
@@ -1127,7 +1131,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
                             args={
                                 "section": "projects",
                                 "item_id": "proj_1",
-                                "text": "同一轮不应继续新增亮点",
+                                "text": "同一轮继续新增亮点",
                             },
                         ),
                     ],
@@ -1151,13 +1155,13 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
 
         pending_events = [event for event in events if event.get("tool_pending")]
         confirmed_events = [event for event in events if event.get("tool_confirmed")]
-        self.assertEqual(len(pending_events), 1)
-        self.assertEqual(len(confirmed_events), 1)
+        self.assertEqual(len(pending_events), 2)
+        self.assertEqual(len(confirmed_events), 2)
         self.assertEqual(resume["projects"][0]["overview"], "先优化项目简介")
-        self.assertEqual(len(resume["projects"][0]["highlights"]), 1)
+        self.assertEqual(len(resume["projects"][0]["highlights"]), 2)
         self.assertEqual(
-            resume["projects"][0]["highlights"][0]["text"],
-            "支持流式简历优化",
+            resume["projects"][0]["highlights"][-1]["text"],
+            "同一轮继续新增亮点",
         )
         self.assertEqual(agent.runtime.stream_fn.calls, 2)
 
@@ -1709,6 +1713,27 @@ class ResumeAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
         summary = summary_records[0]
         self.assertEqual(getattr(summary, "agent_name"), "resume_agent")
         self.assertEqual(getattr(summary, "mode"), "stream")
+        expected_provider = (
+            "deepseek"
+            if settings.OPENAI_AGENTS_PROVIDER == "deepseek"
+            else "openai-agents"
+        )
+        self.assertEqual(getattr(summary, "provider"), expected_provider)
+        self.assertEqual(getattr(summary, "model"), settings.OPENAI_AGENTS_MODEL)
+        self.assertGreater(getattr(summary, "prompt_chars"), 0)
+        self.assertGreaterEqual(getattr(summary, "message_count"), 1)
+        self.assertEqual(getattr(summary, "tool_count"), 16)
+        self.assertIsNotNone(getattr(summary, "first_token_ms"))
+        self.assertGreaterEqual(getattr(summary, "llm_total_ms"), 0)
+        self.assertGreaterEqual(getattr(summary, "total_ms"), 0)
+        self.assertEqual(getattr(summary, "tool_requested"), 0)
+        self.assertEqual(getattr(summary, "tool_executed"), 0)
+        self.assertEqual(getattr(summary, "tool_confirmed"), 0)
+        self.assertEqual(getattr(summary, "tool_rejected"), 0)
+        self.assertEqual(getattr(summary, "approval_wait_ms"), 0.0)
+        self.assertEqual(getattr(summary, "guardrail_rejected"), 0)
+        self.assertEqual(getattr(summary, "final_status"), "completed")
+        self.assertEqual(getattr(summary, "error"), "-")
         self.assertEqual(getattr(summary, "tool_call_count"), 0)
         self.assertEqual(getattr(summary, "confirmation_wait_ms"), 0.0)
         self.assertGreaterEqual(getattr(summary, "elapsed_ms"), 0)

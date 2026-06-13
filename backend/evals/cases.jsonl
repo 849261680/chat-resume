@@ -1,0 +1,3 @@
+{"id":"avatar_not_in_prompt","category":"prompt_context","description":"Agent prompt must keep resume text but exclude personal_info.photo_url media data."}
+{"id":"reject_diff_keeps_resume_unchanged","category":"approval","description":"Rejected resume diff must emit a rejection event and leave resume content unchanged."}
+{"id":"invalid_tool_json_guardrail","category":"guardrail","description":"SDK tool input guardrail must reject invalid JSON before business tool execution."}

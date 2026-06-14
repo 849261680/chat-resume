@@ -6,13 +6,55 @@ FastAPI应用的初始化和配置入口点。
 """
 
 import asyncio
+import importlib
 import logging
 import os
 import re
 from collections.abc import Iterator
 from contextlib import contextmanager
+from pathlib import Path
 from time import perf_counter
 from uuid import uuid4
+
+
+_BRAINTRUST_PROJECT_NAME = "chat-resume"
+
+
+def _braintrust_api_key() -> str | None:
+    """用于从进程环境或本地 .env 读取 Braintrust API key。"""
+    api_key = os.getenv("BRAINTRUST_API_KEY")
+    if api_key:
+        return api_key
+
+    env_path = Path(".env")
+    if not env_path.is_file():
+        return None
+
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        key, separator, value = line.partition("=")
+        if key.strip() == "BRAINTRUST_API_KEY" and separator:
+            return value.strip().strip("'\"") or None
+    return None
+
+
+def _configure_braintrust() -> None:
+    """用于在配置了 API key 时启用 Braintrust 自动追踪。"""
+    api_key = _braintrust_api_key()
+    if not api_key:
+        return
+
+    try:
+        braintrust = importlib.import_module("braintrust")
+        braintrust.auto_instrument()
+        braintrust.init_logger(api_key=api_key, project=_BRAINTRUST_PROJECT_NAME)
+    except Exception as exc:
+        logging.getLogger(__name__).warning(
+            "Braintrust instrumentation disabled: %s",
+            type(exc).__name__,
+        )
+
+
+_configure_braintrust()
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware

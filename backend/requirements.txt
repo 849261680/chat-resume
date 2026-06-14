@@ -37,6 +37,8 @@ beartype==0.22.9
     # via py-key-value-aio
 blis==0.7.11
     # via thinc
+braintrust==0.24.0
+    # via chat-resume-backend
 cachetools==7.1.1
     # via py-key-value-aio
 caio==0.9.25
@@ -58,6 +60,8 @@ charset-normalizer==3.4.7
     # via
     #   pdfminer-six
     #   requests
+chevron==0.14.0
+    # via braintrust
 click==8.3.2
     # via
     #   typer
@@ -105,11 +109,17 @@ email-validator==2.1.0
     #   chat-resume-backend
     #   pydantic
 exceptiongroup==1.3.1
-    # via fastmcp
+    # via
+    #   braintrust
+    #   fastmcp
 fastapi==0.135.3
     # via chat-resume-backend
 fastmcp==3.2.4
     # via chat-resume-backend
+gitdb==4.0.12
+    # via gitpython
+gitpython==3.1.50
+    # via braintrust
 greenlet==3.4.0
     # via
     #   playwright
@@ -164,7 +174,9 @@ joserfc==1.6.5
 jsonref==1.1.0
     # via fastmcp
 jsonschema==4.26.0
-    # via mcp
+    # via
+    #   braintrust
+    #   mcp
 jsonschema-path==0.4.6
     # via fastmcp
 jsonschema-specifications==2025.9.1
@@ -221,6 +233,7 @@ opentelemetry-api==1.41.0
     # via fastmcp
 packaging==26.1
     # via
+    #   braintrust
     #   fastmcp
     #   spacy
     #   thinc
@@ -308,6 +321,8 @@ python-multipart==0.0.28
     # via
     #   chat-resume-backend
     #   mcp
+python-slugify==8.0.4
+    # via braintrust
 pywin32==311 ; sys_platform == 'win32'
     # via mcp
 pywin32-ctypes==0.2.3 ; sys_platform == 'win32'
@@ -328,6 +343,7 @@ reportlab==4.0.7
     # via chat-resume-backend
 requests==2.33.1
     # via
+    #   braintrust
     #   openai-agents
     #   spacy
     #   weasel
@@ -360,6 +376,8 @@ smart-open==6.4.0
     # via
     #   spacy
     #   weasel
+smmap==5.0.3
+    # via gitdb
 sniffio==1.3.1
     # via openai
 spacy==3.7.2
@@ -380,15 +398,20 @@ srsly==2.5.3
     #   weasel
 sse-starlette==3.3.4
     # via mcp
+sseclient-py==1.9.0
+    # via braintrust
 starlette==1.0.0
     # via
     #   fastapi
     #   mcp
     #   sse-starlette
+text-unidecode==1.3
+    # via python-slugify
 thinc==8.2.4
     # via spacy
 tqdm==4.67.3
     # via
+    #   braintrust
     #   openai
     #   spacy
 ty==0.0.31
@@ -403,6 +426,7 @@ typing-extensions==4.15.0
     # via
     #   alembic
     #   anyio
+    #   braintrust
     #   exceptiongroup
     #   fastapi
     #   mcp
@@ -460,5 +484,7 @@ websockets==16.0
     #   uvicorn
 win32-setctime==1.2.0 ; sys_platform == 'win32'
     # via loguru
+wrapt==2.2.1
+    # via braintrust
 zipp==3.23.1
     # via importlib-metadata

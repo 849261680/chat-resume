@@ -29,3 +29,14 @@ test('layout config save is flushed on pagehide and component unmount', async ()
   assert.match(layoutConfigSource, /options: \{ keepalive\?: boolean \} = \{\}/)
   assert.match(layoutConfigSource, /keepalive: options\.keepalive/)
 })
+
+test('resume export callback refreshes when density spacing changes', async () => {
+  const { editorSource } = await readLayoutPersistenceSources()
+  const exportCallbackMatch = editorSource.match(
+    /const handleExportPDF = useCallback\(async \(\) => \{[\s\S]*?\n  \}, \[(.*?)\]\)/,
+  )
+  const dependencies = (exportCallbackMatch?.[1] ?? '').split(',').map((item) => item.trim())
+
+  assert.ok(exportCallbackMatch, 'handleExportPDF useCallback was not found')
+  assert.ok(dependencies.includes('layoutConfig'), 'handleExportPDF must refresh for spacingScale changes')
+})

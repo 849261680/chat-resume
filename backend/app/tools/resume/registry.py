@@ -8,7 +8,7 @@ import re
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from inspect import isawaitable
-from typing import Any
+from typing import Any, cast
 
 from .add_resume_item_tool import add_resume_item
 from .add_bullet_tool import add_bullet
@@ -18,6 +18,13 @@ from .memory_tool import read_memory, update_memory
 from .remove_bullet_tool import remove_bullet
 from .remove_resume_item_tool import remove_resume_item
 from .resume_item_tool import hide_section, show_section
+from .sections import (
+    BULLET_SECTIONS,
+    ITEM_FIELD_SECTIONS,
+    RESUME_SECTION_ALIASES,
+    VISIBILITY_SECTIONS,
+    resume_section_display_name,
+)
 from .update_bullet_tool import update_bullet
 from .update_item_fields_tool import ITEM_FIELD_WHITELIST, update_item_fields
 from .update_overview_tool import update_overview
@@ -28,8 +35,6 @@ from .upsert_job_application_tool import upsert_job_application
 
 logger = logging.getLogger(__name__)
 
-_ITEM_FIELD_SECTIONS = ["education", "work_experience", "projects", "open_source"]
-_BULLET_SECTIONS = ["education", "work_experience", "projects", "open_source"]
 _RESUME_LINK_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
@@ -49,26 +54,6 @@ _ITEM_FIELD_SCHEMA_PROPERTIES["links"] = {
 }
 ResumeToolResult = dict[str, Any] | Awaitable[dict[str, Any]]
 ResumeToolExecutionResult = dict[str, Any] | Awaitable[dict[str, Any]]
-
-RESUME_SECTION_ALIASES = {
-    "work": "work_experience",
-    "work_experiences": "work_experience",
-    "experience": "work_experience",
-    "project": "projects",
-    "project_experience": "projects",
-    "edu": "education",
-}
-
-_SECTION_DISPLAY_NAMES = {
-    "personal_info": "个人信息",
-    "education": "教育经历",
-    "work_experience": "工作经历",
-    "skills": "技能专长",
-    "projects": "项目经历",
-    "summary": "个人总结",
-    "job_application": "求职目标",
-    "languages": "语言能力",
-}
 
 @dataclass(frozen=True)
 class ResumeToolDefinition:
@@ -239,7 +224,7 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
                         "description": "本次修改的简短理由，供前端展示",
                     },
                 },
-                "required": ["category_id"],
+                "required": ["category_id", "skills"],
             },
         },
     },
@@ -255,7 +240,7 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "section": {"type": "string", "enum": _ITEM_FIELD_SECTIONS},
+                    "section": {"type": "string", "enum": list(ITEM_FIELD_SECTIONS)},
                     "item_id": {
                         "type": "string",
                         "description": "要删除的教育/工作/项目/开源条目的 id",
@@ -281,7 +266,7 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "section": {"type": "string", "enum": _ITEM_FIELD_SECTIONS},
+                    "section": {"type": "string", "enum": list(ITEM_FIELD_SECTIONS)},
                     "item_id": {
                         "type": "string",
                         "description": "可选条目 id；缺省时系统自动生成",
@@ -320,7 +305,7 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "section": {"type": "string", "enum": _ITEM_FIELD_SECTIONS},
+                    "section": {"type": "string", "enum": list(ITEM_FIELD_SECTIONS)},
                     "item_id": {
                         "type": "string",
                         "description": "工作/项目/教育条目的 id",
@@ -615,7 +600,7 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
                 "properties": {
                     "section": {
                         "type": "string",
-                        "enum": _BULLET_SECTIONS,
+                        "enum": list(BULLET_SECTIONS),
                     },
                     "item_id": {
                         "type": "string",
@@ -656,7 +641,7 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
                 "properties": {
                     "section": {
                         "type": "string",
-                        "enum": _BULLET_SECTIONS,
+                        "enum": list(BULLET_SECTIONS),
                     },
                     "item_id": {
                         "type": "string",
@@ -688,7 +673,7 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
                 "properties": {
                     "section": {
                         "type": "string",
-                        "enum": _BULLET_SECTIONS,
+                        "enum": list(BULLET_SECTIONS),
                     },
                     "item_id": {
                         "type": "string",
@@ -754,17 +739,6 @@ def _define_tool(
 
 
 _READ_ONLY_PROFILES = ("resume_edit", "read_only")
-_VISIBILITY_SECTIONS = (
-    "personal",
-    "summary",
-    "education",
-    "work",
-    "work_experience",
-    "projects",
-    "open_source",
-    "skills",
-)
-
 RESUME_TOOL_CATALOG: tuple[ResumeToolDefinition, ...] = (
     _define_tool(
         "ask_user",
@@ -797,21 +771,21 @@ RESUME_TOOL_CATALOG: tuple[ResumeToolDefinition, ...] = (
         add_resume_item,
         display_name="新增经历条目",
         required_args=("section", "fields"),
-        section_enum=tuple(_ITEM_FIELD_SECTIONS),
+        section_enum=ITEM_FIELD_SECTIONS,
     ),
     _define_tool(
         "remove_resume_item",
         remove_resume_item,
         display_name="删除经历条目",
         required_args=("section", "item_id"),
-        section_enum=tuple(_ITEM_FIELD_SECTIONS),
+        section_enum=ITEM_FIELD_SECTIONS,
     ),
     _define_tool(
         "update_item_fields",
         update_item_fields,
         display_name="优化条目字段",
         required_args=("section", "item_id", "fields"),
-        section_enum=tuple(_ITEM_FIELD_SECTIONS),
+        section_enum=ITEM_FIELD_SECTIONS,
     ),
     _define_tool(
         "update_skills",
@@ -825,7 +799,7 @@ RESUME_TOOL_CATALOG: tuple[ResumeToolDefinition, ...] = (
         show_section,
         display_name="显示板块",
         required_args=("section",),
-        section_enum=_VISIBILITY_SECTIONS,
+        section_enum=VISIBILITY_SECTIONS,
         visibility_tool=True,
     ),
     _define_tool(
@@ -833,7 +807,7 @@ RESUME_TOOL_CATALOG: tuple[ResumeToolDefinition, ...] = (
         hide_section,
         display_name="隐藏板块",
         required_args=("section",),
-        section_enum=_VISIBILITY_SECTIONS,
+        section_enum=VISIBILITY_SECTIONS,
         visibility_tool=True,
     ),
     _define_tool(
@@ -849,7 +823,7 @@ RESUME_TOOL_CATALOG: tuple[ResumeToolDefinition, ...] = (
         update_bullet,
         display_name="优化要点",
         required_args=("section", "item_id", "bullet_id", "text"),
-        section_enum=tuple(_BULLET_SECTIONS),
+        section_enum=BULLET_SECTIONS,
         argument_aliases={"highlight_id": "bullet_id"},
     ),
     _define_tool(
@@ -857,14 +831,14 @@ RESUME_TOOL_CATALOG: tuple[ResumeToolDefinition, ...] = (
         add_bullet,
         display_name="新增要点",
         required_args=("section", "item_id", "text"),
-        section_enum=tuple(_BULLET_SECTIONS),
+        section_enum=BULLET_SECTIONS,
     ),
     _define_tool(
         "remove_bullet",
         remove_bullet,
         display_name="删除要点",
         required_args=("section", "item_id", "bullet_id"),
-        section_enum=tuple(_BULLET_SECTIONS),
+        section_enum=BULLET_SECTIONS,
         argument_aliases={"highlight_id": "bullet_id"},
     ),
     _define_tool(
@@ -953,7 +927,7 @@ def execute_resume_tool_call(
     tool_name: str,
     raw_arguments: Any,
     context: dict[str, Any],
-) -> ResumeToolExecutionResult:
+) -> dict[str, Any]:
     """用于从模型原始参数执行一次完整的简历工具调用。"""
     tool_input, error = parse_resume_tool_input(tool_name, raw_arguments)
     if error is not None:
@@ -970,16 +944,19 @@ def execute_prepared_resume_tool_call(
     tool_name: str,
     tool_input: dict[str, Any],
     context: dict[str, Any],
-) -> ResumeToolExecutionResult:
+) -> dict[str, Any]:
     """用于执行已解析的简历工具参数并返回统一 runtime 结果。"""
     normalized_input = normalize_resume_tool_input(tool_name, tool_input)
     error = validate_resume_tool_input(tool_name, normalized_input, context)
     if error is not None:
         return error
-    return dispatch_resume_tool_call(
-        tool_name=tool_name,
-        tool_input=normalized_input,
-        context=context,
+    return cast(
+        dict[str, Any],
+        dispatch_resume_tool_call(
+            tool_name=tool_name,
+            tool_input=normalized_input,
+            context=context,
+        ),
     )
 
 
@@ -1330,13 +1307,6 @@ def expected_resume_tool_arguments(tool_name: str) -> list[str]:
     if definition is None:
         return []
     return sorted(definition.required_args)
-
-
-def resume_section_display_name(section_key: str | None) -> str | None:
-    """用于把内部板块 key 转成前端更容易展示的中文名称。"""
-    if not section_key:
-        return None
-    return _SECTION_DISPLAY_NAMES.get(section_key, section_key)
 
 
 def execute_resume_tool(

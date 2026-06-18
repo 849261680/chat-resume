@@ -23,10 +23,15 @@ registerHooks({
 })
 
 const {
+  buildResumeEditorSections,
   deserializeLayoutConfig,
   isLayoutConfigDirty,
   loadLayoutConfig,
+  moveResumeModule,
   saveLayoutConfig,
+  setResumeLayoutDensity,
+  setResumeTemplateStyle,
+  toggleResumeModuleVisibility,
 } = await import('./resumeLayoutConfig.ts')
 const { MAX_RESUME_SPACING_SCALE } = await import('./resumeSpacingScale.ts')
 
@@ -106,6 +111,51 @@ test('layout config cache tracks dirty local density changes', () => {
 
   saveLayoutConfig(101, config, { dirty: false })
   assert.equal(isLayoutConfigDirty(101), false)
+})
+
+test('layout actions update one setting while preserving the rest of the config', () => {
+  const config = deserializeLayoutConfig({
+    density: 'normal',
+    moduleOrder: ['personal', 'projects', 'work', 'skills'],
+    visibleModules: ['personal', 'projects', 'work'],
+    spacingScale: 1,
+    templateStyle: 'classic',
+  })
+
+  const compact = setResumeLayoutDensity(config, 'compact')
+  assert.equal(compact.spacingScale, 0.7)
+  assert.deepEqual(compact.moduleOrder, config.moduleOrder)
+  assert.deepEqual(Array.from(compact.visibleModules), Array.from(config.visibleModules))
+
+  const emerald = setResumeTemplateStyle(compact, 'emerald')
+  assert.equal(emerald.templateStyle, 'emerald')
+  assert.equal(emerald.spacingScale, 0.7)
+})
+
+test('layout module owns resume module visibility and ordering actions', () => {
+  const config = deserializeLayoutConfig({
+    moduleOrder: ['personal', 'projects', 'work', 'skills'],
+    visibleModules: ['personal', 'projects', 'work'],
+  })
+
+  const hiddenProjects = toggleResumeModuleVisibility(config, 'projects')
+  assert.equal(hiddenProjects.visibleModules.has('projects'), false)
+
+  const movedWork = moveResumeModule(config, 'work', 'up')
+  assert.deepEqual(movedWork.moduleOrder.slice(0, 3), ['personal', 'work', 'projects'])
+})
+
+test('editor sections follow resume module order after the job section', () => {
+  const config = deserializeLayoutConfig({
+    moduleOrder: ['personal', 'projects', 'work', 'skills', 'summary', 'education', 'open_source'],
+    visibleModules: ['personal', 'projects', 'work', 'skills'],
+  })
+  const sections = buildResumeEditorSections(config, (key) => key)
+
+  assert.deepEqual(
+    sections.map((section) => section.key),
+    ['job_application', 'personal', 'projects', 'work', 'skills'],
+  )
 })
 
 test('resume layout module translations cover every module id', async () => {

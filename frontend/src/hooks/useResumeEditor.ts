@@ -15,11 +15,12 @@ import { useTranslations } from 'next-intl'
 import { resumeApi, type Resume } from '@/lib/api'
 import {
   buildModuleConfig,
+  buildResumeEditorSections,
   DEFAULT_LAYOUT_CONFIG,
   deserializeLayoutConfig,
+  EDITOR_SECTION_TO_MODULE,
   loadLayoutConfig,
   ResumeLayoutConfig,
-  ResumeModule,
   isLayoutConfigDirty,
   saveLayoutConfig,
   saveLayoutConfigToServer,
@@ -28,16 +29,6 @@ import {
 import type { ModuleConfig } from '@/types/resumeLayout'
 
 import { AutoSaveStatus, useResumeAutoSave } from './useResumeAutoSave'
-
-const EDITOR_SECTION_TO_MODULE: Partial<Record<string, ResumeModule>> = {
-  personal: 'personal',
-  summary: 'summary',
-  education: 'education',
-  work: 'work',
-  projects: 'projects',
-  open_source: 'open_source',
-  skills: 'skills',
-}
 
 interface UseResumeEditorOptions {
   resumeId: string
@@ -219,7 +210,7 @@ export function useResumeEditor({ resumeId, isAuthenticated }: UseResumeEditorOp
     } finally {
       setExporting(false)
     }
-  }, [layoutConfig.templateStyle, resume, t])
+  }, [layoutConfig, resume, t])
 
   /**
    * 更新指定简历模块内容，并交给自动保存 Hook 处理脏数据状态。
@@ -285,21 +276,8 @@ export function useResumeEditor({ resumeId, isAuthenticated }: UseResumeEditorOp
   )
 
   const editorSections = useMemo(() => {
-    const allSections = [
-      { key: 'job_application', label: t('sections.job') },
-      { key: 'personal', label: t('sections.personal') },
-      { key: 'summary', label: t('sections.summary') },
-      { key: 'education', label: t('sections.education') },
-      { key: 'work', label: t('sections.work') },
-      { key: 'projects', label: t('sections.projects') },
-      { key: 'open_source', label: t('sections.openSource') },
-      { key: 'skills', label: t('sections.skills') },
-    ]
-    return allSections.filter((section) => {
-      const mappedModule = EDITOR_SECTION_TO_MODULE[section.key]
-      return mappedModule ? layoutConfig.visibleModules.has(mappedModule) : true
-    })
-  }, [layoutConfig.visibleModules, t])
+    return buildResumeEditorSections(layoutConfig, t)
+  }, [layoutConfig, t])
 
   /**
    * 当当前编辑模块被隐藏时，自动切到仍然可见的第一个模块。

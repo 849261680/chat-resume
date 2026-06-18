@@ -8,6 +8,22 @@ export interface PrintPayload {
   template?: string
 }
 
+export const RESUME_PRINT_PAYLOAD_FIELDS = ['content', 'template', 'layout_config'] as const
+
+// 用于把未知输入收敛为打印页稳定载荷。
+export function materializePrintPayload(raw: unknown): Required<PrintPayload> {
+  const source = raw && typeof raw === 'object' ? raw as PrintPayload : {}
+  const template = String(source.template || 'default').trim() || 'default'
+  const layoutConfig = source.layout_config && typeof source.layout_config === 'object'
+    ? source.layout_config
+    : null
+  return {
+    content: source.content || null,
+    template,
+    layout_config: layoutConfig,
+  }
+}
+
 // 用于把 base64url 字符串解码成 UTF-8 JSON 字符串。
 function decodeBase64Url(data: string): string {
   const normalized = data.replace(/-/g, '+').replace(/_/g, '/')
@@ -24,7 +40,7 @@ function decodePayload(data?: string | null): PrintPayload | null {
   }
 
   try {
-    return JSON.parse(decodeBase64Url(data)) as PrintPayload
+    return materializePrintPayload(JSON.parse(decodeBase64Url(data)))
   } catch {
     return null
   }

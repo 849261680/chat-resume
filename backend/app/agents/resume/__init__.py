@@ -4,7 +4,6 @@ __all__ = [
     "ResumeAgent",
     "ResumeAgentHarness",
     "ResumeAgentRuntime",
-    "ResumeToolExecutor",
 ]
 
 
@@ -22,8 +21,4 @@ def __getattr__(name: str):
         from .runtime import ResumeAgentRuntime
 
         return ResumeAgentRuntime
-    if name == "ResumeToolExecutor":
-        from .executor import ResumeToolExecutor
-
-        return ResumeToolExecutor
     raise AttributeError(name)

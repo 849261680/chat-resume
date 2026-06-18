@@ -5,11 +5,12 @@
 支持PDF、Word、HTML等格式的导出功能。
 """
 
-import base64
 import json
 import logging
 import os
+import re
 import uuid
+from dataclasses import dataclass
 from html import escape
 from typing import Any, Dict
 from urllib.parse import quote
@@ -23,9 +24,20 @@ from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
 
 from app.infra.config import settings
 from app.infra.security import create_download_token
+from app.services.processing.resume_print_payload import build_resume_print_payload
 
 logger = logging.getLogger(__name__)
 MAX_FRONTEND_PRINT_URL_CHARS = 8000
+
+
+@dataclass(frozen=True)
+class ExportArtifact:
+    """用于描述一次导出完成后的文件产物。"""
+
+    filepath: str
+    download_url: str
+    filename: str
+    format: str
 
 
 class ExportService:
@@ -36,6 +48,48 @@ class ExportService:
         self.export_dir = os.path.join(settings.UPLOAD_DIR, "exports")
         os.makedirs(self.export_dir, exist_ok=True)
 
+    async def export_resume_artifact(
+        self,
+        *,
+        resume_content: Dict[str, Any],
+        export_format: str,
+        template: str = "default",
+        layout_config: Dict[str, Any] | None = None,
+        user_id: int,
+    ) -> ExportArtifact:
+        """用于导出简历并返回可下载文件产物。"""
+
+        filepath = await self._render_resume_file(
+            resume_content=resume_content,
+            export_format=export_format,
+            template=template,
+            layout_config=layout_config,
+        )
+        return ExportArtifact(
+            filepath=filepath,
+            download_url=self.get_file_url(filepath=filepath, user_id=user_id),
+            filename=os.path.basename(filepath),
+            format=export_format,
+        )
+
+    async def _render_resume_file(
+        self,
+        *,
+        resume_content: Dict[str, Any],
+        export_format: str,
+        template: str,
+        layout_config: Dict[str, Any] | None,
+    ) -> str:
+        """用于按格式渲染简历文件。"""
+
+        if export_format == "pdf":
+            return await self.export_to_pdf(resume_content, template, layout_config)
+        if export_format == "docx":
+            return self.export_to_docx(resume_content, template)
+        if export_format == "html":
+            return self.export_to_html(resume_content, template)
+        raise ValueError("Unsupported export format")
+
     async def export_to_pdf(
         self,
         resume_content: Dict[str, Any],
@@ -43,7 +97,7 @@ class ExportService:
         layout_config: Dict[str, Any] | None = None,
     ) -> str:
         """使用前端打印页导出与预览一致的简历 PDF。"""
-        filename = f"resume_{uuid.uuid4().hex}.pdf"
+        filename = self._build_resume_export_filename(resume_content, "pdf")
         filepath = os.path.join(self.export_dir, filename)
         encoded_payload = self._build_frontend_print_payload(
             resume_content,
@@ -96,7 +150,7 @@ class ExportService:
         """导出简历为Word文档。"""
 
         del template
-        filename = f"resume_{uuid.uuid4().hex}.docx"
+        filename = self._build_resume_export_filename(resume_content, "docx")
         filepath = os.path.join(self.export_dir, filename)
 
         doc = SimpleDocTemplate(filepath, pagesize=A4)
@@ -205,7 +259,7 @@ class ExportService:
         """导出简历为HTML。"""
 
         del template
-        filename = f"resume_{uuid.uuid4().hex}.html"
+        filename = self._build_resume_export_filename(resume_content, "html")
         filepath = os.path.join(self.export_dir, filename)
 
         with open(filepath, "w", encoding="utf-8") as file:
@@ -261,16 +315,11 @@ class ExportService:
     ) -> str:
         """构建前端打印页载荷。"""
 
-        payload = {
-            "content": resume_content,
-            "template": template,
-            "layout_config": layout_config,
-        }
-        return base64.urlsafe_b64encode(
-            json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode(
-                "utf-8"
-            )
-        ).decode("utf-8")
+        return build_resume_print_payload(
+            resume_content=resume_content,
+            template=template,
+            layout_config=layout_config,
+        )
 
     def _build_frontend_print_url(self, encoded_payload: str) -> str:
         """构建携带小载荷的前端打印页地址。"""
@@ -594,12 +643,58 @@ class ExportService:
 
         return " | ".join(str(part).strip() for part in parts if str(part).strip())
 
+    def _build_resume_export_filename(
+        self,
+        resume_content: Dict[str, Any],
+        extension: str,
+    ) -> str:
+        """根据候选人姓名和目标岗位构建导出文件名。"""
+
+        name = self._clean_filename_part(self._read_candidate_name(resume_content))
+        target_title = self._clean_filename_part(
+            self._read_target_title(resume_content)
+        )
+        stem = "-".join(part for part in [name or "简历", target_title] if part)
+        return f"{stem}.{extension.lstrip('.')}"
+
+    def _read_candidate_name(self, resume_content: Dict[str, Any]) -> str:
+        """从简历内容中读取候选人姓名。"""
+
+        personal_info = self._read_content_dict(resume_content, "personal_info")
+        return str(personal_info.get("name") or personal_info.get("full_name") or "")
+
+    def _read_target_title(self, resume_content: Dict[str, Any]) -> str:
+        """从简历内容中读取目标岗位名称。"""
+
+        job_application = self._read_content_dict(resume_content, "job_application")
+        personal_info = self._read_content_dict(resume_content, "personal_info")
+        return str(
+            job_application.get("target_title") or personal_info.get("position") or ""
+        )
+
+    def _read_content_dict(
+        self,
+        resume_content: Dict[str, Any],
+        section: str,
+    ) -> dict[str, Any]:
+        """读取简历中的字典型区块。"""
+
+        value = resume_content.get(section)
+        return value if isinstance(value, dict) else {}
+
+    def _clean_filename_part(self, value: str) -> str:
+        """清理文件名片段中的路径分隔符和控制字符。"""
+
+        cleaned = re.sub(r'[\\/:*?"<>|\x00-\x1f]+', " ", value)
+        cleaned = re.sub(r"\s+", " ", cleaned).strip(" .-")
+        return cleaned[:80]
+
     def get_file_url(self, *, filepath: str, user_id: int) -> str:
         """获取文件访问URL。"""
 
         filename = os.path.basename(filepath)
         query = create_download_token(filename=filename, user_id=user_id)
-        return f"/api/resumes/download/{filename}?{query}"
+        return f"/api/resumes/download/{quote(filename)}?{query}"
 
     def delete_file(self, filepath: str) -> bool:
         """删除导出文件。"""

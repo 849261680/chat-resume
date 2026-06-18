@@ -32,6 +32,22 @@ def _decode_sse_data(rendered: str) -> dict[str, Any]:
     return parsed
 
 
+def _load_contract_fixtures() -> dict[str, Any]:
+    """用于读取跨前后端共用的 Resume stream 协议 fixture。"""
+    fixture_path = BACKEND_DIR.parent / "docs/agents/resume-agent-stream-contract-fixtures.json"
+    return json.loads(fixture_path.read_text(encoding="utf-8"))
+
+
+def test_public_stream_contract_fixture_keeps_backend_payload_shape():
+    """用于验证后端公开 SSE payload 与可执行协议 fixture 一致。"""
+    fixtures = _load_contract_fixtures()
+    for fixture in fixtures["events"]:
+        payload = public_resume_stream_event(fixture["backend_event"])
+        assert payload == fixture["public_payload"]
+        for forbidden_key in fixture.get("forbidden_public_keys", []):
+            assert forbidden_key not in payload
+
+
 def test_sdk_text_delta_becomes_public_sse_text_delta_payload():
     """用于验证 SDK 文本 delta 会穿透成前端可消费的 text_delta。"""
     model = Model(api="responses", provider="openai-agents", id="gpt-test")

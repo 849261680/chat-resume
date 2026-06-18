@@ -43,7 +43,6 @@ async def export_resume(
     try:
         export_service = ExportService()
 
-        # 根据格式导出
         resume_data: Dict[str, Any] = cast(
             Dict[str, Any], resume.content if resume.content is not None else {}
         )
@@ -52,37 +51,27 @@ async def export_resume(
         if layout_config is None and resume.layout_config is not None:
             layout_config = cast(Dict[str, Any], resume.layout_config)
 
-        if export_request.format == "pdf":
-            filepath = await export_service.export_to_pdf(
-                resume_data,
-                template_name,
-                layout_config,
-            )
-        elif export_request.format == "docx":
-            filepath = export_service.export_to_docx(resume_data, template_name)
-        elif export_request.format == "html":
-            filepath = export_service.export_to_html(resume_data, template_name)
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Unsupported export format",
-            )
-
-        # 获取文件URL
-        download_url = export_service.get_file_url(
-            filepath=filepath,
+        artifact = await export_service.export_resume_artifact(
+            resume_content=resume_data,
+            export_format=export_request.format,
+            template=template_name,
+            layout_config=layout_config,
             user_id=current_user["id"],
         )
-        filename = os.path.basename(filepath)
 
         return ExportResponse.model_validate(
             {
-                "download_url": download_url,
-                "filename": filename,
-                "format": export_request.format,
+                "download_url": artifact.download_url,
+                "filename": artifact.filename,
+                "format": artifact.format,
             }
         )
 
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

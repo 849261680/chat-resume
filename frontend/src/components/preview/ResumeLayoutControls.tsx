@@ -9,8 +9,13 @@ import {
   LayoutDensity,
   ResumeModule,
   ResumeLayoutConfig,
-  DENSITY_SPACING_SCALE,
   ResumeTemplateStyle,
+  moveResumeModule,
+  resetResumeSpacingScale,
+  setResumeLayoutDensity,
+  setResumeSpacingScale,
+  setResumeTemplateStyle,
+  toggleResumeModuleVisibility,
 } from '@/lib/resumeLayoutConfig'
 import {
   MAX_RESUME_SPACING_SCALE,
@@ -67,35 +72,18 @@ export default function ResumeLayoutControls({
 
   // 用于处理templatestylechange。
   const handleTemplateStyleChange = (templateStyle: ResumeTemplateStyle) => {
-    onConfigChange({
-      density: config.density,
-      moduleOrder: [...config.moduleOrder],
-      visibleModules: new Set(config.visibleModules),
-      spacingScale: config.spacingScale,
-      templateStyle,
-    })
+    onConfigChange(setResumeTemplateStyle(config, templateStyle))
   }
 
   // 用于处理密度change。
   const handleDensityChange = (density: LayoutDensity) => {
-    const spacingScale = DENSITY_SPACING_SCALE[density as Exclude<LayoutDensity, 'custom'>] ?? config.spacingScale
-    onConfigChange({
-      density,
-      moduleOrder: [...config.moduleOrder],
-      visibleModules: new Set(config.visibleModules),
-      spacingScale,
-      templateStyle: config.templateStyle,
-    })
+    onConfigChange(setResumeLayoutDensity(config, density))
   }
 
   // 用于构建细调间距对应的布局配置。
-  const buildSpacingScaleConfig = (value: number): ResumeLayoutConfig => ({
-    density: 'custom',
-    moduleOrder: [...config.moduleOrder],
-    visibleModules: new Set(config.visibleModules),
-    spacingScale: clampResumeSpacingScale(value),
-    templateStyle: config.templateStyle,
-  })
+  const buildSpacingScaleConfig = (value: number): ResumeLayoutConfig => (
+    setResumeSpacingScale(config, value)
+  )
 
   // 用于处理间距缩放change。
   const handleSpacingScaleChange = (value: number) => {
@@ -114,52 +102,17 @@ export default function ResumeLayoutControls({
 
   // 用于处理间距缩放reset。
   const handleSpacingScaleReset = () => {
-    onConfigChange({
-      density: 'normal',
-      moduleOrder: [...config.moduleOrder],
-      visibleModules: new Set(config.visibleModules),
-      spacingScale: 1.0,
-      templateStyle: config.templateStyle,
-    })
+    onConfigChange(resetResumeSpacingScale(config))
   }
 
   // 用于切换模块可见性。
   const toggleModuleVisibility = (module: ResumeModule) => {
-    const newVisible = new Set(config.visibleModules)
-    if (newVisible.has(module)) {
-      newVisible.delete(module)
-    } else {
-      newVisible.add(module)
-    }
-    onConfigChange({
-      density: config.density,
-      moduleOrder: [...config.moduleOrder],
-      visibleModules: newVisible,
-      spacingScale: config.spacingScale,
-      templateStyle: config.templateStyle,
-    })
+    onConfigChange(toggleResumeModuleVisibility(config, module))
   }
 
   // 用于移动模块。
   const moveModule = (module: ResumeModule, direction: 'up' | 'down') => {
-    const currentIndex = config.moduleOrder.indexOf(module)
-    if (currentIndex === -1) return
-
-    const newOrder = [...config.moduleOrder]
-    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1
-
-    if (targetIndex < 0 || targetIndex >= newOrder.length) return
-
-    ;[newOrder[currentIndex], newOrder[targetIndex]] =
-    [newOrder[targetIndex], newOrder[currentIndex]]
-
-    onConfigChange({
-      density: config.density,
-      moduleOrder: newOrder,
-      visibleModules: new Set(config.visibleModules),
-      spacingScale: config.spacingScale,
-      templateStyle: config.templateStyle,
-    })
+    onConfigChange(moveResumeModule(config, module, direction))
   }
 
   return (

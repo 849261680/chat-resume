@@ -17,7 +17,7 @@ from app.agents.resume.stream_events import (  # noqa: E402
     tool_pending_event,
 )
 from app.agents.resume.message_conversion import resume_chat_history_to_messages  # noqa: E402
-from app.agents.resume.executor import ResumeToolExecutor  # noqa: E402
+from app.tools.resume.registry import execute_prepared_resume_tool_call  # noqa: E402
 from app.tools.resume.registry import RESUME_TOOLS_SCHEMA  # noqa: E402
 from app.tools.resume.update_bullet_tool import update_bullet  # noqa: E402
 from app.types.stream import public_resume_stream_event  # noqa: E402
@@ -91,9 +91,8 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
                 }
             ]
         }
-        executor = ResumeToolExecutor()
 
-        result = executor.execute(
+        result = execute_prepared_resume_tool_call(
             tool_name="update_bullet",
             tool_input={
                 "section": "work_experience",
@@ -238,7 +237,6 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
 
     def test_job_post_tools_read_current_user_records_from_context(self):
         """用于验证 JD 工具只能通过当前会话注入的用户上下文读取。"""
-        executor = ResumeToolExecutor()
 
         def read_job_post(user_id: int, job_post_id: int) -> dict[str, Any] | None:
             """用于模拟按用户读取 JD。"""
@@ -251,7 +249,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
                 "jd_text": "负责 Agent 工具调用、RAG 和评测体系。",
             }
 
-        result = executor.execute(
+        result = execute_prepared_resume_tool_call(
             tool_name="read_job_post",
             tool_input={"job_post_id": 42},
             context={
@@ -267,7 +265,6 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
 
     def test_job_post_list_tool_reads_summaries_from_context(self):
         """用于验证 JD 列表工具返回当前用户的摘要列表。"""
-        executor = ResumeToolExecutor()
 
         def list_job_posts(
             user_id: int,
@@ -281,7 +278,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
             self.assertEqual(limit, 5)
             return [{"id": 1, "job_title": "Agent 工程师", "jd_chars": 1200}]
 
-        result = executor.execute(
+        result = execute_prepared_resume_tool_call(
             tool_name="list_job_posts",
             tool_input={"query": "Agent", "limit": 5},
             context={
@@ -296,9 +293,8 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
 
     def test_memory_tools_write_and_read_markdown_store(self):
         """用于验证记忆工具通过执行器读写固定 md 文件。"""
-        executor = ResumeToolExecutor()
         with TemporaryDirectory() as memory_dir:
-            update_result = executor.execute(
+            update_result = execute_prepared_resume_tool_call(
                 tool_name="update_memory",
                 tool_input={
                     "operation": "append",
@@ -325,7 +321,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
                 memory_file.read_text(encoding="utf-8"),
             )
 
-            read_result = executor.execute(
+            read_result = execute_prepared_resume_tool_call(
                 tool_name="read_memory",
                 tool_input={"scope": "user", "query": "数字"},
                 context={
@@ -345,9 +341,8 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
 
     def test_memory_preview_does_not_write_markdown_store(self):
         """用于验证记忆工具预览不产生持久化副作用。"""
-        executor = ResumeToolExecutor()
         with TemporaryDirectory() as memory_dir:
-            result = executor.execute(
+            result = execute_prepared_resume_tool_call(
                 tool_name="update_memory",
                 tool_input={
                     "operation": "append",
@@ -401,9 +396,8 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
 
     def test_memory_tools_replace_disable_and_isolate_resume_scope(self):
         """用于验证更新记忆支持替换停用并隔离不同简历。"""
-        executor = ResumeToolExecutor()
         with TemporaryDirectory() as memory_dir:
-            first = executor.execute(
+            first = execute_prepared_resume_tool_call(
                 tool_name="update_memory",
                 tool_input={
                     "operation": "append",
@@ -419,7 +413,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
                     "memory_dir": memory_dir,
                 },
             )
-            executor.execute(
+            execute_prepared_resume_tool_call(
                 tool_name="update_memory",
                 tool_input={
                     "operation": "append",
@@ -437,7 +431,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
             )
             memory_id = first["result"]["memory_id"]
 
-            replaced = executor.execute(
+            replaced = execute_prepared_resume_tool_call(
                 tool_name="update_memory",
                 tool_input={
                     "operation": "replace",
@@ -454,7 +448,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
                     "memory_dir": memory_dir,
                 },
             )
-            read_replaced = executor.execute(
+            read_replaced = execute_prepared_resume_tool_call(
                 tool_name="read_memory",
                 tool_input={"scope": "resume", "query": "AI Agent"},
                 context={
@@ -465,7 +459,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
                 },
             )
 
-            disabled = executor.execute(
+            disabled = execute_prepared_resume_tool_call(
                 tool_name="update_memory",
                 tool_input={
                     "operation": "disable",
@@ -482,7 +476,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
                     "memory_dir": memory_dir,
                 },
             )
-            read_disabled = executor.execute(
+            read_disabled = execute_prepared_resume_tool_call(
                 tool_name="read_memory",
                 tool_input={"scope": "resume"},
                 context={
@@ -501,9 +495,8 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
     def test_update_summary_tool_updates_summary_text_with_diff(self):
         """用于验证update_summary通过执行器修改个人总结并返回diff。"""
         resume_content = {"summary": {"text": "3年后端开发经验"}}
-        executor = ResumeToolExecutor()
 
-        result = executor.execute(
+        result = execute_prepared_resume_tool_call(
             tool_name="update_summary",
             tool_input={"text": "3年 AI 应用工程经验,熟悉 Agent 工具调用", "reason": "贴合 JD 定位"},
             context={"resume_content": resume_content},
@@ -520,9 +513,8 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
     def test_update_profile_tool_updates_safe_profile_fields(self):
         """用于验证update_profile只修改可安全优化的个人信息字段。"""
         resume_content = {"personal_info": {"name": "张三", "position": "后端开发"}}
-        executor = ResumeToolExecutor()
 
-        result = executor.execute(
+        result = execute_prepared_resume_tool_call(
             tool_name="update_profile",
             tool_input={
                 "fields": {
@@ -543,9 +535,8 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
     def test_update_profile_tool_updates_sourced_identity_fields(self):
         """用于验证update_profile可写入有明确来源的身份联系字段。"""
         resume_content = {"personal_info": {"name": "", "email": "", "phone": ""}}
-        executor = ResumeToolExecutor()
 
-        result = executor.execute(
+        result = execute_prepared_resume_tool_call(
             tool_name="update_profile",
             tool_input={
                 "fields": {
@@ -569,9 +560,8 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
     def test_update_profile_tool_rejects_unsourced_identity_fields(self):
         """用于验证update_profile无来源时仍拒绝身份联系字段。"""
         resume_content = {"personal_info": {"name": "张三", "position": "后端开发"}}
-        executor = ResumeToolExecutor()
 
-        result = executor.execute(
+        result = execute_prepared_resume_tool_call(
             tool_name="update_profile",
             tool_input={"fields": {"name": "李四"}, "reason": "用户没有提供来源"},
             context={"resume_content": resume_content},
@@ -590,9 +580,8 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
                 "jd_text": "旧 JD",
             }
         }
-        executor = ResumeToolExecutor()
 
-        result = executor.execute(
+        result = execute_prepared_resume_tool_call(
             tool_name="upsert_job_application",
             tool_input={
                 "fields": {"target_company": "Anthropic"},
@@ -620,9 +609,8 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
                 "target_title": "AGENT开发岗",
             }
         }
-        executor = ResumeToolExecutor()
 
-        result = executor.execute(
+        result = execute_prepared_resume_tool_call(
             tool_name="upsert_job_application",
             tool_input={
                 "fields": {"target_title": "AI应用开发岗"},
@@ -645,9 +633,8 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         resume_content: dict[str, Any] = {
             "job_application": {"target_title": "AEGNK开发岗"}
         }
-        executor = ResumeToolExecutor()
 
-        result = executor.execute(
+        result = execute_prepared_resume_tool_call(
             tool_name="upsert_job_application",
             tool_input={"fields": {"target_title": "AGENT开发岗"}},
             context={"resume_content": resume_content},
@@ -666,9 +653,8 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
                 "target_title": "AGENT开发岗",
             }
         }
-        executor = ResumeToolExecutor()
 
-        result = executor.execute(
+        result = execute_prepared_resume_tool_call(
             tool_name="upsert_job_application",
             tool_input={
                 "fields": {
@@ -699,9 +685,8 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
                 "target_title": "AI应用开发岗",
             }
         }
-        executor = ResumeToolExecutor()
 
-        result = executor.execute(
+        result = execute_prepared_resume_tool_call(
             tool_name="upsert_job_application",
             tool_input={
                 "fields": {
@@ -719,9 +704,8 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
     def test_upsert_job_application_creates_missing_target_context(self):
         """用于验证upsert_job_application在缺失时创建求职目标上下文。"""
         resume_content: dict[str, Any] = {"projects": []}
-        executor = ResumeToolExecutor()
 
-        result = executor.execute(
+        result = execute_prepared_resume_tool_call(
             tool_name="upsert_job_application",
             tool_input={
                 "fields": {
@@ -769,9 +753,8 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
                 }
             ]
         }
-        executor = ResumeToolExecutor()
 
-        result = executor.execute(
+        result = execute_prepared_resume_tool_call(
             tool_name="update_item_fields",
             tool_input={
                 "section": "projects",
@@ -813,9 +796,8 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
                 }
             ],
         }
-        executor = ResumeToolExecutor()
 
-        project_result = executor.execute(
+        project_result = execute_prepared_resume_tool_call(
             tool_name="update_item_fields",
             tool_input={
                 "section": "projects",
@@ -825,7 +807,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
             },
             context={"resume_content": resume_content},
         )
-        work_result = executor.execute(
+        work_result = execute_prepared_resume_tool_call(
             tool_name="update_item_fields",
             tool_input={
                 "section": "work_experience",
@@ -849,9 +831,8 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
                 {"id": "skill_1", "category": "后端", "items": ["Python", "FastAPI"]},
             ]
         }
-        executor = ResumeToolExecutor()
 
-        result = executor.execute(
+        result = execute_prepared_resume_tool_call(
             tool_name="update_skills",
             tool_input={
                 "category_id": "skill_1",
@@ -889,9 +870,8 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
                 {"id": "skill_long", "category": "Agent 技术栈", "items": long_items[:-1]},
             ]
         }
-        executor = ResumeToolExecutor()
 
-        result = executor.execute(
+        result = execute_prepared_resume_tool_call(
             tool_name="update_skills",
             tool_input={
                 "category_id": "skill_long",
@@ -915,9 +895,8 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
             "skills": skills_data,
             "_visible_modules": ["personal", "summary", "projects"],
         }
-        executor = ResumeToolExecutor()
 
-        result = executor.execute(
+        result = execute_prepared_resume_tool_call(
             tool_name="show_section",
             tool_input={
                 "section": "skills",
@@ -937,9 +916,8 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
             "summary": {"text": ""},
             "_visible_modules": ["personal", "projects"],
         }
-        executor = ResumeToolExecutor()
 
-        result = executor.execute(
+        result = execute_prepared_resume_tool_call(
             tool_name="show_section",
             tool_input={
                 "section": "summary",
@@ -955,9 +933,8 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
     def test_show_section_rejects_already_visible_section(self):
         """用于验证show_section拒绝已显示的板块。"""
         resume_content: dict[str, Any] = {"projects": []}
-        executor = ResumeToolExecutor()
 
-        result = executor.execute(
+        result = execute_prepared_resume_tool_call(
             tool_name="show_section",
             tool_input={"section": "projects"},
             context={"resume_content": resume_content},
@@ -975,9 +952,8 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
             "skills": skills_data,
             "_visible_modules": ["skills", "projects"],
         }
-        executor = ResumeToolExecutor()
 
-        result = executor.execute(
+        result = execute_prepared_resume_tool_call(
             tool_name="hide_section",
             tool_input={
                 "section": "skills",
@@ -997,9 +973,8 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
             "projects": [],
             "_visible_modules": ["projects"],
         }
-        executor = ResumeToolExecutor()
 
-        result = executor.execute(
+        result = execute_prepared_resume_tool_call(
             tool_name="hide_section",
             tool_input={"section": "skills"},
             context={"resume_content": resume_content},

@@ -17,7 +17,6 @@ from app.tools.resume.registry import (
 from app.types.stream import ResumeStreamEvent
 
 from .candidate_profile import load_candidate_profile_context
-from .executor import ResumeToolExecutor
 from .prompt_context import build_resume_prompt_context, strip_redundant_fields
 from .runtime import ResumeAgentRuntime
 from .stream_events import normalize_resume_stream_payload
@@ -49,7 +48,6 @@ class ResumeAgent:
 
     def __init__(self):
         """用于初始化简历 Agent 运行所需的固定依赖。"""
-        self.tool_executor = ResumeToolExecutor()
         self.prompt_spec = load_prompt("resume_agent")
         self.runtime: Any = ResumeAgentRuntime()
         self.definition = AgentDefinition(

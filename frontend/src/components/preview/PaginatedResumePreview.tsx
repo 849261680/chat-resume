@@ -13,7 +13,7 @@ import SkillsPreview from './sections/SkillsPreview'
 import ProjectsPreview from './sections/ProjectsPreview'
 import type { ResumeContent } from '@/types/resume'
 import type { ModuleConfig, ResumeModule, ResumeTemplateStyle } from '@/types/resumeLayout'
-import { DEFAULT_MODULE_CONFIG } from '@/lib/resumeLayoutConfig'
+import { DEFAULT_LAYOUT_CONFIG, buildModuleConfig, buildVisibleModuleConfig } from '@/lib/resumeLayoutConfig'
 import { useTranslations } from 'next-intl'
 
 const SECTION_ID_MAP: Record<ResumeModule, string> = {
@@ -52,7 +52,7 @@ interface PaginatedResumePreviewProps {
 // 用于渲染 PaginatedResumePreview 组件。
 export default function PaginatedResumePreview({
   content,
-  moduleOrder = DEFAULT_MODULE_CONFIG,
+  moduleOrder = buildModuleConfig(DEFAULT_LAYOUT_CONFIG.moduleOrder, DEFAULT_LAYOUT_CONFIG.visibleModules),
   spacingScale = 1,
   templateStyle = 'classic',
   onSpacingScaleChange,
@@ -95,9 +95,11 @@ export default function PaginatedResumePreview({
   // 按order排序并过滤可见模块
   const moduleOrderKey = JSON.stringify(moduleOrder.map(m => ({ type: m.type, visible: m.visible, order: m.order })))
   const visibleModules = useMemo(() => {
-    return [...moduleOrder]
-      .filter(m => m.visible)
-      .sort((a, b) => a.order - b.order)
+    return buildVisibleModuleConfig({
+      ...DEFAULT_LAYOUT_CONFIG,
+      moduleOrder: moduleOrder.map((module) => module.type),
+      visibleModules: new Set(moduleOrder.filter((module) => module.visible).map((module) => module.type)),
+    })
   }, [moduleOrderKey])
   const isFullBleedTemplate = templateStyle === 'emerald'
   const pageContentWidth = isFullBleedTemplate ? A4_WIDTH : PAGE_CONTENT_WIDTH

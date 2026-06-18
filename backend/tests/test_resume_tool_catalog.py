@@ -1,4 +1,4 @@
-"""用于覆盖 test_resume_tool_executor.py 对应的回归测试。"""
+"""用于覆盖 Resume Tool Catalog 公开执行接口的回归测试。"""
 
 import sys
 import unittest
@@ -9,18 +9,17 @@ BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from app.agents.resume.executor import ResumeToolExecutor  # noqa: E402
+from app.tools.resume.registry import execute_prepared_resume_tool_call  # noqa: E402
 
 
-class ResumeToolExecutorTests(unittest.TestCase):
+class ResumeToolCatalogTests(unittest.TestCase):
     def test_execute_wraps_success_result(self):
         """用于验证executewrapssuccess结果。"""
         resume = {
             "projects": [{"id": "proj_1", "name": "Chat Resume", "overview": "旧简介"}]
         }
-        executor = ResumeToolExecutor()
 
-        result = cast(dict[str, Any], executor.execute(
+        result = cast(dict[str, Any], execute_prepared_resume_tool_call(
             tool_name="update_overview",
             tool_input={
                 "section": "projects",
@@ -47,9 +46,8 @@ class ResumeToolExecutorTests(unittest.TestCase):
                 }
             ]
         }
-        executor = ResumeToolExecutor()
 
-        result = cast(dict[str, Any], executor.execute(
+        result = cast(dict[str, Any], execute_prepared_resume_tool_call(
             tool_name="update_item_fields",
             tool_input={
                 "section": "work_experience",
@@ -65,9 +63,8 @@ class ResumeToolExecutorTests(unittest.TestCase):
 
     def test_execute_returns_structured_hidden_section_error(self):
         """用于验证executereturnsstructuredhiddensection错误。"""
-        executor = ResumeToolExecutor()
 
-        result = cast(dict[str, Any], executor.execute(
+        result = cast(dict[str, Any], execute_prepared_resume_tool_call(
             tool_name="add_bullet",
             tool_input={
                 "section": "projects",
@@ -92,9 +89,8 @@ class ResumeToolExecutorTests(unittest.TestCase):
             "skills": skills_data,
             "_visible_modules": ["projects"],
         }
-        executor = ResumeToolExecutor()
 
-        result = cast(dict[str, Any], executor.execute(
+        result = cast(dict[str, Any], execute_prepared_resume_tool_call(
             tool_name="show_section",
             tool_input={
                 "section": "skills",
@@ -111,9 +107,8 @@ class ResumeToolExecutorTests(unittest.TestCase):
     def test_add_resume_item_creates_visible_empty_education_section(self):
         """用于验证从零创建简历时可新增可见教育条目。"""
         resume: dict[str, Any] = {"summary": {"text": ""}}
-        executor = ResumeToolExecutor()
 
-        result = cast(dict[str, Any], executor.execute(
+        result = cast(dict[str, Any], execute_prepared_resume_tool_call(
             tool_name="add_resume_item",
             tool_input={
                 "section": "education",
@@ -139,9 +134,8 @@ class ResumeToolExecutorTests(unittest.TestCase):
                 {"id": "proj_2", "name": "Other"},
             ]
         }
-        executor = ResumeToolExecutor()
 
-        result = cast(dict[str, Any], executor.execute(
+        result = cast(dict[str, Any], execute_prepared_resume_tool_call(
             tool_name="remove_resume_item",
             tool_input={
                 "section": "projects",
@@ -158,9 +152,8 @@ class ResumeToolExecutorTests(unittest.TestCase):
     def test_remove_resume_item_respects_hidden_section_guard(self):
         """用于验证删除整条经历也受隐藏板块保护。"""
         resume: dict[str, Any] = {"projects": [{"id": "proj_1", "name": "Chat Resume"}]}
-        executor = ResumeToolExecutor()
 
-        result = cast(dict[str, Any], executor.execute(
+        result = cast(dict[str, Any], execute_prepared_resume_tool_call(
             tool_name="remove_resume_item",
             tool_input={
                 "section": "projects",
@@ -177,9 +170,8 @@ class ResumeToolExecutorTests(unittest.TestCase):
     def test_update_skills_can_create_new_category(self):
         """用于验证技能工具能新增技能分类，避免技能板块只能改不能增。"""
         resume: dict[str, Any] = {"skills": []}
-        executor = ResumeToolExecutor()
 
-        result = cast(dict[str, Any], executor.execute(
+        result = cast(dict[str, Any], execute_prepared_resume_tool_call(
             tool_name="update_skills",
             tool_input={
                 "category_id": "skill_ai",
@@ -203,9 +195,8 @@ class ResumeToolExecutorTests(unittest.TestCase):
                 {"id": "skill_web", "category": "Web", "items": ["React"]},
             ]
         }
-        executor = ResumeToolExecutor()
 
-        result = cast(dict[str, Any], executor.execute(
+        result = cast(dict[str, Any], execute_prepared_resume_tool_call(
             tool_name="update_skills",
             tool_input={
                 "category_id": "skill_ai",

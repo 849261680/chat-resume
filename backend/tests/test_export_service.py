@@ -23,6 +23,11 @@ if str(BACKEND_DIR) not in sys.path:
 import app.services.processing.export_service as export_service_module
 from app.infra.config import settings
 from app.schemas.export import ExportRequest
+from app.services.processing.resume_print_payload import (
+    RESUME_PRINT_PAYLOAD_FIELDS,
+    build_resume_print_payload,
+    decode_resume_print_payload,
+)
 from app.services.processing.export_service import ExportService
 
 
@@ -107,6 +112,66 @@ def test_export_to_pdf_uses_frontend_print_page(tmp_path, monkeypatch):
     assert query["data"][0]
 
 
+def test_export_to_pdf_names_file_from_candidate_name_and_target_title(
+    tmp_path,
+    monkeypatch,
+):
+    """用于验证 PDF 文件名会使用候选人姓名和目标岗位。"""
+    monkeypatch.setattr(settings, "UPLOAD_DIR", str(tmp_path))
+    export_service = ExportService()
+    resume_content = _sample_resume_content()
+    resume_content["job_application"] = {"target_title": "后端工程师"}
+
+    async def _write_pdf(self, print_url: str, filepath: str) -> None:
+        """用于写入假 PDF 文件，避免测试启动浏览器。"""
+        del self, print_url
+        Path(filepath).write_bytes(b"%PDF-test")
+
+    monkeypatch.setattr(ExportService, "_render_pdf_with_playwright", _write_pdf)
+
+    filepath = asyncio.run(export_service.export_to_pdf(resume_content))
+
+    assert Path(filepath).name == "张三-后端工程师.pdf"
+
+
+def test_export_resume_artifact_wraps_rendered_file_and_download_url(
+    tmp_path,
+    monkeypatch,
+):
+    """用于验证导出产物接口统一返回文件名、格式和下载地址。"""
+    monkeypatch.setattr(settings, "UPLOAD_DIR", str(tmp_path))
+    export_service = ExportService()
+    resume_content = _sample_resume_content()
+    resume_content["job_application"] = {"target_title": "后端工程师"}
+    monkeypatch.setattr(
+        export_service_module,
+        "create_download_token",
+        lambda filename, user_id: f"expires=123&user_id={user_id}&signature=signed",
+    )
+
+    async def _write_pdf(self, print_url: str, filepath: str) -> None:
+        """用于写入假 PDF 文件，避免测试启动浏览器。"""
+        del self, print_url
+        Path(filepath).write_bytes(b"%PDF-test")
+
+    monkeypatch.setattr(ExportService, "_render_pdf_with_playwright", _write_pdf)
+
+    artifact = asyncio.run(
+        export_service.export_resume_artifact(
+            resume_content=resume_content,
+            export_format="pdf",
+            template="emerald",
+            layout_config={"spacingScale": 0.7},
+            user_id=42,
+        )
+    )
+
+    assert artifact.filename == "张三-后端工程师.pdf"
+    assert artifact.format == "pdf"
+    assert Path(artifact.filepath).exists()
+    assert unquote(urlparse(artifact.download_url).path).endswith("/张三-后端工程师.pdf")
+
+
 def test_build_frontend_print_url_preserves_template_and_chinese_payload(monkeypatch):
     """用于验证打印页 URL 会完整携带模板名和中文简历内容。"""
     monkeypatch.setattr(settings, "FRONTEND_URL", "https://frontend.example.com")
@@ -151,6 +216,29 @@ def test_build_frontend_print_url_preserves_layout_config(monkeypatch):
     print_url = export_service._build_frontend_print_url(encoded_payload)
     payload = _decode_print_payload(print_url)
 
+    assert payload["template"] == "emerald"
+    assert payload["layout_config"] == layout_config
+
+
+def test_resume_print_payload_contract_has_stable_required_fields():
+    """用于验证后端打印页载荷契约集中在公开接口。"""
+    layout_config = {
+        "density": "compact",
+        "moduleOrder": ["personal", "work", "projects", "skills", "education"],
+        "visibleModules": ["personal", "work", "projects"],
+        "spacingScale": 0.72,
+        "templateStyle": "emerald",
+    }
+
+    encoded = build_resume_print_payload(
+        resume_content=_sample_resume_content(),
+        template="emerald",
+        layout_config=layout_config,
+    )
+    payload = decode_resume_print_payload(encoded)
+
+    assert tuple(payload.keys()) == RESUME_PRINT_PAYLOAD_FIELDS
+    assert payload["content"]["personal_info"]["name"] == "张三"
     assert payload["template"] == "emerald"
     assert payload["layout_config"] == layout_config
 
@@ -526,3 +614,23 @@ def test_get_file_url_returns_signed_download_path(tmp_path, monkeypatch):
         "/api/resumes/download/resume_demo.pdf?"
         "expires=123&user_id=42&signature=signed-resume_demo.pdf"
     )
+
+
+def test_get_file_url_encodes_chinese_filename_path(tmp_path, monkeypatch):
+    """用于验证中文下载文件名会安全放入 URL path。"""
+    monkeypatch.setattr(settings, "UPLOAD_DIR", str(tmp_path))
+    export_service = ExportService()
+    monkeypatch.setattr(
+        export_service_module,
+        "create_download_token",
+        lambda filename, user_id: f"expires=123&user_id={user_id}&signature=signed",
+    )
+
+    file_url = export_service.get_file_url(
+        filepath=str(tmp_path / "exports" / "张三-后端工程师.pdf"),
+        user_id=42,
+    )
+    parsed = urlparse(file_url)
+
+    assert unquote(parsed.path).endswith("/张三-后端工程师.pdf")
+    assert parsed.path != unquote(parsed.path)

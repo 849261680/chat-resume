@@ -32,6 +32,7 @@ from app.agents.resume.observability import (
     reset_observability_state,
 )
 from app.agents.resume.tool_execution import ResumeToolExecutionStage
+from app.agents.resume.tool_lifecycle import ResumeToolLifecycleRequest
 from app.agents.resume.event_publisher import publish_resume_runtime_event
 from app.infra.config import settings
 from app.runtime.contracts import AgentDefinition, RuntimeEventCallback
@@ -631,18 +632,20 @@ class ResumeAgentLoop:
             ),
             state,
         )
-        result = await self.tool_stage.execute_tool_result(
-            agent=agent,
-            run_id=run_id,
-            call_id=tool_call.id,
-            tool_name=tool_call.name,
-            tool_input=tool_call.arguments,
-            context=context,
-            confirmation_queue=confirmation_queue,
-            event_queue=event_queue,
-            event_callback=event_callback,
-            executed_tools=executed_tools,
-            stream_state=state,
+        result = await self.tool_stage.execute_lifecycle(
+            ResumeToolLifecycleRequest(
+                agent=agent,
+                run_id=run_id,
+                call_id=tool_call.id,
+                tool_name=tool_call.name,
+                tool_input=tool_call.arguments,
+                context=context,
+                confirmation_queue=confirmation_queue,
+                event_queue=event_queue,
+                event_callback=event_callback,
+                executed_tools=executed_tools,
+                stream_state=state,
+            )
         )
         return ToolResultMessage(
             tool_call_id=tool_call.id,

@@ -166,7 +166,7 @@ def test_update_skills_schema_supports_add_update_and_remove():
     function = tool["function"]
     properties = function["parameters"]["properties"]
 
-    assert function["parameters"]["required"] == ["category_id"]
+    assert function["parameters"]["required"] == ["category_id", "skills"]
     assert properties["mode"]["enum"] == ["replace", "merge", "remove"]
     assert "创建新分类" in function["description"]
     assert "删除整个分类" in function["description"]

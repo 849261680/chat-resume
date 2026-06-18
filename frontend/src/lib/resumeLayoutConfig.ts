@@ -11,6 +11,12 @@ import { clampResumeSpacingScale } from './resumeSpacingScale'
 export type { ModuleConfig, ResumeModule, ResumeTemplateStyle } from '@/types/resumeLayout'
 
 export type LayoutDensity = 'comfortable' | 'normal' | 'compact' | 'custom'
+export type ResumeEditorTranslate = (key: string) => string
+
+export interface ResumeEditorSection {
+  key: string
+  label: string
+}
 
 /**
  * 三档预设对应的 spacingScale 值
@@ -45,6 +51,37 @@ const MODULE_LABELS: Record<ResumeModule, string> = {
   skills: 'Skills',
   projects: 'Projects',
   open_source: 'Open source',
+}
+
+export const EDITOR_SECTION_TO_MODULE: Partial<Record<string, ResumeModule>> = {
+  personal: 'personal',
+  summary: 'summary',
+  education: 'education',
+  work: 'work',
+  projects: 'projects',
+  open_source: 'open_source',
+  skills: 'skills',
+}
+
+const MODULE_TO_EDITOR_SECTION: Record<ResumeModule, string> = {
+  personal: 'personal',
+  summary: 'summary',
+  education: 'education',
+  work: 'work',
+  projects: 'projects',
+  open_source: 'open_source',
+  skills: 'skills',
+}
+
+const SECTION_LABEL_KEYS: Record<string, string> = {
+  job_application: 'sections.job',
+  personal: 'sections.personal',
+  summary: 'sections.summary',
+  education: 'sections.education',
+  work: 'sections.work',
+  projects: 'sections.projects',
+  open_source: 'sections.openSource',
+  skills: 'sections.skills',
 }
 
 // 用于补齐旧布局配置缺失的新模块，同时过滤无效模块。
@@ -82,6 +119,28 @@ export function buildModuleConfig(
   }))
 }
 
+// 用于返回按布局顺序过滤后的可见简历模块配置。
+export function buildVisibleModuleConfig(config: ResumeLayoutConfig): ModuleConfig[] {
+  return buildModuleConfig(config.moduleOrder, config.visibleModules)
+    .filter((module) => module.visible)
+    .sort((a, b) => a.order - b.order)
+}
+
+// 用于让编辑器板块顺序跟随简历预览板块顺序。
+export function buildResumeEditorSections(
+  config: ResumeLayoutConfig,
+  t: ResumeEditorTranslate,
+): ResumeEditorSection[] {
+  const orderedSections = config.moduleOrder
+    .filter((module) => config.visibleModules.has(module))
+    .map((module) => MODULE_TO_EDITOR_SECTION[module])
+
+  return ['job_application', ...orderedSections].map((key) => ({
+    key,
+    label: t(SECTION_LABEL_KEYS[key]),
+  }))
+}
+
 /**
  * 默认模块配置列表。
  */
@@ -110,6 +169,85 @@ export const DEFAULT_LAYOUT_CONFIG: ResumeLayoutConfig = {
   visibleModules: new Set(DEFAULT_MODULE_ORDER),
   spacingScale: 1.0,
   templateStyle: 'classic',
+}
+
+// 用于复制布局配置，避免调用方重复手写 Set 和数组拷贝规则。
+function cloneLayoutConfig(config: ResumeLayoutConfig): ResumeLayoutConfig {
+  return {
+    density: config.density,
+    moduleOrder: [...config.moduleOrder],
+    visibleModules: new Set(config.visibleModules),
+    spacingScale: config.spacingScale,
+    templateStyle: config.templateStyle,
+  }
+}
+
+// 用于切换简历模板样式。
+export function setResumeTemplateStyle(
+  config: ResumeLayoutConfig,
+  templateStyle: ResumeTemplateStyle,
+): ResumeLayoutConfig {
+  return { ...cloneLayoutConfig(config), templateStyle }
+}
+
+// 用于应用密度预设并同步 spacingScale。
+export function setResumeLayoutDensity(
+  config: ResumeLayoutConfig,
+  density: LayoutDensity,
+): ResumeLayoutConfig {
+  const spacingScale = DENSITY_SPACING_SCALE[density as Exclude<LayoutDensity, 'custom'>] ?? config.spacingScale
+  return { ...cloneLayoutConfig(config), density, spacingScale }
+}
+
+// 用于把连续间距调整转换成自定义密度配置。
+export function setResumeSpacingScale(
+  config: ResumeLayoutConfig,
+  spacingScale: number,
+): ResumeLayoutConfig {
+  return {
+    ...cloneLayoutConfig(config),
+    density: 'custom',
+    spacingScale: clampResumeSpacingScale(spacingScale),
+  }
+}
+
+// 用于重置间距为 normal。
+export function resetResumeSpacingScale(config: ResumeLayoutConfig): ResumeLayoutConfig {
+  return {
+    ...cloneLayoutConfig(config),
+    density: 'normal',
+    spacingScale: 1.0,
+  }
+}
+
+// 用于切换简历模块显隐。
+export function toggleResumeModuleVisibility(
+  config: ResumeLayoutConfig,
+  module: ResumeModule,
+): ResumeLayoutConfig {
+  const nextConfig = cloneLayoutConfig(config)
+  if (nextConfig.visibleModules.has(module)) {
+    nextConfig.visibleModules.delete(module)
+  } else {
+    nextConfig.visibleModules.add(module)
+  }
+  return nextConfig
+}
+
+// 用于按方向移动简历模块。
+export function moveResumeModule(
+  config: ResumeLayoutConfig,
+  module: ResumeModule,
+  direction: 'up' | 'down',
+): ResumeLayoutConfig {
+  const nextConfig = cloneLayoutConfig(config)
+  const currentIndex = nextConfig.moduleOrder.indexOf(module)
+  if (currentIndex === -1) return nextConfig
+  const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1
+  if (targetIndex < 0 || targetIndex >= nextConfig.moduleOrder.length) return nextConfig
+  ;[nextConfig.moduleOrder[currentIndex], nextConfig.moduleOrder[targetIndex]] =
+    [nextConfig.moduleOrder[targetIndex], nextConfig.moduleOrder[currentIndex]]
+  return nextConfig
 }
 
 // 用于生成布局配置缓存 key。

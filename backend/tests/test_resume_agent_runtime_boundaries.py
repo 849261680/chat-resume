@@ -97,6 +97,7 @@ from app.runtime.tool_confirmation import (  # noqa: E402
     ToolConfirmationPolicy,
     wait_for_tool_confirmation,
 )
+from app.tools.resume.registry import execute_prepared_resume_tool_call  # noqa: E402
 from agents.agent_output import AgentOutputSchemaBase  # noqa: E402
 from agents.handoffs import Handoff  # noqa: E402
 from agents.items import ModelResponse, TResponseInputItem  # noqa: E402
@@ -2292,7 +2293,7 @@ async def test_resume_tool_execution_stage_returns_feedback_on_rejection():
 async def test_read_memory_auto_executes_without_confirmation(tmp_path):
     """用于验证读取记忆不需要人类确认即可直接执行。"""
     agent = ResumeAgent()
-    agent.tool_executor.execute(
+    execute_prepared_resume_tool_call(
         tool_name="update_memory",
         tool_input={
             "operation": "append",

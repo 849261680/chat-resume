@@ -17,6 +17,7 @@ from app.infra.request_context import log_context
 from app.runtime.permissions import confirmation_manager
 from app.services.domain import ResumeService
 from app.state import AgentSessionStore
+from app.tools.resume.sections import allowed_sections_from_visible_modules
 from app.types.stream import (
     ResumeStreamEvent,
     session_started_event,
@@ -36,18 +37,6 @@ _RESUME_SNAPSHOT_KEYWORDS = (
     "列出我的简历",
     "把我的简历写出来",
 )
-_MODULE_TO_CONTENT_SECTION = {
-    "personal": "personal_info",
-    "summary": "summary",
-    "education": "education",
-    "work": "work_experience",
-    "work_experience": "work_experience",
-    "projects": "projects",
-    "open_source": "open_source",
-    "skills": "skills",
-}
-
-
 @dataclass(frozen=True)
 class ResumeAgentStreamInput:
     """用于承载一次简历 Agent 流式会话的应用层输入。"""
@@ -408,11 +397,7 @@ class ResumeAgentRunOrchestrator:
     ) -> set[str]:
         """用于按可见模块或简历内容推导当前允许工具修改的顶层板块。"""
         if visible_modules:
-            return {
-                mapped
-                for module in visible_modules
-                if (mapped := _MODULE_TO_CONTENT_SECTION.get(str(module)))
-            }
+            return allowed_sections_from_visible_modules(visible_modules)
         return {key for key in resume_content if not key.startswith("_")}
 
     @staticmethod

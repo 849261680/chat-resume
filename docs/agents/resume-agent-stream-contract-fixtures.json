@@ -1,0 +1,332 @@
+{
+  "events": [
+    {
+      "name": "tool_call",
+      "backend_event": {
+        "event_type": "tool_call",
+        "content": "",
+        "tool_call_started": true,
+        "call_id": "call_1",
+        "tool_id": "update_bullet",
+        "tool_call": {
+          "function": {
+            "name": "update_bullet",
+            "arguments": {
+              "section": "projects",
+              "item_id": "proj_1",
+              "bullet_id": "hl_1",
+              "text": "new"
+            }
+          }
+        },
+        "tool_name": "update_bullet",
+        "tool_display_name": "update_bullet",
+        "tool_input": {
+          "section": "projects",
+          "item_id": "proj_1",
+          "bullet_id": "hl_1",
+          "text": "new"
+        },
+        "display_message": "正在update_bullet",
+        "tool_calls": [],
+        "done": false
+      },
+      "public_payload": {
+        "event_type": "tool_call",
+        "content": "",
+        "tool_call_started": true,
+        "call_id": "call_1",
+        "tool_id": "update_bullet",
+        "tool_call": {
+          "function": {
+            "name": "update_bullet",
+            "arguments": {
+              "section": "projects",
+              "item_id": "proj_1",
+              "bullet_id": "hl_1",
+              "text": "new"
+            }
+          }
+        },
+        "tool_name": "update_bullet",
+        "tool_display_name": "update_bullet",
+        "tool_input": {
+          "section": "projects",
+          "item_id": "proj_1",
+          "bullet_id": "hl_1",
+          "text": "new"
+        },
+        "display_message": "正在update_bullet",
+        "tool_calls": [],
+        "done": false
+      },
+      "frontend_event": {
+        "type": "tool_call",
+        "callId": "call_1",
+        "toolName": "update_bullet",
+        "toolId": "update_bullet",
+        "toolInput": {
+          "section": "projects",
+          "item_id": "proj_1",
+          "bullet_id": "hl_1",
+          "text": "new"
+        },
+        "displayMessage": "正在update_bullet"
+      }
+    },
+    {
+      "name": "tool_pending",
+      "backend_event": {
+        "event_type": "tool_pending",
+        "content": "",
+        "tool_pending": true,
+        "call_id": "call_1",
+        "tool_id": "update_bullet",
+        "tool_call": {
+          "function": {
+            "name": "update_bullet",
+            "arguments": {
+              "section": "projects"
+            }
+          }
+        },
+        "tool_name": "update_bullet",
+        "tool_display_name": "update_bullet",
+        "tool_input": {
+          "section": "projects"
+        },
+        "diff_summary": "更新项目亮点",
+        "diff_items": [
+          {
+            "before": "old",
+            "after": "new",
+            "reason": "更量化"
+          }
+        ],
+        "tool_calls": [],
+        "done": false
+      },
+      "public_payload": {
+        "event_type": "tool_pending",
+        "content": "",
+        "tool_pending": true,
+        "call_id": "call_1",
+        "tool_id": "update_bullet",
+        "tool_call": {
+          "function": {
+            "name": "update_bullet",
+            "arguments": {
+              "section": "projects"
+            }
+          }
+        },
+        "tool_name": "update_bullet",
+        "tool_display_name": "update_bullet",
+        "tool_input": {
+          "section": "projects"
+        },
+        "diff_summary": "更新项目亮点",
+        "diff_items": [
+          {
+            "before": "old",
+            "after": "new",
+            "reason": "更量化"
+          }
+        ],
+        "tool_calls": [],
+        "done": false
+      },
+      "frontend_event": {
+        "type": "tool_pending",
+        "callId": "call_1",
+        "toolName": "update_bullet",
+        "toolId": "update_bullet",
+        "toolInput": {
+          "section": "projects"
+        },
+        "diffSummary": "更新项目亮点",
+        "diffItems": [
+          {
+            "before": "old",
+            "after": "new",
+            "reason": "更量化"
+          }
+        ]
+      }
+    },
+    {
+      "name": "tool_confirmed",
+      "backend_event": {
+        "event_type": "tool_confirmed",
+        "content": "",
+        "tool_confirmed": true,
+        "call_id": "call_1",
+        "tool_id": "update_bullet",
+        "tool_name": "update_bullet",
+        "tool_display_name": "update_bullet",
+        "tool_calls": [],
+        "qr_images": [],
+        "result": {
+          "success": true
+        },
+        "display_message": "已更新",
+        "diff_summary": "更新项目亮点",
+        "diff_items": [
+          {
+            "before": "old",
+            "after": "new"
+          }
+        ],
+        "context": {
+          "resume_content": {
+            "projects": []
+          }
+        },
+        "done": false
+      },
+      "public_payload": {
+        "event_type": "tool_confirmed",
+        "content": "",
+        "tool_confirmed": true,
+        "call_id": "call_1",
+        "tool_id": "update_bullet",
+        "tool_name": "update_bullet",
+        "tool_display_name": "update_bullet",
+        "tool_calls": [],
+        "qr_images": [],
+        "result": {
+          "success": true
+        },
+        "display_message": "已更新",
+        "diff_summary": "更新项目亮点",
+        "diff_items": [
+          {
+            "before": "old",
+            "after": "new"
+          }
+        ],
+        "done": false
+      },
+      "frontend_event": {
+        "type": "tool_confirmed",
+        "callId": "call_1",
+        "toolName": "update_bullet",
+        "toolId": "update_bullet",
+        "diffSummary": "更新项目亮点",
+        "diffItems": [
+          {
+            "before": "old",
+            "after": "new"
+          }
+        ]
+      },
+      "forbidden_public_keys": [
+        "context"
+      ]
+    },
+    {
+      "name": "tool_rejected",
+      "backend_event": {
+        "event_type": "tool_rejected",
+        "content": "",
+        "tool_rejected": true,
+        "call_id": "call_1",
+        "tool_id": "update_bullet",
+        "tool_name": "update_bullet",
+        "tool_display_name": "update_bullet",
+        "diff_summary": "更新项目亮点",
+        "diff_items": [
+          {
+            "before": "old",
+            "after": "new"
+          }
+        ],
+        "result": {
+          "success": false,
+          "message": "用户拒绝"
+        },
+        "tool_calls": [],
+        "done": false
+      },
+      "public_payload": {
+        "event_type": "tool_rejected",
+        "content": "",
+        "tool_rejected": true,
+        "call_id": "call_1",
+        "tool_id": "update_bullet",
+        "tool_name": "update_bullet",
+        "tool_display_name": "update_bullet",
+        "diff_summary": "更新项目亮点",
+        "diff_items": [
+          {
+            "before": "old",
+            "after": "new"
+          }
+        ],
+        "result": {
+          "success": false,
+          "message": "用户拒绝"
+        },
+        "tool_calls": [],
+        "done": false
+      },
+      "frontend_event": {
+        "type": "tool_rejected",
+        "callId": "call_1",
+        "toolName": "update_bullet",
+        "toolId": "update_bullet",
+        "diffSummary": "更新项目亮点",
+        "diffItems": [
+          {
+            "before": "old",
+            "after": "new"
+          }
+        ]
+      }
+    },
+    {
+      "name": "tool_result",
+      "backend_event": {
+        "event_type": "tool_result",
+        "content": "",
+        "call_id": "call_1",
+        "tool_id": "read_memory",
+        "tool_name": "读取记忆",
+        "tool_display_name": "读取记忆",
+        "tool_calls": [],
+        "result": {
+          "success": true
+        },
+        "display_message": "已读取",
+        "context": {
+          "memory_dir": "/tmp/internal"
+        },
+        "done": false
+      },
+      "public_payload": {
+        "event_type": "tool_result",
+        "content": "",
+        "call_id": "call_1",
+        "tool_id": "read_memory",
+        "tool_name": "读取记忆",
+        "tool_display_name": "读取记忆",
+        "tool_calls": [],
+        "result": {
+          "success": true
+        },
+        "display_message": "已读取",
+        "done": false
+      },
+      "frontend_event": {
+        "type": "tool_result",
+        "callId": "call_1",
+        "toolName": "读取记忆",
+        "toolId": "read_memory",
+        "displayMessage": "已读取"
+      },
+      "forbidden_public_keys": [
+        "context"
+      ]
+    }
+  ]
+}

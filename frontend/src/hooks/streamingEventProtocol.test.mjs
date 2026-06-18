@@ -1,8 +1,29 @@
 // Tests the resume Agent SSE payload to frontend event protocol.
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
 import { test } from 'node:test'
 
 const protocol = await import('./streamingEventProtocol.ts')
+
+// Loads the shared Resume stream contract fixture.
+async function loadContractFixtures() {
+  const raw = await readFile(new URL('../../../docs/agents/resume-agent-stream-contract-fixtures.json', import.meta.url), 'utf8')
+  return JSON.parse(raw)
+}
+
+test('shared stream contract fixtures map to frontend stream events', async () => {
+  const fixtures = await loadContractFixtures()
+  for (const fixture of fixtures.events) {
+    const actual = fixture.public_payload.tool_confirmed || fixture.public_payload.tool_rejected
+      ? protocol.toolDecisionFromSsePayload(fixture.public_payload, 'Tool call')
+      : protocol.streamEventFromSsePayload(fixture.public_payload, 'Tool call')
+    assert.deepEqual(
+      actual,
+      fixture.frontend_event,
+      fixture.name,
+    )
+  }
+})
 
 test('text_delta payload maps to frontend text event', () => {
   assert.deepEqual(

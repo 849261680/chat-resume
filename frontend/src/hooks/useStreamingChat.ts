@@ -1,13 +1,13 @@
 // 用于提供 hooks/useStreamingChat.ts 模块。
 import { useCallback, useRef, useState } from 'react'
-import { API_BASE_URL, apiUrl } from '@/lib/httpClient'
+import { API_BASE_URL } from '@/lib/httpClient'
 import { useTranslations } from 'next-intl'
 import { commitCompletedStreamMessage } from './streamingCompletion'
-import { createStreamingSseSession } from './streamingSseSession'
+import { ResumeStreamingClient, ResumeStreamingHttpError } from './resumeStreamingClient'
+import { buildStreamingViewStatePatch } from './streamingViewState'
 import {
   isToolLifecyclePayload,
   normalizeDiffItems,
-  shouldYieldBeforePendingEvent,
   summarizeToolEvents,
   type DiffItem,
   type StreamEvent,
@@ -15,18 +15,6 @@ import {
 } from './streamingEventProtocol'
 
 export type { DiffItem, StreamEvent, UserInputRequest } from './streamingEventProtocol'
-
-type PendingConfirmationResponse = {
-  session_id?: string | null
-  status?: string
-  pending_action?: {
-    call_id?: string
-    tool_name?: string
-    tool_id?: string
-    diff_summary?: string
-    diff_items?: DiffItem[]
-  } | null
-}
 
 export interface ChatMessage {
   id: string
@@ -176,6 +164,12 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
     agentType = 'resume'
   } = options
 
+  // 用于创建非 React streaming client，集中网络状态机和工具确认请求。
+  const createStreamingClient = () => new ResumeStreamingClient({
+    apiBaseUrl,
+    fallbackToolName: t('toolCall'),
+  })
+
   // 用于清理待确认工具的本地交互状态。
   const clearPendingToolState = () => {
     pendingToolTimingsRef.current = {}
@@ -208,78 +202,35 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
         role: msg.type === 'ai' ? 'assistant' : 'user',
         content: msg.content
       }))
-      let replayAttempted = false
-      const sseSession = createStreamingSseSession(t('toolCall'))
+      const streamingClient = createStreamingClient()
       let firstSseReceivedLogged = false
       let firstContentRenderedLogged = false
 
-      while (true) {
-        const headers: Record<string, string> = {
-          'Content-Type': 'application/json',
-          'X-Client-Request-ID': clientRequestId,
-        }
-        if (lastEventIdRef.current) {
-          headers['Last-Event-ID'] = lastEventIdRef.current
-        }
-
-        logStreamPhase('fetch_start', streamStartedAt, clientRequestId, {
-          replay: replayAttempted,
-          hasLastEventId: Boolean(lastEventIdRef.current),
-        })
-        const response = await fetch(apiUrl('/api/ai/chat/stream', apiBaseUrl), {
-          method: 'POST',
-          credentials: 'include',
-          headers,
-          body: JSON.stringify({
+      logStreamPhase('fetch_start', streamStartedAt, clientRequestId)
+      for await (const reduced of streamingClient.stream({
             message,
-            resume_id: resumeId,
-            chat_history: historyToSend,
-            visible_modules: visibleModules,
-            agent_type: agentType,
-          }),
-          signal: abortControllerRef.current.signal
-        })
-        logStreamPhase('headers_received', streamStartedAt, clientRequestId, {
-          replay: replayAttempted,
-          status: response.status,
-          ok: response.ok,
-        })
-
-        if (!response.ok) {
-          if (response.status === 401) {
-            throw new Error(t('authExpired'))
-          }
-          throw new Error(`HTTP error! status: ${response.status}`)
-        }
-
-        if (!response.body) {
-          throw new Error('Response body is null')
-        }
-
-        const reader = response.body.getReader()
-        const decoder = new TextDecoder()
-
-      try {
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-
-          const reductions = sseSession.pushChunk(decoder.decode(value, { stream: true }))
-          for (const reduced of reductions) {
+            resumeId,
+            chatHistory: historyToSend,
+            visibleModules,
+            agentType,
+            clientRequestId,
+            signal: abortControllerRef.current.signal,
+          })) {
             const data = reduced.data
             const protocolState = reduced.state
             const previousEvents = reduced.previousEvents
             const protocolEvent = reduced.protocolEvent
+            const viewPatch = buildStreamingViewStatePatch(reduced)
             if (!firstSseReceivedLogged) {
               firstSseReceivedLogged = true
               logStreamPhase('first_sse_received', streamStartedAt, clientRequestId, {
-                replay: replayAttempted,
+                replay: reduced.replayAttempted,
                 eventType: typeof data.event_type === 'string' ? data.event_type : '',
                 hasContent: Boolean(data.content),
                 done: Boolean(data.done),
               })
             }
-            if (reduced.nextCursor) lastEventIdRef.current = reduced.nextCursor
+            if (viewPatch.nextCursor) lastEventIdRef.current = viewPatch.nextCursor
             const eventType = typeof data.event_type === 'string' ? data.event_type : ''
             const isToolEvent = isToolLifecyclePayload(data)
             if (isToolEvent) {
@@ -299,29 +250,29 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
               })
             }
 
-            if (data.error) {
-              onError?.(formatStreamError(String(data.error), clientRequestId))
+            if (viewPatch.error) {
+              onError?.(formatStreamError(viewPatch.error, clientRequestId))
               return
             }
 
-            if (data.done) {
+            if (viewPatch.doneMessage) {
               logStreamPhase('done_received', streamStartedAt, clientRequestId, {
                 eventType,
-                hadContent: Boolean(protocolState.content),
+                hadContent: Boolean(viewPatch.doneMessage.content),
                 streamEventCount: protocolState.events.length,
               })
-              if (data.resume_content && typeof data.resume_content === 'object') {
+              if (viewPatch.doneMessage.resumeContent) {
                 debugStreamLog('[useStreamingChat] done 事件收到 resume_content', {
-                  sections: Object.keys(data.resume_content),
+                  sections: Object.keys(viewPatch.doneMessage.resumeContent),
                 })
-                onResumeUpdate?.(data.resume_content as Record<string, unknown>)
+                onResumeUpdate?.(viewPatch.doneMessage.resumeContent)
               }
               const aiMessage: ChatMessage = {
                 id: Date.now().toString(),
                 type: 'ai',
-                content: protocolState.content,
+                content: viewPatch.doneMessage.content,
                 timestamp: new Date(),
-                streamEvents: protocolState.events.length > 0 ? [...protocolState.events] : undefined,
+                streamEvents: viewPatch.doneMessage.streamEvents,
               }
               commitCompletedStreamMessage(aiMessage, onMessage, () => {
                 setIsStreaming(false)
@@ -331,19 +282,19 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
               return
             }
 
-            if (data.session_id) {
-              sessionIdRef.current = String(data.session_id)
-              setSessionId(String(data.session_id))
+            if (viewPatch.sessionId) {
+              sessionIdRef.current = viewPatch.sessionId
+              setSessionId(viewPatch.sessionId)
             }
 
-            if (data.qr_images && Array.isArray(data.qr_images) && data.qr_images.length > 0) {
-              onQrImages?.(data.qr_images as string[])
+            if (viewPatch.qrImages) {
+              onQrImages?.(viewPatch.qrImages)
             }
 
-            if (reduced.ignoredAskUserToolEvent) continue
+            if (viewPatch.ignoredAskUserToolEvent) continue
 
-            if (protocolEvent?.type === 'tool_pending' && reduced.pendingToolCallId) {
-              const callId = reduced.pendingToolCallId
+            if (protocolEvent?.type === 'tool_pending' && viewPatch.pendingToolCallId) {
+              const callId = viewPatch.pendingToolCallId
               const receivedAt = nowMs()
               debugStreamLog('[useStreamingChat] tool_pending received', {
                 callId,
@@ -377,8 +328,8 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
               })
             }
 
-            if (reduced.decisionToolCallId) {
-              const callId = reduced.decisionToolCallId
+            if (viewPatch.decisionToolCallId) {
+              const callId = viewPatch.decisionToolCallId
               delete pendingToolTimingsRef.current[callId]
               debugStreamLog('[useStreamingChat] tool decision handling end', {
                 callId,
@@ -388,62 +339,54 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
               })
             }
 
-            if (reduced.completedToolCallId) {
+            if (viewPatch.completedToolCallId) {
               debugStreamLog('[useStreamingChat] tool completion handling end', {
-                callId: reduced.completedToolCallId,
+                callId: viewPatch.completedToolCallId,
                 newType: protocolEvent?.type || '',
                 eventsBefore: summarizeToolEvents(previousEvents),
                 eventsAfter: summarizeToolEvents(protocolState.events),
               })
             }
 
-            if (data.resume_content && typeof data.resume_content === 'object') {
+            if (viewPatch.resumeContent) {
               debugStreamLog('[useStreamingChat] 收到 resume_content，触发预览更新', {
-                sections: Object.keys(data.resume_content),
+                sections: Object.keys(viewPatch.resumeContent),
               })
-              onResumeUpdate?.(data.resume_content as Record<string, unknown>)
+              onResumeUpdate?.(viewPatch.resumeContent)
             }
 
-            if (protocolEvent?.type === 'text') {
-              setCurrentStreamingMessage(protocolState.content)
+            if (viewPatch.currentStreamingMessage !== undefined) {
+              setCurrentStreamingMessage(viewPatch.currentStreamingMessage)
               if (!firstContentRenderedLogged) {
                 firstContentRenderedLogged = true
                 window.requestAnimationFrame(() => {
                   logStreamPhase('first_content_rendered', streamStartedAt, clientRequestId, {
-                    contentChars: protocolEvent.content.length,
+                    contentChars: viewPatch.currentStreamingMessage?.length ?? 0,
                     streamEventCount: protocolState.events.length,
                   })
                 })
               }
             }
-            if (protocolEvent?.type === 'user_input_request') {
-              setUserInputRequest(protocolState.userInputRequest)
+            if (viewPatch.userInputRequest !== undefined) {
+              setUserInputRequest(viewPatch.userInputRequest)
             }
-            if (protocolEvent) {
-              if (shouldYieldBeforePendingEvent(previousEvents, protocolEvent)) {
-                setStreamEvents([...previousEvents])
+            if (viewPatch.streamEvents) {
+              if (viewPatch.yieldBeforeStreamEvents && viewPatch.previousEventsBeforeYield) {
+                setStreamEvents(viewPatch.previousEventsBeforeYield)
                 await waitForNextPaint()
               }
-              setStreamEvents([...protocolState.events])
+              setStreamEvents(viewPatch.streamEvents)
             }
           }
-        }
-      } finally {
-        reader.releaseLock()
-      }
-
-      if (!lastEventIdRef.current || replayAttempted) {
-        break
-      }
-      replayAttempted = true
-      }
 
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         debugStreamLog('Streaming aborted', { clientRequestId })
       } else {
         console.error('Streaming error:', { error, clientRequestId })
-        const errorMessage = error instanceof Error ? error.message : 'Unknown streaming error'
+        const errorMessage = error instanceof ResumeStreamingHttpError && error.status === 401
+          ? t('authExpired')
+          : error instanceof Error ? error.message : 'Unknown streaming error'
         onError?.(formatStreamError(errorMessage, clientRequestId))
       }
     } finally {
@@ -477,17 +420,11 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
   // 用于从后端恢复持久化的待确认工具 diff。
   const restorePendingConfirmation = useCallback(async () => {
     if (isStreamingLockRef.current) return
-    const apiBaseUrl = options.apiBaseUrl || API_BASE_URL
-    const response = await fetch(
-      apiUrl(`/api/ai/chat/pending-confirmation?resume_id=${resumeId}`, apiBaseUrl),
-      { credentials: 'include' },
-    )
-    if (!response.ok) return
-    const body = await response.json().catch(() => null) as PendingConfirmationResponse | null
-    const action = body?.pending_action
-    if (!body?.session_id || !action?.call_id) return
-    sessionIdRef.current = body.session_id
-    setSessionId(body.session_id)
+    const pending = await createStreamingClient().restorePendingConfirmation(resumeId)
+    const action = pending?.action
+    if (!pending?.sessionId || !action?.call_id) return
+    sessionIdRef.current = pending.sessionId
+    setSessionId(pending.sessionId)
     isStreamingLockRef.current = true
     setIsStreaming(true)
     setStreamEvents([
@@ -500,7 +437,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
         diffItems: normalizeDiffItems(action.diff_items),
       },
     ])
-  }, [options.apiBaseUrl, resumeId])
+  }, [apiBaseUrl, resumeId, t])
 
   // 用于处理confirm工具。
   const confirmTool = async (
@@ -550,7 +487,6 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
         ? Math.round((clickedAt - timing.appendedAt) * 100) / 100
         : null,
     })
-    const apiBaseUrl = options.apiBaseUrl || API_BASE_URL
     const fetchStartedAt = nowMs()
     debugStreamLog('[confirmTool] fetch start', {
       callId,
@@ -560,21 +496,14 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
       sessionIdShort: sid.slice(0, 8),
       elapsedSinceClickMs: Math.round((fetchStartedAt - clickedAt) * 100) / 100,
     })
-    const response = await fetch(apiUrl('/api/ai/chat/confirm-tool', apiBaseUrl), {
-      method: 'POST',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        session_id: sid,
-        call_id: callId,
-        confirmed,
-        source,
-        ...(cleanFeedback ? { feedback: cleanFeedback } : {}),
-      }),
+    const body = await createStreamingClient().confirmTool({
+      sessionId: sid,
+      callId,
+      confirmed,
+      source,
+      feedback: cleanFeedback,
     })
-    if (response.status === 409) {
+    if (body.duplicate) {
       console.warn('[confirmTool] 工具确认状态已变化，忽略重复确认', {
         callId,
         confirmed,
@@ -584,22 +513,15 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
         callId,
         confirmed,
         source,
-        status: response.status,
         elapsedSinceFetchStartMs: elapsedMsSince(fetchStartedAt),
       })
       return
     }
-    if (!response.ok) {
-      const detail = await response.text()
-      throw new Error(detail || `工具确认失败: ${response.status}`)
-    }
-    const body = await response.json().catch(() => null)
     debugStreamLog('[confirmTool] response', {
       callId,
       confirmed,
       source,
       hasFeedback: Boolean(cleanFeedback),
-      status: response.status,
       ok: Boolean(body?.ok),
       resumable: Boolean(body?.resumable),
       duplicate: Boolean(body?.duplicate),
@@ -619,23 +541,8 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
 
   // 用于恢复已经记录确认结果但原 SSE 连接已断开的 session。
   const resumePausedSession = async (sid: string) => {
-    const apiBaseUrl = options.apiBaseUrl || API_BASE_URL
-    const response = await fetch(apiUrl('/api/ai/chat/resume-session', apiBaseUrl), {
-      method: 'POST',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ session_id: sid }),
-    })
-    if (!response.ok) {
-      const detail = await response.text()
-      throw new Error(detail || `恢复 session 失败: ${response.status}`)
-    }
-    const body = await response.json()
-    if (body.resume_content) {
-      onResumeUpdate?.(body.resume_content)
-    }
+    const resumeContent = await createStreamingClient().resumePausedSession(sid)
+    if (resumeContent) onResumeUpdate?.(resumeContent)
   }
 
   return {

@@ -25,6 +25,10 @@ from app.agents.resume.stream_events import (
 )
 from app.agents.resume.event_publisher import publish_resume_runtime_event
 from app.agents.resume.sdk_tool_lifecycle import SdkToolApprovalState
+from app.agents.resume.tool_lifecycle import (
+    ResumeToolLifecycleRequest,
+    ResumeToolLifecycleRunner,
+)
 from app.infra.config import settings
 from app.runtime.contracts import AgentDefinition, RuntimeEventCallback
 from app.runtime.tool_confirmation import ToolConfirmationPolicy
@@ -42,6 +46,17 @@ class ResumeToolExecutionStage:
         """用于初始化工具确认策略。"""
         self.confirmation_policy = confirmation_policy or ToolConfirmationPolicy()
 
+    async def execute_lifecycle(
+        self,
+        request: ResumeToolLifecycleRequest,
+    ) -> AgentToolResult:
+        """用于通过单一请求对象执行完整工具调用生命周期。"""
+        output = await ResumeToolLifecycleRunner(self, self.confirmation_policy).run(request)
+        return AgentToolResult(
+            content=[TextContent(text=output)],
+            details=self.tool_result_details(output),
+        )
+
     async def execute_tool_result(
         self,
         *,
@@ -58,22 +73,20 @@ class ResumeToolExecutionStage:
         stream_state: dict[str, Any],
     ) -> AgentToolResult:
         """用于执行工具并包装成 pi-agent-core 的工具结果。"""
-        output = await self.execute_tool(
-            agent=agent,
-            run_id=run_id,
-            call_id=call_id,
-            tool_name=tool_name,
-            tool_input=tool_input,
-            context=context,
-            confirmation_queue=confirmation_queue,
-            event_queue=event_queue,
-            event_callback=event_callback,
-            executed_tools=executed_tools,
-            stream_state=stream_state,
-        )
-        return AgentToolResult(
-            content=[TextContent(text=output)],
-            details=self.tool_result_details(output),
+        return await self.execute_lifecycle(
+            ResumeToolLifecycleRequest(
+                agent=agent,
+                run_id=run_id,
+                call_id=call_id,
+                tool_name=tool_name,
+                tool_input=tool_input,
+                context=context,
+                confirmation_queue=confirmation_queue,
+                event_queue=event_queue,
+                event_callback=event_callback,
+                executed_tools=executed_tools,
+                stream_state=stream_state,
+            )
         )
 
     @staticmethod
@@ -103,130 +116,22 @@ class ResumeToolExecutionStage:
         stream_state: dict[str, Any],
     ) -> str:
         """用于执行一次完整工具调用生命周期。"""
-        tool_started_at = perf_counter()
-        confirmation_decision = self.confirmation_policy.before_tool_call(
-            confirmation_queue=confirmation_queue,
-            tool_name=tool_name,
-            auto_execute_tool_names=agent.auto_execute_tool_names,
-        )
-        needs_confirmation = confirmation_decision.requires_confirmation
-        tool_call = self.tool_call_payload(call_id, tool_name, tool_input)
-        sdk_state = SdkToolApprovalState(context)
-        preapproval_output = sdk_state.pop_preapproval_output(call_id)
-        if preapproval_output is not None:
-            return preapproval_output
-        if sdk_state.consume_approved(call_id):
-            self.record_tool_requested(stream_state, call_id)
-            self.trace_tool_requested(
-                agent,
-                run_id,
-                call_id,
-                tool_name,
-                tool_input,
-                True,
-            )
-            return await self.run_confirmed_tool(
-                agent=agent,
-                run_id=run_id,
-                call_id=call_id,
-                tool_name=tool_name,
-                tool_call=tool_call,
-                context=context,
-                event_queue=event_queue,
-                event_callback=event_callback,
-                executed_tools=executed_tools,
-                needs_confirmation=True,
-                tool_started_at=tool_started_at,
-                stream_state=stream_state,
-            )
-        self.record_tool_requested(stream_state, call_id)
-        self.trace_tool_requested(
-            agent,
-            run_id,
-            call_id,
-            tool_name,
-            tool_input,
-            needs_confirmation,
-        )
-        if self.has_tool_argument_parse_error(tool_input):
-            await self.publish_visible_tool_call_once(
-                call_id=call_id,
-                tool_name=tool_name,
-                tool_input=tool_input,
-                event_queue=event_queue,
-                event_callback=event_callback,
-                stream_state=stream_state,
-            )
-            return await self.publish_invalid_tool_arguments(
+        return await ResumeToolLifecycleRunner(self, self.confirmation_policy).run(
+            ResumeToolLifecycleRequest(
                 agent=agent,
                 run_id=run_id,
                 call_id=call_id,
                 tool_name=tool_name,
                 tool_input=tool_input,
                 context=context,
+                confirmation_queue=confirmation_queue,
                 event_queue=event_queue,
                 event_callback=event_callback,
                 executed_tools=executed_tools,
-                tool_started_at=tool_started_at,
                 stream_state=stream_state,
             )
-        preview = await self.maybe_confirm_tool(
-            agent=agent,
-            run_id=run_id,
-            call_id=call_id,
-            tool_name=tool_name,
-            tool_input=tool_input,
-            tool_call=tool_call,
-            context=context,
-            confirmation_queue=confirmation_queue,
-            event_queue=event_queue,
-            event_callback=event_callback,
-            executed_tools=executed_tools,
-            needs_confirmation=needs_confirmation,
-            tool_started_at=tool_started_at,
-            stream_state=stream_state,
         )
-        if not needs_confirmation:
-            await self.publish_visible_tool_call_once(
-                call_id=call_id,
-                tool_name=tool_name,
-                tool_input=tool_input,
-                event_queue=event_queue,
-                event_callback=event_callback,
-                stream_state=stream_state,
-            )
-        auto_quality_failure = await self.maybe_block_auto_execute_tool(
-            agent=agent,
-            run_id=run_id,
-            call_id=call_id,
-            tool_name=tool_name,
-            tool_input=tool_input,
-            tool_call=tool_call,
-            context=context,
-            event_queue=event_queue,
-            event_callback=event_callback,
-            executed_tools=executed_tools,
-            needs_confirmation=needs_confirmation,
-            tool_started_at=tool_started_at,
-        )
-        if isinstance(auto_quality_failure, str):
-            return auto_quality_failure
-        if isinstance(preview, str):
-            return preview
-        return await self.run_confirmed_tool(
-            agent=agent,
-            run_id=run_id,
-            call_id=call_id,
-            tool_name=tool_name,
-            tool_call=tool_call,
-            context=context,
-            event_queue=event_queue,
-            event_callback=event_callback,
-            executed_tools=executed_tools,
-            needs_confirmation=needs_confirmation,
-            tool_started_at=tool_started_at,
-            stream_state=stream_state,
-        )
+
     async def prepare_sdk_tool_approval(
         self,
         *,

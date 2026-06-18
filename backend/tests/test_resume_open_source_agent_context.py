@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-from app.agents.resume.executor import TOOL_SECTION_ENUMS
-from app.agents.resume.executor import ResumeToolExecutor
 from app.agents.resume.session import maybe_compact_resume_context
-from app.tools.resume.registry import RESUME_TOOLS_SCHEMA
+from app.tools.resume.registry import (
+    RESUME_TOOL_SECTION_ENUMS,
+    RESUME_TOOLS_SCHEMA,
+    execute_prepared_resume_tool_call,
+)
 from app.tools.resume.update_bullet_tool import update_bullet
 
 
@@ -47,7 +49,7 @@ def test_open_source_is_allowed_by_bullet_tool_contracts():
     for tool_name in bullet_tools:
         section_enum = schema_by_name[tool_name]["function"]["parameters"]["properties"]["section"]["enum"]
         assert "open_source" in section_enum
-        assert "open_source" in TOOL_SECTION_ENUMS[tool_name]
+        assert "open_source" in RESUME_TOOL_SECTION_ENUMS[tool_name]
 
     resume_content = {
         "open_source": [
@@ -78,11 +80,10 @@ def test_open_source_is_allowed_by_resume_item_tools():
     for tool_name in item_tools:
         section_enum = schema_by_name[tool_name]["function"]["parameters"]["properties"]["section"]["enum"]
         assert "open_source" in section_enum
-        assert "open_source" in TOOL_SECTION_ENUMS[tool_name]
+        assert "open_source" in RESUME_TOOL_SECTION_ENUMS[tool_name]
 
     resume_content: dict[str, object] = {}
-    executor = ResumeToolExecutor()
-    add_result = executor.execute(
+    add_result = execute_prepared_resume_tool_call(
         tool_name="add_resume_item",
         tool_input={
             "section": "open_source",
@@ -96,7 +97,7 @@ def test_open_source_is_allowed_by_resume_item_tools():
         },
         context={"resume_content": resume_content, "allowed_sections": {"open_source"}},
     )
-    update_result = executor.execute(
+    update_result = execute_prepared_resume_tool_call(
         tool_name="update_item_fields",
         tool_input={
             "section": "open_source",
@@ -105,7 +106,7 @@ def test_open_source_is_allowed_by_resume_item_tools():
         },
         context={"resume_content": resume_content, "allowed_sections": {"open_source"}},
     )
-    remove_result = executor.execute(
+    remove_result = execute_prepared_resume_tool_call(
         tool_name="remove_resume_item",
         tool_input={
             "section": "open_source",

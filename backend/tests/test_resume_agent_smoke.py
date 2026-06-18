@@ -1722,7 +1722,10 @@ class ResumeAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(getattr(summary, "model"), settings.OPENAI_AGENTS_MODEL)
         self.assertGreater(getattr(summary, "prompt_chars"), 0)
         self.assertGreaterEqual(getattr(summary, "message_count"), 1)
-        self.assertEqual(getattr(summary, "tool_count"), 16)
+        self.assertEqual(
+            getattr(summary, "tool_count"),
+            len(agent.definition.tool_profiles[agent.definition.default_tool_profile]),
+        )
         self.assertIsNotNone(getattr(summary, "first_token_ms"))
         self.assertGreaterEqual(getattr(summary, "llm_total_ms"), 0)
         self.assertGreaterEqual(getattr(summary, "total_ms"), 0)

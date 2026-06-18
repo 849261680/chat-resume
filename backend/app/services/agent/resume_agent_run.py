@@ -15,9 +15,9 @@ from sqlalchemy.orm import Session
 from app.agents.resume.harness import ResumeAgentHarness
 from app.infra.request_context import log_context
 from app.runtime.permissions import confirmation_manager
+from app.services.agent.resume_agent_persistence import ResumeAgentPersistence
 from app.services.domain import ResumeService
 from app.state import AgentSessionStore
-from app.tools.resume.sections import allowed_sections_from_visible_modules
 from app.types.stream import (
     ResumeStreamEvent,
     session_started_event,
@@ -98,13 +98,14 @@ class ResumeAgentRunOrchestrator:
             resume_id=resume_id,
             user_id=user_id,
         )
-        resume_content = self._load_resume_content(resume)
+        persistence = ResumeAgentPersistence(resume_service)
+        resume_content = persistence.load_resume_content(resume)
         original_resume = deepcopy(resume_content)
 
         result = ResumeAgentHarness(self.db, session_store=store).resume_session(
             session_id=session_id,
             resume_content=resume_content,
-            allowed_sections=self._allowed_sections(resume_content),
+            allowed_sections=persistence.allowed_sections(resume_content),
         )
         if not result["success"]:
             raise HTTPException(
@@ -114,8 +115,7 @@ class ResumeAgentRunOrchestrator:
 
         latest_resume_content = result["resume_content"]
         if result.get("applied"):
-            self._persist_resume_if_changed(
-                resume_service,
+            persistence.persist_resume_if_changed(
                 resume_id=resume_id,
                 latest_resume_content=latest_resume_content,
                 original_resume=original_resume,
@@ -205,7 +205,8 @@ class ResumeAgentRunOrchestrator:
             resume_id=request.resume_id,
             user_id=request.user_id,
         )
-        resume_content = self._load_resume_content(resume)
+        persistence = ResumeAgentPersistence(resume_service)
+        resume_content = persistence.load_resume_content(resume)
         original_resume = deepcopy(resume_content)
         store = AgentSessionStore(self.db)
         harness = ResumeAgentHarness(self.db, session_store=store)
@@ -242,14 +243,12 @@ class ResumeAgentRunOrchestrator:
                 event=event,
             )
 
-        self._persist_resume_if_changed(
-            resume_service,
+        persistence.persist_resume_if_changed(
             resume_id=request.resume_id,
             latest_resume_content=latest_resume_content,
             original_resume=original_resume,
         )
-        self._sync_visibility_if_changed(
-            resume_service,
+        persistence.sync_visibility_if_changed(
             resume=resume,
             resume_id=request.resume_id,
             request_visible=request.visible_modules,
@@ -285,7 +284,7 @@ class ResumeAgentRunOrchestrator:
             resume_content=resume_content,
             conversation_history=conversation_history,
             confirmation_queue=confirmation_queue,
-            allowed_sections=self._allowed_sections(
+            allowed_sections=ResumeAgentPersistence(resume_service).allowed_sections(
                 resume_content,
                 visible_modules=request.visible_modules,
             ),
@@ -376,71 +375,6 @@ class ResumeAgentRunOrchestrator:
                 detail="没有权限访问此简历",
             )
         return resume
-
-    @staticmethod
-    def _dump_resume_content(resume: Any) -> dict[str, Any]:
-        """用于把 ORM 简历内容安全收窄成可编辑字典。"""
-        return cast(
-            dict[str, Any],
-            resume.content if isinstance(resume.content, dict) else {},
-        )
-
-    @staticmethod
-    def _load_resume_content(resume: Any) -> dict[str, Any]:
-        """用于读取完整简历内容供 Agent 推理和工具使用。"""
-        return ResumeAgentRunOrchestrator._dump_resume_content(resume)
-
-    @staticmethod
-    def _allowed_sections(
-        resume_content: dict[str, Any],
-        visible_modules: list[str] | None = None,
-    ) -> set[str]:
-        """用于按可见模块或简历内容推导当前允许工具修改的顶层板块。"""
-        if visible_modules:
-            return allowed_sections_from_visible_modules(visible_modules)
-        return {key for key in resume_content if not key.startswith("_")}
-
-    @staticmethod
-    def _strip_visibility_meta(content: dict[str, Any]) -> dict[str, Any]:
-        """用于剥离仅作传输用途的 _visible_modules，避免污染持久化内容。"""
-        return {key: value for key, value in content.items() if key != "_visible_modules"}
-
-    @staticmethod
-    def _persist_resume_if_changed(
-        resume_service: ResumeService,
-        *,
-        resume_id: int,
-        latest_resume_content: dict[str, Any] | None,
-        original_resume: dict[str, Any],
-    ) -> None:
-        """用于只在内容确实变化时落库存储结构化简历。"""
-        if latest_resume_content is None:
-            return
-        content = ResumeAgentRunOrchestrator._strip_visibility_meta(
-            latest_resume_content
-        )
-        if content == ResumeAgentRunOrchestrator._strip_visibility_meta(original_resume):
-            return
-        resume_service.update(resume_id, {"content": content})
-
-    @staticmethod
-    def _sync_visibility_if_changed(
-        resume_service: ResumeService,
-        *,
-        resume: Any,
-        resume_id: int,
-        request_visible: list[str],
-        latest_resume_content: dict[str, Any] | None,
-    ) -> None:
-        """用于把 Agent 改动的可见模块同步到 layout_config.visibleModules。"""
-        if not isinstance(latest_resume_content, dict):
-            return
-        new_visible = latest_resume_content.get("_visible_modules")
-        if not isinstance(new_visible, list) or new_visible == request_visible:
-            return
-        existing = resume.layout_config if isinstance(resume.layout_config, dict) else {}
-        merged = {**existing, "visibleModules": list(new_visible)}
-        resume_service.update(resume_id, {"layout_config": merged})
 
     @staticmethod
     def _latest_resume_content(

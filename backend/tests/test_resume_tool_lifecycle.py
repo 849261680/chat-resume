@@ -15,7 +15,11 @@ if str(BACKEND_DIR) not in sys.path:
 
 from app.agents.resume.agent import ResumeAgent  # noqa: E402
 from app.agents.resume.tool_execution import ResumeToolExecutionStage  # noqa: E402
-from app.agents.resume.tool_lifecycle import ResumeToolLifecycleRequest  # noqa: E402
+from app.agents.resume.tool_lifecycle import (  # noqa: E402
+    ResumeToolLifecycleRequest,
+    ResumeToolLifecycleRunner,
+)
+from app.runtime.tool_confirmation import ToolConfirmationPolicy  # noqa: E402
 
 
 @pytest.mark.asyncio
@@ -80,3 +84,61 @@ async def test_tool_lifecycle_request_runs_confirmed_tool_call() -> None:
     )
     assert any(event.get("tool_pending") for event in events)
     assert any(event.get("tool_confirmed") for event in events)
+
+
+@pytest.mark.asyncio
+async def test_lifecycle_runner_delegates_requested_tool_flow_to_single_operation() -> None:
+    """用于验证普通工具生命周期通过深接口交给执行侧处理。"""
+
+    class RequestedOnlyOperations:
+        """用于模拟只暴露深生命周期接口的工具执行侧。"""
+
+        def __init__(self) -> None:
+            """用于记录被委托的请求和开始状态。"""
+            self.delegated: tuple[str, bool] | None = None
+
+        @staticmethod
+        def tool_call_payload(
+            call_id: str,
+            tool_name: str,
+            tool_input: dict[str, Any],
+        ) -> dict[str, Any]:
+            """用于构造测试里的工具调用载荷。"""
+            return {
+                "id": call_id,
+                "type": "function",
+                "function": {"name": tool_name, "arguments": tool_input},
+            }
+
+        async def run_requested_tool_call(
+            self,
+            request: ResumeToolLifecycleRequest,
+            lifecycle_start: Any,
+        ) -> str:
+            """用于验证生命周期 runner 只委托一次普通工具流。"""
+            self.delegated = (request.call_id, lifecycle_start.needs_confirmation)
+            return '{"success": true}'
+
+    operations = RequestedOnlyOperations()
+    agent = ResumeAgent()
+    output = await ResumeToolLifecycleRunner(
+        operations,
+        ToolConfirmationPolicy(),
+    ).run(
+        ResumeToolLifecycleRequest(
+            agent=agent.definition,
+            run_id="run_deep_interface",
+            call_id="call_deep_interface",
+            tool_name="update_bullet",
+            tool_input={"text": "提升系统稳定性"},
+            context={},
+            confirmation_queue=asyncio.Queue(),
+            event_queue=None,
+            event_callback=None,
+            executed_tools=[],
+            stream_state={},
+        )
+    )
+
+    assert output == '{"success": true}'
+    assert operations.delegated == ("call_deep_interface", True)

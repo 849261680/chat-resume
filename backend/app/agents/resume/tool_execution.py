@@ -25,9 +25,11 @@ from app.agents.resume.stream_events import (
 )
 from app.agents.resume.event_publisher import publish_resume_runtime_event
 from app.agents.resume.sdk_tool_lifecycle import SdkToolApprovalState
+from app.agents.resume.tool_execution_flow import ResumeToolExecutionFlow
 from app.agents.resume.tool_lifecycle import (
     ResumeToolLifecycleRequest,
     ResumeToolLifecycleRunner,
+    ResumeToolLifecycleStart,
 )
 from app.infra.config import settings
 from app.runtime.contracts import AgentDefinition, RuntimeEventCallback
@@ -131,6 +133,22 @@ class ResumeToolExecutionStage:
                 stream_state=stream_state,
             )
         )
+
+    async def run_sdk_approved_tool_call(
+        self,
+        request: ResumeToolLifecycleRequest,
+        lifecycle_start: ResumeToolLifecycleStart,
+    ) -> str:
+        """用于把 SDK 已确认工具流交给执行流对象。"""
+        return await ResumeToolExecutionFlow(self).run_sdk_approved(request, lifecycle_start)
+
+    async def run_requested_tool_call(
+        self,
+        request: ResumeToolLifecycleRequest,
+        lifecycle_start: ResumeToolLifecycleStart,
+    ) -> str:
+        """用于把普通 requested 工具流交给执行流对象。"""
+        return await ResumeToolExecutionFlow(self).run_requested(request, lifecycle_start)
 
     async def prepare_sdk_tool_approval(
         self,

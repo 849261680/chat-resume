@@ -89,6 +89,9 @@ from app.runtime.contracts import AgentDefinition  # noqa: E402
 from app.services.agent.resume_agent_stream_service import (  # noqa: E402
     ResumeAgentStreamService,
 )
+from app.services.agent.resume_agent_persistence import (  # noqa: E402
+    ResumeAgentPersistence,
+)
 from app.agents.resume.session import (  # noqa: E402
     ResumeAgentSession,
     maybe_compact_resume_context,
@@ -637,7 +640,8 @@ def test_resume_stream_service_loads_full_resume_content_for_agent_tools():
     }
     resume = type("ResumeStub", (), {"content": content})()
 
-    loaded = ResumeAgentStreamService._load_resume_content(resume)
+    service = cast(Any, SimpleNamespace(update=lambda _resume_id, _payload: None))
+    loaded = ResumeAgentPersistence(service).load_resume_content(resume)
 
     assert loaded == content
     assert loaded["skills"] == [{"id": "skill_1", "category": "AI", "items": ["Agent"]}]

@@ -1,10 +1,10 @@
-"""用于验证简历 Agent 流式服务把板块显隐同步到 layout_config 并剥离传输 meta。"""
+"""用于验证简历 Agent 持久化模块同步 layout_config 并剥离传输 meta。"""
 
 from __future__ import annotations
 
 from typing import Any
 
-from app.services.agent.resume_agent_stream_service import ResumeAgentStreamService
+from app.services.agent.resume_agent_persistence import ResumeAgentPersistence
 
 
 class _FakeResumeService:
@@ -30,11 +30,11 @@ class _FakeResume:
 def test_persist_strips_visibility_meta_and_skips_when_content_unchanged() -> None:
     """用于验证仅 _visible_modules 变化时不落库内容，且持久化内容不含该 meta。"""
     service = _FakeResumeService()
+    persistence = ResumeAgentPersistence(service)
     original = {"summary": {"text": "hi"}}
     latest = {"summary": {"text": "hi"}, "_visible_modules": ["summary"]}
 
-    ResumeAgentStreamService._persist_resume_if_changed(
-        service,  # type: ignore[arg-type]
+    persistence.persist_resume_if_changed(
         resume_id=1,
         latest_resume_content=latest,
         original_resume=original,
@@ -46,11 +46,11 @@ def test_persist_strips_visibility_meta_and_skips_when_content_unchanged() -> No
 def test_persist_writes_clean_content_when_changed() -> None:
     """用于验证内容变化时落库的 content 已剥离 _visible_modules。"""
     service = _FakeResumeService()
+    persistence = ResumeAgentPersistence(service)
     original = {"summary": {"text": "hi"}}
     latest = {"summary": {"text": "changed"}, "_visible_modules": ["summary"]}
 
-    ResumeAgentStreamService._persist_resume_if_changed(
-        service,  # type: ignore[arg-type]
+    persistence.persist_resume_if_changed(
         resume_id=7,
         latest_resume_content=latest,
         original_resume=original,
@@ -66,10 +66,10 @@ def test_persist_writes_clean_content_when_changed() -> None:
 def test_sync_visibility_merges_into_layout_config_when_changed() -> None:
     """用于验证可见模块变化时合并写入 layout_config，保留其它布局字段。"""
     service = _FakeResumeService()
+    persistence = ResumeAgentPersistence(service)
     resume = _FakeResume({"spacingScale": 0.7, "visibleModules": ["personal", "summary"]})
 
-    ResumeAgentStreamService._sync_visibility_if_changed(
-        service,  # type: ignore[arg-type]
+    persistence.sync_visibility_if_changed(
         resume=resume,
         resume_id=3,
         request_visible=["personal", "summary"],
@@ -86,10 +86,10 @@ def test_sync_visibility_merges_into_layout_config_when_changed() -> None:
 def test_sync_visibility_noop_when_unchanged() -> None:
     """用于验证可见模块未变化时不触发 layout_config 写入。"""
     service = _FakeResumeService()
+    persistence = ResumeAgentPersistence(service)
     resume = _FakeResume({"visibleModules": ["personal", "summary"]})
 
-    ResumeAgentStreamService._sync_visibility_if_changed(
-        service,  # type: ignore[arg-type]
+    persistence.sync_visibility_if_changed(
         resume=resume,
         resume_id=3,
         request_visible=["personal", "summary"],
@@ -101,7 +101,10 @@ def test_sync_visibility_noop_when_unchanged() -> None:
 
 def test_allowed_sections_prefer_visible_modules_mapping() -> None:
     """用于验证工具可编辑板块按可见模块映射，而不是按空 content key 误判。"""
-    allowed = ResumeAgentStreamService._allowed_sections(  # type: ignore[attr-defined]
+    service = _FakeResumeService()
+    persistence = ResumeAgentPersistence(service)
+
+    allowed = persistence.allowed_sections(
         {"summary": {"text": ""}},
         visible_modules=["personal", "education", "work", "projects", "skills"],
     )

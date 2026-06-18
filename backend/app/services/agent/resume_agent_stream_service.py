@@ -56,18 +56,5 @@ class ResumeAgentStreamService:
         """用于兼容旧字段并拒绝已迁移的面试入口。"""
         ResumeAgentRunOrchestrator.ensure_stream_supported(request)
 
-    _load_resume_content = staticmethod(ResumeAgentRunOrchestrator._load_resume_content)
-    _allowed_sections = staticmethod(ResumeAgentRunOrchestrator._allowed_sections)
-    _persist_resume_if_changed = staticmethod(
-        ResumeAgentRunOrchestrator._persist_resume_if_changed
-    )
-    _record_stream_event = staticmethod(ResumeAgentRunOrchestrator._record_stream_event)
-    _strip_visibility_meta = staticmethod(
-        ResumeAgentRunOrchestrator._strip_visibility_meta
-    )
-    _sync_visibility_if_changed = staticmethod(
-        ResumeAgentRunOrchestrator._sync_visibility_if_changed
-    )
-
 
 __all__ = ["ResumeAgentStreamInput", "ResumeAgentStreamService"]

@@ -4,10 +4,10 @@ import { API_BASE_URL } from '@/lib/httpClient'
 import { useTranslations } from 'next-intl'
 import { commitCompletedStreamMessage } from './streamingCompletion'
 import { ResumeStreamingClient, ResumeStreamingHttpError } from './resumeStreamingClient'
+import { createStreamingUiSession, type StreamingUiSession } from './streamingUiSession'
 import { buildStreamingViewStatePatch } from './streamingViewState'
 import {
   isToolLifecyclePayload,
-  normalizeDiffItems,
   summarizeToolEvents,
   type DiffItem,
   type StreamEvent,
@@ -32,13 +32,6 @@ interface StreamingChatOptions {
   onResumeUpdate?: (resumeContent: Record<string, unknown>) => void
   visibleModules?: string[]
   agentType?: 'resume'
-}
-
-type PendingToolTiming = {
-  receivedAt: number
-  appendedAt: number
-  streamStartedAt: number
-  clientRequestId: string
 }
 
 // 用于判断是否开启 AI stream 详细调试日志。
@@ -118,16 +111,6 @@ function logStreamPhase(
   })
 }
 
-// 用于读取浏览器单调时钟，方便排查确认链路延迟。
-function nowMs(): number {
-  return typeof performance !== 'undefined' ? performance.now() : Date.now()
-}
-
-// 用于把耗时压缩为稳定的两位小数。
-function elapsedMsSince(startedAt: number): number {
-  return Math.round((nowMs() - startedAt) * 100) / 100
-}
-
 // 用于等待浏览器提交上一帧工具运行态，避免 pending diff 与 tool_call 同帧出现。
 function waitForNextPaint(): Promise<void> {
   if (typeof window === 'undefined') return Promise.resolve()
@@ -145,14 +128,13 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
   const [userInputRequest, setUserInputRequest] = useState<UserInputRequest | null>(null)
   const [sessionId, setSessionId] = useState<string | null>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
-  // 使用 ref 作为立即生效的锁，因为 useState 更新是异步的
-  const isStreamingLockRef = useRef(false)
-  // 用 ref 跟踪当前 sessionId，以便在异步回调中读取最新值
-  const sessionIdRef = useRef<string | null>(null)
   const lastEventIdRef = useRef<string | null>(null)
-  const pendingToolTimingsRef = useRef<Record<string, PendingToolTiming>>({})
-  const confirmingToolCallsRef = useRef<Set<string>>(new Set())
   const sseEventSequenceRef = useRef(0)
+  const uiSessionRef = useRef<StreamingUiSession | null>(null)
+  if (!uiSessionRef.current) {
+    uiSessionRef.current = createStreamingUiSession({ debugLog: debugStreamLog })
+  }
+  const uiSession = uiSessionRef.current
 
   const {
     onMessage,
@@ -170,22 +152,14 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
     fallbackToolName: t('toolCall'),
   })
 
-  // 用于清理待确认工具的本地交互状态。
-  const clearPendingToolState = () => {
-    pendingToolTimingsRef.current = {}
-    confirmingToolCallsRef.current.clear()
-  }
-
   // 用于处理send流式消息。
   const sendStreamingMessage = async (message: string, chatHistory: ChatMessage[] = []) => {
     // 使用 ref 做立即检查，防止并发调用
-    if (isStreamingLockRef.current) {
+    if (!uiSession.beginStreaming()) {
       debugStreamLog('[useStreamingChat] 已有流式请求进行中，跳过重复调用')
       return
     }
     setUserInputRequest(null)
-    // 立即加锁
-    isStreamingLockRef.current = true
 
     setIsStreaming(true)
     setCurrentStreamingMessage('')
@@ -283,7 +257,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
             }
 
             if (viewPatch.sessionId) {
-              sessionIdRef.current = viewPatch.sessionId
+              uiSession.setSessionId(viewPatch.sessionId)
               setSessionId(viewPatch.sessionId)
             }
 
@@ -295,57 +269,33 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
 
             if (protocolEvent?.type === 'tool_pending' && viewPatch.pendingToolCallId) {
               const callId = viewPatch.pendingToolCallId
-              const receivedAt = nowMs()
-              debugStreamLog('[useStreamingChat] tool_pending received', {
+              uiSession.recordPendingTool({
                 callId,
                 toolName: protocolEvent.toolName,
                 diffItemCount: Array.isArray(data.diff_items) ? data.diff_items.length : 0,
-                elapsedSinceStreamStartMs: Math.round((receivedAt - streamStartedAt) * 100) / 100,
-                eventsBefore: summarizeToolEvents(previousEvents),
-              })
-              const appendedAt = nowMs()
-              pendingToolTimingsRef.current[callId] = {
-                receivedAt,
-                appendedAt,
                 streamStartedAt,
                 clientRequestId,
-              }
-              debugStreamLog('[useStreamingChat] tool_pending appended', {
-                callId,
-                elapsedSinceReceivedMs: Math.round((appendedAt - receivedAt) * 100) / 100,
-                eventsAfter: summarizeToolEvents(protocolState.events),
-              })
-              window.requestAnimationFrame(() => {
-                const timing = pendingToolTimingsRef.current[callId]
-                if (!timing) return
-                debugStreamLog('[useStreamingChat] tool_pending rendered', {
-                  callId,
-                  clientRequestId: timing.clientRequestId,
-                  elapsedSinceStreamStartMs: elapsedMsSince(timing.streamStartedAt),
-                  elapsedSinceReceivedMs: elapsedMsSince(timing.receivedAt),
-                  elapsedSinceAppendedMs: elapsedMsSince(timing.appendedAt),
-                })
+                previousEvents,
+                eventsAfter: protocolState.events,
               })
             }
 
             if (viewPatch.decisionToolCallId) {
-              const callId = viewPatch.decisionToolCallId
-              delete pendingToolTimingsRef.current[callId]
-              debugStreamLog('[useStreamingChat] tool decision handling end', {
-                callId,
-                newType: protocolEvent?.type || '',
-                eventsBefore: summarizeToolEvents(previousEvents),
-                eventsAfter: summarizeToolEvents(protocolState.events),
-              })
+              uiSession.recordToolDecision(
+                viewPatch.decisionToolCallId,
+                protocolEvent?.type || '',
+                previousEvents,
+                protocolState.events,
+              )
             }
 
             if (viewPatch.completedToolCallId) {
-              debugStreamLog('[useStreamingChat] tool completion handling end', {
-                callId: viewPatch.completedToolCallId,
-                newType: protocolEvent?.type || '',
-                eventsBefore: summarizeToolEvents(previousEvents),
-                eventsAfter: summarizeToolEvents(protocolState.events),
-              })
+              uiSession.recordToolCompletion(
+                viewPatch.completedToolCallId,
+                protocolEvent?.type || '',
+                previousEvents,
+                protocolState.events,
+              )
             }
 
             if (viewPatch.resumeContent) {
@@ -390,15 +340,11 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
         onError?.(formatStreamError(errorMessage, clientRequestId))
       }
     } finally {
-      // 清理所有 tool_pending 超时计时器
-      clearPendingToolState()
-      // 释放锁
-      isStreamingLockRef.current = false
+      uiSession.reset()
       setIsStreaming(false)
       setCurrentStreamingMessage('')
       setStreamEvents([])
       setSessionId(null)
-      sessionIdRef.current = null
       abortControllerRef.current = null
     }
   }
@@ -408,36 +354,21 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
     }
-    clearPendingToolState()
-    isStreamingLockRef.current = false
+    uiSession.reset()
     setIsStreaming(false)
     setCurrentStreamingMessage('')
     setStreamEvents([])
     setSessionId(null)
-    sessionIdRef.current = null
   }
 
   // 用于从后端恢复持久化的待确认工具 diff。
   const restorePendingConfirmation = useCallback(async () => {
-    if (isStreamingLockRef.current) return
-    const pending = await createStreamingClient().restorePendingConfirmation(resumeId)
-    const action = pending?.action
-    if (!pending?.sessionId || !action?.call_id) return
-    sessionIdRef.current = pending.sessionId
-    setSessionId(pending.sessionId)
-    isStreamingLockRef.current = true
+    const restored = await uiSession.restorePendingConfirmation(createStreamingClient(), resumeId)
+    if (!restored) return
+    setSessionId(restored.sessionId)
     setIsStreaming(true)
-    setStreamEvents([
-      {
-        type: 'tool_pending',
-        callId: action.call_id,
-        toolName: action.tool_name || '',
-        toolId: action.tool_id,
-        diffSummary: action.diff_summary || '',
-        diffItems: normalizeDiffItems(action.diff_items),
-      },
-    ])
-  }, [apiBaseUrl, resumeId, t])
+    setStreamEvents([restored.event])
+  }, [apiBaseUrl, resumeId, t, uiSession])
 
   // 用于处理confirm工具。
   const confirmTool = async (
@@ -446,103 +377,20 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
     source = 'unknown',
     feedback?: string,
   ) => {
-    const clickedAt = nowMs()
-    const timing = pendingToolTimingsRef.current[callId]
-    const sid = sessionIdRef.current
-    const cleanFeedback = feedback?.trim()
-    if (!sid) {
-      console.warn('[confirmTool] 没有活跃 session', { callId, confirmed, source })
-      debugStreamLog('[confirmTool] no active session', {
-        callId,
-        confirmed,
-        source,
-        hasFeedback: Boolean(cleanFeedback),
-        elapsedSincePendingReceivedMs: timing
-          ? Math.round((clickedAt - timing.receivedAt) * 100) / 100
-          : null,
-      })
-      return
-    }
-    if (confirmingToolCallsRef.current.has(callId)) {
-      console.warn('[confirmTool] 正在确认中，忽略重复点击', { callId, confirmed, source })
-      debugStreamLog('[confirmTool] duplicate click ignored', {
-        callId,
-        confirmed,
-        source,
-        sessionIdShort: sid.slice(0, 8),
-      })
-      return
-    }
-    confirmingToolCallsRef.current.add(callId)
-    debugStreamLog('[confirmTool] click', {
+    const result = await uiSession.confirmTool(createStreamingClient(), {
       callId,
       confirmed,
       source,
-      hasFeedback: Boolean(cleanFeedback),
-      sessionIdShort: sid.slice(0, 8),
-      elapsedSincePendingReceivedMs: timing
-        ? Math.round((clickedAt - timing.receivedAt) * 100) / 100
-        : null,
-      elapsedSincePendingRenderedEstimateMs: timing
-        ? Math.round((clickedAt - timing.appendedAt) * 100) / 100
-        : null,
+      feedback,
     })
-    const fetchStartedAt = nowMs()
-    debugStreamLog('[confirmTool] fetch start', {
-      callId,
-      confirmed,
-      source,
-      hasFeedback: Boolean(cleanFeedback),
-      sessionIdShort: sid.slice(0, 8),
-      elapsedSinceClickMs: Math.round((fetchStartedAt - clickedAt) * 100) / 100,
-    })
-    const body = await createStreamingClient().confirmTool({
-      sessionId: sid,
-      callId,
-      confirmed,
-      source,
-      feedback: cleanFeedback,
-    })
-    if (body.duplicate) {
-      console.warn('[confirmTool] 工具确认状态已变化，忽略重复确认', {
-        callId,
-        confirmed,
-        source,
-      })
-      debugStreamLog('[confirmTool] conflict response', {
-        callId,
-        confirmed,
-        source,
-        elapsedSinceFetchStartMs: elapsedMsSince(fetchStartedAt),
-      })
-      return
-    }
-    debugStreamLog('[confirmTool] response', {
-      callId,
-      confirmed,
-      source,
-      hasFeedback: Boolean(cleanFeedback),
-      ok: Boolean(body?.ok),
-      resumable: Boolean(body?.resumable),
-      duplicate: Boolean(body?.duplicate),
-      elapsedSinceFetchStartMs: elapsedMsSince(fetchStartedAt),
-      elapsedSinceClickMs: elapsedMsSince(clickedAt),
-    })
-    if (body?.resumable === true) {
-      await resumePausedSession(sid)
+    if (result.status === 'resumable') {
+      if (result.resumeContent) onResumeUpdate?.(result.resumeContent)
       setStreamEvents([])
       setIsStreaming(false)
       setCurrentStreamingMessage('')
       setSessionId(null)
-      sessionIdRef.current = null
-      isStreamingLockRef.current = false
+      uiSession.reset()
     }
-  }
-
-  // 用于恢复已经记录确认结果但原 SSE 连接已断开的 session。
-  const resumePausedSession = async (sid: string) => {
-    const resumeContent = await createStreamingClient().resumePausedSession(sid)
-    if (resumeContent) onResumeUpdate?.(resumeContent)
   }
 
   return {

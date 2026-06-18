@@ -33,6 +33,11 @@ from app.agents.resume.observability import (
 )
 from app.agents.resume.tool_execution import ResumeToolExecutionStage
 from app.agents.resume.tool_lifecycle import ResumeToolLifecycleRequest
+from app.agents.resume.turn_protocol import (
+    should_publish_live_text_delta,
+    visible_text_delta,
+    visible_tool_call_started,
+)
 from app.agents.resume.event_publisher import publish_resume_runtime_event
 from app.infra.config import settings
 from app.runtime.contracts import AgentDefinition, RuntimeEventCallback
@@ -286,7 +291,7 @@ class ResumeAgentLoop:
                 raise TypeError("StreamFn must return {'events': AsyncIterator, 'result': async callable}")
 
             async for raw_event in response["events"]:
-                early_tool_call = self.early_tool_call_from_event(raw_event)
+                early_tool_call = visible_tool_call_started(raw_event)
                 if (
                     early_tool_call is not None
                     and not early_tool_call_published
@@ -308,7 +313,7 @@ class ResumeAgentLoop:
                         event_queue=event_queue,
                         event_callback=event_callback,
                     )
-                delta = self.text_delta_from_event(raw_event)
+                delta = visible_text_delta(raw_event)
                 if delta:
                     if state["first_token_latency_ms"] is None:
                         state["first_token_latency_ms"] = round(
@@ -316,7 +321,7 @@ class ResumeAgentLoop:
                             2,
                         )
                     text_deltas.append(delta)
-                    if self.should_publish_streamed_text_delta(raw_event):
+                    if should_publish_live_text_delta(raw_event):
                         await self.publish_streamed_text_delta(
                             run_id=run_id,
                             event_queue=event_queue,
@@ -516,37 +521,6 @@ class ResumeAgentLoop:
             return True
         has_completion = any(word in text for word in _MUTATION_COMPLETION_WORDS)
         return has_completion and any(word in text for word in _MUTATION_ACTION_WORDS)
-
-    @staticmethod
-    def early_tool_call_from_event(raw_event: Any) -> ToolCall | None:
-        """用于从底层 toolcall_start 事件中读取可提前展示的工具名。"""
-        if str(getattr(raw_event, "type", "") or "") != "toolcall_start":
-            return None
-        content_index = getattr(raw_event, "content_index", None)
-        if not isinstance(content_index, int):
-            return None
-        partial = getattr(raw_event, "partial", None)
-        content = getattr(partial, "content", None)
-        if not isinstance(content, list) or content_index < 0 or content_index >= len(content):
-            return None
-        block = content[content_index]
-        if not isinstance(block, ToolCall) or not block.id or not block.name:
-            return None
-        return block
-
-    @staticmethod
-    def text_delta_from_event(raw_event: Any) -> str:
-        """用于从底层流式事件中提取纯文本增量。"""
-        if str(getattr(raw_event, "type", "") or "") != "text_delta":
-            return ""
-        return str(getattr(raw_event, "delta", "") or "")
-
-    @staticmethod
-    def should_publish_streamed_text_delta(raw_event: Any) -> bool:
-        """用于识别可直接透传到前端的 OpenAI Agents SDK 文本 delta。"""
-        partial = getattr(raw_event, "partial", None)
-        provider = str(getattr(partial, "provider", "") or "")
-        return provider in {"openai-agents", "deepseek"}
 
     async def publish_text_deltas(
         self,

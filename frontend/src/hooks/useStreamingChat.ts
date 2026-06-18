@@ -3,12 +3,10 @@ import { useCallback, useRef, useState } from 'react'
 import { API_BASE_URL, apiUrl } from '@/lib/httpClient'
 import { useTranslations } from 'next-intl'
 import { commitCompletedStreamMessage } from './streamingCompletion'
+import { createStreamingSseSession } from './streamingSseSession'
 import {
-  createStreamProtocolState,
   isToolLifecyclePayload,
   normalizeDiffItems,
-  reduceStreamSsePayload,
-  resolveStreamCursor,
   shouldYieldBeforePendingEvent,
   summarizeToolEvents,
   type DiffItem,
@@ -211,9 +209,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
         content: msg.content
       }))
       let replayAttempted = false
-      let buffer = ''
-      let protocolState = createStreamProtocolState()
-      let pendingSseEventId: string | null = null
+      const sseSession = createStreamingSseSession(t('toolCall'))
       let firstSseReceivedLogged = false
       let firstContentRenderedLogged = false
 
@@ -266,196 +262,169 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
       try {
         while (true) {
           const { done, value } = await reader.read()
-
           if (done) break
 
-          // 解码数据
-          buffer += decoder.decode(value, { stream: true })
-
-          // 处理完整的SSE消息
-          const lines = buffer.split('\n')
-          buffer = lines.pop() || '' // 保留不完整的行
-
-          for (const line of lines) {
-            if (line.startsWith('id: ')) {
-              pendingSseEventId = line.slice(4).trim()
-              continue
+          const reductions = sseSession.pushChunk(decoder.decode(value, { stream: true }))
+          for (const reduced of reductions) {
+            const data = reduced.data
+            const protocolState = reduced.state
+            const previousEvents = reduced.previousEvents
+            const protocolEvent = reduced.protocolEvent
+            if (!firstSseReceivedLogged) {
+              firstSseReceivedLogged = true
+              logStreamPhase('first_sse_received', streamStartedAt, clientRequestId, {
+                replay: replayAttempted,
+                eventType: typeof data.event_type === 'string' ? data.event_type : '',
+                hasContent: Boolean(data.content),
+                done: Boolean(data.done),
+              })
             }
-            if (line.startsWith('data: ')) {
-              try {
-                const data = JSON.parse(line.slice(6))
-                if (!firstSseReceivedLogged) {
-                  firstSseReceivedLogged = true
-                  logStreamPhase('first_sse_received', streamStartedAt, clientRequestId, {
-                    replay: replayAttempted,
-                    eventType: typeof data.event_type === 'string' ? data.event_type : '',
-                    hasContent: Boolean(data.content),
-                    done: Boolean(data.done),
-                  })
-                }
-                const nextCursor = resolveStreamCursor(data, pendingSseEventId)
-                if (nextCursor) lastEventIdRef.current = nextCursor
-                pendingSseEventId = null
-                const eventType = typeof data.event_type === 'string' ? data.event_type : ''
-                const isToolEvent = isToolLifecyclePayload(data)
-                if (isToolEvent) {
-                  sseEventSequenceRef.current += 1
-                  debugStreamLog('[useStreamingChat] tool SSE received', {
-                    seq: sseEventSequenceRef.current,
-                    eventType,
-                    eventId: lastEventIdRef.current,
-                    callId: data.call_id || '',
-                    toolName: data.tool_display_name || data.tool_name || data.tool_id || '',
-                    toolPending: Boolean(data.tool_pending),
-                    toolConfirmed: Boolean(data.tool_confirmed),
-                    toolRejected: Boolean(data.tool_rejected),
-                    hasResult: Object.prototype.hasOwnProperty.call(data, 'result'),
-                    diffItemCount: Array.isArray(data.diff_items) ? data.diff_items.length : 0,
-                    eventsBefore: summarizeToolEvents(protocolState.events),
-                  })
-                }
+            if (reduced.nextCursor) lastEventIdRef.current = reduced.nextCursor
+            const eventType = typeof data.event_type === 'string' ? data.event_type : ''
+            const isToolEvent = isToolLifecyclePayload(data)
+            if (isToolEvent) {
+              sseEventSequenceRef.current += 1
+              debugStreamLog('[useStreamingChat] tool SSE received', {
+                seq: sseEventSequenceRef.current,
+                eventType,
+                eventId: lastEventIdRef.current,
+                callId: data.call_id || '',
+                toolName: data.tool_display_name || data.tool_name || data.tool_id || '',
+                toolPending: Boolean(data.tool_pending),
+                toolConfirmed: Boolean(data.tool_confirmed),
+                toolRejected: Boolean(data.tool_rejected),
+                hasResult: Object.prototype.hasOwnProperty.call(data, 'result'),
+                diffItemCount: Array.isArray(data.diff_items) ? data.diff_items.length : 0,
+                eventsBefore: summarizeToolEvents(previousEvents),
+              })
+            }
 
-                if (data.error) {
-                  onError?.(formatStreamError(data.error, clientRequestId))
-                  return
-                }
+            if (data.error) {
+              onError?.(formatStreamError(String(data.error), clientRequestId))
+              return
+            }
 
-                if (data.done) {
-                  logStreamPhase('done_received', streamStartedAt, clientRequestId, {
-                    eventType: typeof data.event_type === 'string' ? data.event_type : '',
-                    hadContent: Boolean(protocolState.content),
+            if (data.done) {
+              logStreamPhase('done_received', streamStartedAt, clientRequestId, {
+                eventType,
+                hadContent: Boolean(protocolState.content),
+                streamEventCount: protocolState.events.length,
+              })
+              if (data.resume_content && typeof data.resume_content === 'object') {
+                debugStreamLog('[useStreamingChat] done 事件收到 resume_content', {
+                  sections: Object.keys(data.resume_content),
+                })
+                onResumeUpdate?.(data.resume_content as Record<string, unknown>)
+              }
+              const aiMessage: ChatMessage = {
+                id: Date.now().toString(),
+                type: 'ai',
+                content: protocolState.content,
+                timestamp: new Date(),
+                streamEvents: protocolState.events.length > 0 ? [...protocolState.events] : undefined,
+              }
+              commitCompletedStreamMessage(aiMessage, onMessage, () => {
+                setIsStreaming(false)
+                setCurrentStreamingMessage('')
+                setStreamEvents([])
+              })
+              return
+            }
+
+            if (data.session_id) {
+              sessionIdRef.current = String(data.session_id)
+              setSessionId(String(data.session_id))
+            }
+
+            if (data.qr_images && Array.isArray(data.qr_images) && data.qr_images.length > 0) {
+              onQrImages?.(data.qr_images as string[])
+            }
+
+            if (reduced.ignoredAskUserToolEvent) continue
+
+            if (protocolEvent?.type === 'tool_pending' && reduced.pendingToolCallId) {
+              const callId = reduced.pendingToolCallId
+              const receivedAt = nowMs()
+              debugStreamLog('[useStreamingChat] tool_pending received', {
+                callId,
+                toolName: protocolEvent.toolName,
+                diffItemCount: Array.isArray(data.diff_items) ? data.diff_items.length : 0,
+                elapsedSinceStreamStartMs: Math.round((receivedAt - streamStartedAt) * 100) / 100,
+                eventsBefore: summarizeToolEvents(previousEvents),
+              })
+              const appendedAt = nowMs()
+              pendingToolTimingsRef.current[callId] = {
+                receivedAt,
+                appendedAt,
+                streamStartedAt,
+                clientRequestId,
+              }
+              debugStreamLog('[useStreamingChat] tool_pending appended', {
+                callId,
+                elapsedSinceReceivedMs: Math.round((appendedAt - receivedAt) * 100) / 100,
+                eventsAfter: summarizeToolEvents(protocolState.events),
+              })
+              window.requestAnimationFrame(() => {
+                const timing = pendingToolTimingsRef.current[callId]
+                if (!timing) return
+                debugStreamLog('[useStreamingChat] tool_pending rendered', {
+                  callId,
+                  clientRequestId: timing.clientRequestId,
+                  elapsedSinceStreamStartMs: elapsedMsSince(timing.streamStartedAt),
+                  elapsedSinceReceivedMs: elapsedMsSince(timing.receivedAt),
+                  elapsedSinceAppendedMs: elapsedMsSince(timing.appendedAt),
+                })
+              })
+            }
+
+            if (reduced.decisionToolCallId) {
+              const callId = reduced.decisionToolCallId
+              delete pendingToolTimingsRef.current[callId]
+              debugStreamLog('[useStreamingChat] tool decision handling end', {
+                callId,
+                newType: protocolEvent?.type || '',
+                eventsBefore: summarizeToolEvents(previousEvents),
+                eventsAfter: summarizeToolEvents(protocolState.events),
+              })
+            }
+
+            if (reduced.completedToolCallId) {
+              debugStreamLog('[useStreamingChat] tool completion handling end', {
+                callId: reduced.completedToolCallId,
+                newType: protocolEvent?.type || '',
+                eventsBefore: summarizeToolEvents(previousEvents),
+                eventsAfter: summarizeToolEvents(protocolState.events),
+              })
+            }
+
+            if (data.resume_content && typeof data.resume_content === 'object') {
+              debugStreamLog('[useStreamingChat] 收到 resume_content，触发预览更新', {
+                sections: Object.keys(data.resume_content),
+              })
+              onResumeUpdate?.(data.resume_content as Record<string, unknown>)
+            }
+
+            if (protocolEvent?.type === 'text') {
+              setCurrentStreamingMessage(protocolState.content)
+              if (!firstContentRenderedLogged) {
+                firstContentRenderedLogged = true
+                window.requestAnimationFrame(() => {
+                  logStreamPhase('first_content_rendered', streamStartedAt, clientRequestId, {
+                    contentChars: protocolEvent.content.length,
                     streamEventCount: protocolState.events.length,
                   })
-                  // done 事件携带最终 resume_content 用于刷新预览
-                  if (data.resume_content) {
-                    debugStreamLog('[useStreamingChat] done 事件收到 resume_content', {
-                      sections: Object.keys(data.resume_content),
-                    })
-                    onResumeUpdate?.(data.resume_content)
-                  }
-                  // 流式传输完成，创建完整的AI消息（携带工具事件快照，用于历史渲染）
-                  const aiMessage: ChatMessage = {
-                    id: Date.now().toString(),
-                    type: 'ai',
-                    content: protocolState.content,
-                    timestamp: new Date(),
-                    streamEvents: protocolState.events.length > 0 ? [...protocolState.events] : undefined,
-                  }
-                  // 先把最终消息并入历史，再清 live 态，避免结束时出现一帧空白闪烁。
-                  commitCompletedStreamMessage(aiMessage, onMessage, () => {
-                    setIsStreaming(false)
-                    setCurrentStreamingMessage('')
-                    setStreamEvents([])
-                  })
-                  return
-                }
-
-                // 首个事件携带 session_id
-                if (data.session_id) {
-                  sessionIdRef.current = data.session_id
-                  setSessionId(data.session_id)
-                }
-
-                if (data.qr_images && Array.isArray(data.qr_images) && data.qr_images.length > 0) {
-                  onQrImages?.(data.qr_images)
-                }
-
-                const previousEvents = protocolState.events
-                const reduced = reduceStreamSsePayload(protocolState, data, t('toolCall'))
-                protocolState = reduced.state
-                const protocolEvent = reduced.event
-                if (reduced.ignoredAskUserToolEvent) continue
-
-                // tool_pending: agent 暂停，等待用户确认
-                if (protocolEvent?.type === 'tool_pending' && reduced.pendingToolCallId) {
-                  const callId = reduced.pendingToolCallId
-                  const receivedAt = nowMs()
-                  debugStreamLog('[useStreamingChat] tool_pending received', {
-                    callId,
-                    toolName: protocolEvent.toolName,
-                    diffItemCount: Array.isArray(data.diff_items) ? data.diff_items.length : 0,
-                    elapsedSinceStreamStartMs: Math.round((receivedAt - streamStartedAt) * 100) / 100,
-                    eventsBefore: summarizeToolEvents(previousEvents),
-                  })
-                  const appendedAt = nowMs()
-                  pendingToolTimingsRef.current[callId] = {
-                    receivedAt,
-                    appendedAt,
-                    streamStartedAt,
-                    clientRequestId,
-                  }
-                  debugStreamLog('[useStreamingChat] tool_pending appended', {
-                    callId,
-                    elapsedSinceReceivedMs: Math.round((appendedAt - receivedAt) * 100) / 100,
-                    eventsAfter: summarizeToolEvents(protocolState.events),
-                  })
-                  window.requestAnimationFrame(() => {
-                    const timing = pendingToolTimingsRef.current[callId]
-                    if (!timing) return
-                    debugStreamLog('[useStreamingChat] tool_pending rendered', {
-                      callId,
-                      clientRequestId: timing.clientRequestId,
-                      elapsedSinceStreamStartMs: elapsedMsSince(timing.streamStartedAt),
-                      elapsedSinceReceivedMs: elapsedMsSince(timing.receivedAt),
-                      elapsedSinceAppendedMs: elapsedMsSince(timing.appendedAt),
-                    })
-                  })
-                }
-
-                // tool_confirmed / tool_rejected: 更新对应的 pending 事件状态
-                if (reduced.decisionToolCallId) {
-                  const callId = reduced.decisionToolCallId
-                  delete pendingToolTimingsRef.current[callId]
-                  debugStreamLog('[useStreamingChat] tool decision handling end', {
-                    callId,
-                    newType: protocolEvent?.type || '',
-                    eventsBefore: summarizeToolEvents(previousEvents),
-                    eventsAfter: summarizeToolEvents(protocolState.events),
-                  })
-                }
-
-                if (reduced.completedToolCallId) {
-                  debugStreamLog('[useStreamingChat] tool completion handling end', {
-                    callId: reduced.completedToolCallId,
-                    newType: protocolEvent?.type || '',
-                    eventsBefore: summarizeToolEvents(previousEvents),
-                    eventsAfter: summarizeToolEvents(protocolState.events),
-                  })
-                }
-
-                // 处理简历更新
-                if (data.resume_content) {
-                  debugStreamLog('[useStreamingChat] 收到 resume_content，触发预览更新', {
-                    sections: Object.keys(data.resume_content),
-                  })
-                  onResumeUpdate?.(data.resume_content)
-                }
-
-                if (protocolEvent?.type === 'text') {
-                  setCurrentStreamingMessage(protocolState.content)
-                  if (!firstContentRenderedLogged) {
-                    firstContentRenderedLogged = true
-                    window.requestAnimationFrame(() => {
-                      logStreamPhase('first_content_rendered', streamStartedAt, clientRequestId, {
-                        contentChars: protocolEvent.content.length,
-                        streamEventCount: protocolState.events.length,
-                      })
-                    })
-                  }
-                }
-                if (protocolEvent?.type === 'user_input_request') {
-                  setUserInputRequest(protocolState.userInputRequest)
-                }
-                if (protocolEvent) {
-                  if (shouldYieldBeforePendingEvent(previousEvents, protocolEvent)) {
-                    setStreamEvents([...previousEvents])
-                    await waitForNextPaint()
-                  }
-                  setStreamEvents([...protocolState.events])
-                }
-              } catch {
-                console.warn('Failed to parse SSE data:', line)
+                })
               }
+            }
+            if (protocolEvent?.type === 'user_input_request') {
+              setUserInputRequest(protocolState.userInputRequest)
+            }
+            if (protocolEvent) {
+              if (shouldYieldBeforePendingEvent(previousEvents, protocolEvent)) {
+                setStreamEvents([...previousEvents])
+                await waitForNextPaint()
+              }
+              setStreamEvents([...protocolState.events])
             }
           }
         }
@@ -467,7 +436,6 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
         break
       }
       replayAttempted = true
-      buffer = ''
       }
 
     } catch (error) {

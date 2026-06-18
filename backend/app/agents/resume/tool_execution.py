@@ -24,6 +24,7 @@ from app.agents.resume.stream_events import (
     user_input_request_event,
 )
 from app.agents.resume.event_publisher import publish_resume_runtime_event
+from app.agents.resume.sdk_tool_lifecycle import SdkToolApprovalState
 from app.infra.config import settings
 from app.runtime.contracts import AgentDefinition, RuntimeEventCallback
 from app.runtime.tool_confirmation import ToolConfirmationPolicy
@@ -110,10 +111,11 @@ class ResumeToolExecutionStage:
         )
         needs_confirmation = confirmation_decision.requires_confirmation
         tool_call = self.tool_call_payload(call_id, tool_name, tool_input)
-        preapproval_output = self.pop_sdk_preapproval_output(context, call_id)
+        sdk_state = SdkToolApprovalState(context)
+        preapproval_output = sdk_state.pop_preapproval_output(call_id)
         if preapproval_output is not None:
             return preapproval_output
-        if self.consume_sdk_approved_call(context, call_id):
+        if sdk_state.consume_approved(call_id):
             self.record_tool_requested(stream_state, call_id)
             self.trace_tool_requested(
                 agent,
@@ -241,7 +243,8 @@ class ResumeToolExecutionStage:
         stream_state: dict[str, Any],
     ) -> bool:
         """用于在 SDK needs_approval 阶段生成预览并决定是否中断。"""
-        if self.has_sdk_approved_call(context, call_id):
+        sdk_state = SdkToolApprovalState(context)
+        if sdk_state.has_approved(call_id):
             return False
         decision = self.confirmation_policy.before_tool_call(
             confirmation_queue=confirmation_queue,
@@ -273,8 +276,7 @@ class ResumeToolExecutionStage:
                 tool_result=preview_result,
             )
             return False
-        self.store_sdk_approval_preview(
-            context,
+        sdk_state.store_preview(
             call_id,
             {
                 "tool_call": tool_call,
@@ -303,7 +305,7 @@ class ResumeToolExecutionStage:
     ) -> tuple[bool, str | None]:
         """用于把 SDK interruption 接到现有前端确认卡片。"""
         assert confirmation_queue is not None
-        preview = self.sdk_approval_preview(context, call_id)
+        preview = SdkToolApprovalState(context).preview(call_id)
         if preview is None:
             return True, None
         tool_call = preview["tool_call"]
@@ -350,7 +352,7 @@ class ResumeToolExecutionStage:
             confirmation_result.terminate_turn,
         )
         if confirmation_result.confirmed:
-            self.mark_sdk_approved_call(context, call_id)
+            SdkToolApprovalState(context).mark_approved(call_id)
             return True, None
         rejected_error = "用户拒绝了此修改"
         if confirmation_result.feedback:
@@ -1007,7 +1009,7 @@ class ResumeToolExecutionStage:
         """用于把 SDK 审批前失败转成模型可恢复输出和必要前端事件。"""
         result = tool_result.get("result", {})
         output = json.dumps(result, ensure_ascii=False)
-        self.store_sdk_preapproval_output(context, call_id, output)
+        SdkToolApprovalState(context).store_preapproval_output(call_id, output)
         self.trace_tool_executed(agent, run_id, call_id, tool_name, tool_result, tool_started_at)
         if self.is_noop_preview_failure(tool_result):
             return
@@ -1032,68 +1034,6 @@ class ResumeToolExecutionStage:
             context=context,
             needs_confirmation=False,
         )
-
-    @staticmethod
-    def store_sdk_approval_preview(
-        context: dict[str, Any],
-        call_id: str,
-        preview: dict[str, Any],
-    ) -> None:
-        """用于按 SDK 工具 call_id 暂存待审批预览。"""
-        previews = context.setdefault("_sdk_approval_previews", {})
-        if isinstance(previews, dict):
-            previews[call_id] = preview
-
-    @staticmethod
-    def sdk_approval_preview(context: dict[str, Any], call_id: str) -> dict[str, Any] | None:
-        """用于读取 SDK interruption 对应的预览。"""
-        previews = context.get("_sdk_approval_previews")
-        if not isinstance(previews, dict):
-            return None
-        preview = previews.get(call_id)
-        return preview if isinstance(preview, dict) else None
-
-    @staticmethod
-    def store_sdk_preapproval_output(
-        context: dict[str, Any],
-        call_id: str,
-        output: str,
-    ) -> None:
-        """用于暂存审批前已处理的工具输出。"""
-        outputs = context.setdefault("_sdk_preapproval_outputs", {})
-        if isinstance(outputs, dict):
-            outputs[call_id] = output
-
-    @staticmethod
-    def pop_sdk_preapproval_output(context: dict[str, Any], call_id: str) -> str | None:
-        """用于让 SDK 后续 on_invoke 复用审批前工具输出。"""
-        outputs = context.get("_sdk_preapproval_outputs")
-        if not isinstance(outputs, dict):
-            return None
-        output = outputs.pop(call_id, None)
-        return output if isinstance(output, str) else None
-
-    @staticmethod
-    def mark_sdk_approved_call(context: dict[str, Any], call_id: str) -> None:
-        """用于记录 SDK 已批准的工具调用。"""
-        approved = context.setdefault("_sdk_approved_call_ids", set())
-        if isinstance(approved, set):
-            approved.add(call_id)
-
-    @staticmethod
-    def has_sdk_approved_call(context: dict[str, Any], call_id: str) -> bool:
-        """用于判断 SDK 工具调用是否已获批。"""
-        approved = context.get("_sdk_approved_call_ids")
-        return isinstance(approved, set) and call_id in approved
-
-    @staticmethod
-    def consume_sdk_approved_call(context: dict[str, Any], call_id: str) -> bool:
-        """用于消费 SDK 已批准工具调用标记。"""
-        approved = context.get("_sdk_approved_call_ids")
-        if not isinstance(approved, set) or call_id not in approved:
-            return False
-        approved.remove(call_id)
-        return True
 
     def trace_tool_executed(
         self,

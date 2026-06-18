@@ -114,6 +114,8 @@ RESUME_EDIT_TOOL_NAMES = {
     "update_profile",
     "upsert_job_application",
     "update_item_fields",
+    "add_resume_item",
+    "remove_resume_item",
     "update_skills",
     "show_section",
     "hide_section",

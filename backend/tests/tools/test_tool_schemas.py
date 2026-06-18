@@ -14,7 +14,18 @@ BACKEND_DIR = Path(__file__).resolve().parents[2]
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from app.tools.resume.registry import RESUME_TOOLS_SCHEMA  # noqa: E402
+from app.tools.resume.registry import (  # noqa: E402
+    RESUME_AUTO_EXECUTE_TOOL_NAMES,
+    RESUME_TOOL_ARGUMENT_ALIASES,
+    RESUME_TOOL_CATALOG,
+    RESUME_TOOL_DISPLAY_NAMES,
+    RESUME_TOOL_PROFILES,
+    RESUME_TOOL_REQUIRED_ARGS,
+    RESUME_TOOL_SECTION_ENUMS,
+    RESUME_VISIBILITY_TOOL_NAMES,
+    RESUME_TOOLS_SCHEMA,
+    execute_resume_tool_call,
+)
 from tests.helpers.prompt_semantic_tags import SCHEMA_TAGS, assert_tag  # noqa: E402
 
 
@@ -160,6 +171,80 @@ def test_update_skills_schema_supports_add_update_and_remove():
     assert "创建新分类" in function["description"]
     assert "删除整个分类" in function["description"]
     assert "remove 不需要" in properties["skills"]["description"]
+
+
+def test_tool_catalog_is_single_source_for_runtime_metadata():
+    """工具目录必须携带运行时元数据并派生旧导出常量。"""
+    by_name = {definition.name: definition for definition in RESUME_TOOL_CATALOG}
+
+    derived_profiles: dict[str, set[str]] = {}
+    for definition in RESUME_TOOL_CATALOG:
+        for profile in definition.profiles:
+            derived_profiles.setdefault(profile, set()).add(definition.name)
+
+    assert set(by_name) == {tool["function"]["name"] for tool in RESUME_TOOLS_SCHEMA}
+    assert RESUME_TOOL_PROFILES == derived_profiles
+    assert RESUME_TOOL_REQUIRED_ARGS == {
+        name: set(definition.required_args)
+        for name, definition in by_name.items()
+    }
+    assert RESUME_TOOL_DISPLAY_NAMES == {
+        name: definition.display_name
+        for name, definition in by_name.items()
+        if definition.display_name
+    }
+    assert RESUME_TOOL_SECTION_ENUMS == {
+        name: set(definition.section_enum)
+        for name, definition in by_name.items()
+        if definition.section_enum
+    }
+    assert RESUME_TOOL_ARGUMENT_ALIASES == {
+        name: dict(definition.argument_aliases)
+        for name, definition in by_name.items()
+        if definition.argument_aliases
+    }
+    assert RESUME_AUTO_EXECUTE_TOOL_NAMES == {
+        name for name, definition in by_name.items() if definition.auto_execute
+    }
+    assert RESUME_VISIBILITY_TOOL_NAMES == {
+        name for name, definition in by_name.items() if definition.visibility_tool
+    }
+
+
+def test_tool_catalog_executes_raw_json_arguments_with_wrapped_result():
+    """工具目录执行入口必须解析 JSON 参数并返回统一 runtime 结果。"""
+    resume = {
+        "projects": [{"id": "proj_1", "name": "Chat Resume", "overview": "旧简介"}]
+    }
+
+    result = execute_resume_tool_call(
+        tool_name="update_overview",
+        raw_arguments='{"item_id":"proj_1","text":"新简介"}',
+        context={"resume_content": resume, "allowed_sections": {"projects"}},
+    )
+
+    assert isinstance(result, dict)
+    assert result["tool_name"] == "优化简介"
+    assert result["result"]["success"] is True
+    assert resume["projects"][0]["overview"] == "新简介"
+
+
+def test_tool_catalog_preserves_hidden_section_guard():
+    """工具目录执行入口必须集中拦截隐藏板块修改。"""
+    result = execute_resume_tool_call(
+        tool_name="add_bullet",
+        raw_arguments={
+            "section": "projects",
+            "item_id": "proj_1",
+            "text": "新增成果",
+        },
+        context={"resume_content": {"projects": []}, "allowed_sections": {"skills"}},
+    )
+
+    assert isinstance(result, dict)
+    assert result["result"]["success"] is False
+    assert result["result"]["error"]["type"] == "hidden_section"
+    assert result["result"]["error"]["recoverable"] is False
 
 
 @pytest.mark.parametrize("tag,tool_name,field_path", _SCHEMA_TAG_CHECKS)

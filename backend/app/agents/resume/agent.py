@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 from typing import Any, AsyncGenerator, Dict, List, Optional, cast
 
@@ -11,15 +10,14 @@ from app.prompts import load_prompt
 from app.runtime.contracts import AgentDefinition
 from app.tools.resume.registry import (
     RESUME_AUTO_EXECUTE_TOOL_NAMES,
-    RESUME_SECTION_ALIASES,
-    RESUME_TOOL_ARGUMENT_ALIASES,
     RESUME_TOOL_PROFILES,
     RESUME_TOOLS_SCHEMA,
+    execute_resume_tool_call,
 )
 from app.types.stream import ResumeStreamEvent
 
 from .candidate_profile import load_candidate_profile_context
-from .executor import TOOL_REQUIRED_ARGS, ResumeToolExecutor
+from .executor import ResumeToolExecutor
 from .prompt_context import build_resume_prompt_context, strip_redundant_fields
 from .runtime import ResumeAgentRuntime
 from .stream_events import normalize_resume_stream_payload
@@ -27,30 +25,6 @@ from .stream_events import normalize_resume_stream_payload
 logger = logging.getLogger(__name__)
 
 _LOG_VALUE_LIMIT = 64
-
-
-def _parse_tool_arguments(raw: Any) -> Dict[str, Any]:
-    """用于把模型返回的工具参数统一解析成字典。"""
-    if isinstance(raw, dict):
-        return raw
-    if not isinstance(raw, str):
-        raise ValueError(f"无法解析工具参数类型: {type(raw)}, value={raw!r}")
-    try:
-        return json.loads(raw)
-    except json.JSONDecodeError as exc:
-        logger.warning(
-            "tool_args.json_parse_failed",
-            extra={"error_type": type(exc).__name__, "raw_chars": len(raw)},
-        )
-        import re
-
-        match = re.search(r"\{.*\}", raw, re.DOTALL)
-        if match:
-            try:
-                return json.loads(match.group())
-            except json.JSONDecodeError:
-                pass
-        raise
 
 
 def _summarize_log_value(value: Any) -> Any:
@@ -68,21 +42,6 @@ def _summarize_log_value(value: Any) -> Any:
     if isinstance(value, list):
         return [_summarize_log_value(item) for item in value[:5]]
     return value
-
-
-def _normalize_tool_args(tool_name: str, tool_args: dict[str, Any]) -> dict[str, Any]:
-    """用于修正常见模型工具参数别名，不推断缺失事实。"""
-    normalized = dict(tool_args)
-    section = normalized.get("section")
-    if isinstance(section, str):
-        normalized["section"] = RESUME_SECTION_ALIASES.get(section, section)
-
-    for source, target in RESUME_TOOL_ARGUMENT_ALIASES.get(tool_name, {}).items():
-        if target not in normalized and source in normalized:
-            normalized[target] = normalized[source]
-        if source in normalized and source != target:
-            normalized.pop(source)
-    return normalized
 
 
 class ResumeAgent:
@@ -194,60 +153,6 @@ class ResumeAgent:
         """用于生成提示词渲染所需的简历上下文字段。"""
         return build_resume_prompt_context(context)
 
-    def _prepare_tool_args(
-        self,
-        tool_name: str,
-        raw_args: Any,
-    ) -> tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
-        """用于校验和补齐工具参数，避免模型参数异常直接落到业务层。"""
-        try:
-            tool_args = _parse_tool_arguments(raw_args)
-        except (TypeError, ValueError, json.JSONDecodeError) as exc:
-            return None, self.tool_executor.error_result(
-                tool_name,
-                "invalid_arguments_json",
-                f"工具参数不是合法 JSON，无法执行 {tool_name}: {exc}",
-                recoverable=True,
-                expected_arguments=sorted(TOOL_REQUIRED_ARGS.get(tool_name, set())),
-            )
-
-        if not isinstance(tool_args, dict):
-            return None, self.tool_executor.error_result(
-                tool_name,
-                "invalid_arguments_type",
-                f"工具参数必须是对象，实际收到 {type(tool_args).__name__}",
-                recoverable=True,
-                expected_arguments=sorted(TOOL_REQUIRED_ARGS.get(tool_name, set())),
-            )
-
-        tool_args = _normalize_tool_args(tool_name, tool_args)
-
-        if tool_name == "update_overview" and not tool_args.get("section"):
-            tool_args["section"] = "projects"
-
-        required = TOOL_REQUIRED_ARGS.get(tool_name)
-        if required is None:
-            return None, self.tool_executor.error_result(
-                tool_name,
-                "unknown_tool",
-                f"Unknown tool: {tool_name}",
-                recoverable=False,
-            )
-
-        if required:
-            missing = sorted(key for key in required if not tool_args.get(key))
-            if missing:
-                return None, self.tool_executor.error_result(
-                    tool_name,
-                    "missing_required_argument",
-                    f"{tool_name} 缺少必填参数: {', '.join(missing)}",
-                    recoverable=True,
-                    expected_arguments=sorted(required),
-                    updated_section=tool_args.get("section"),
-                )
-
-        return tool_args, None
-
     def _run_tool(
         self,
         tool_call: Dict[str, Any],
@@ -261,15 +166,14 @@ class ResumeAgent:
             tool_name,
             _summarize_log_value(raw_args),
         )
-        tool_args, error_result = self._prepare_tool_args(tool_name, raw_args)
-        if error_result is not None:
-            return error_result
-        assert tool_args is not None
-        return cast(Dict[str, Any], self.tool_executor.execute(
-            tool_name=tool_name,
-            tool_input=tool_args,
-            context=context,
-        ))
+        return cast(
+            Dict[str, Any],
+            execute_resume_tool_call(
+                tool_name=tool_name,
+                raw_arguments=raw_args,
+                context=context,
+            ),
+        )
 
     def _collect_qr_images(self, tool_calls: List[Dict[str, Any]]) -> List[str]:
         """用于保留统一扩展点，后续如有二维码结果可在这里汇总。"""

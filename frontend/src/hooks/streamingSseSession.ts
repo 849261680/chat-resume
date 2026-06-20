@@ -6,7 +6,7 @@ import {
   type StreamEvent,
   type StreamProtocolReduction,
   type StreamProtocolState,
-} from './streamingEventProtocol.ts'
+} from './streamingEventProtocol'
 
 export type StreamingSseReduction = StreamProtocolReduction & {
   data: Record<string, unknown>

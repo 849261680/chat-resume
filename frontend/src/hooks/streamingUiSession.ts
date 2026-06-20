@@ -4,7 +4,7 @@ import {
   normalizeDiffItems,
   summarizeToolEvents,
   type StreamEvent,
-} from './streamingEventProtocol.ts'
+} from './streamingEventProtocol'
 
 type PendingToolTiming = {
   receivedAt: number

@@ -1343,6 +1343,39 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         assert_tag(rendered, "no_fabrication")
         self.assertIn("不编造经历、数字或结果", rendered)
 
+    def test_system_prompt_guides_project_story_generation_without_mutation(self):
+        """用于验证项目讲述稿请求走聊天输出而不是简历修改工具。"""
+        rendered = _render_resume_system_prompt(
+            target_title="Agent 开发工程师",
+            target_company="OpenAI",
+            jd_text="要求 ReAct Agent、tool calling、SSE 和 Human-in-the-loop 经验",
+            resume_json=json.dumps(
+                {
+                    "projects": [
+                        {
+                            "id": "proj_1",
+                            "name": "Chat Resume",
+                            "role": "全栈开发",
+                            "overview": "构建基于工具调用的简历优化 Agent",
+                            "highlights": [
+                                {"id": "hl_1", "text": "实现 SSE 流式输出和确认式 diff"}
+                            ],
+                        }
+                    ]
+                },
+                ensure_ascii=False,
+            ),
+        )
+
+        self.assertIn("项目讲述稿生成", rendered)
+        self.assertIn("不要调用 update/add/remove 类工具", rendered)
+        self.assertIn("1 分钟版", rendered)
+        self.assertIn("3 分钟版", rendered)
+        self.assertIn("JD 能力映射", rendered)
+        self.assertIn("未绑定目标 JD，暂不做 JD 能力映射", rendered)
+        self.assertIn("[建议补充：", rendered)
+        self.assertIn("不要只给泛泛建议", rendered)
+
 
 if __name__ == "__main__":
     unittest.main()

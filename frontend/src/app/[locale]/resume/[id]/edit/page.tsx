@@ -44,6 +44,7 @@ import type { ResumeSelectionOverlayHandle } from '@/components/editor/ResumeSel
 import UserInputRequestCard from '@/components/editor/UserInputRequestCard'
 import { useLocale, useTranslations } from 'next-intl'
 import { toInterviewLanguage, type AppLocale } from '@/i18n/routing'
+import type { JobApplication, Project } from '@/types/resume'
 import toast from 'react-hot-toast'
 
 /** 从 Next 路由参数中读取单个简历 ID。 */
@@ -139,6 +140,56 @@ function UserMessageContent({ content }: { content: string }) {
       )}
     </div>
   )
+}
+
+/** 把项目编辑区里的结构化项目事实整理成 Agent 可读上下文。 */
+function buildProjectStoryContext(project: Project, jobApplication?: JobApplication) {
+  const highlights = (project.highlights || [])
+    .map((item) => item.text?.trim())
+    .filter(Boolean)
+  const technologies = (project.technologies || []).filter(Boolean)
+  const jdText = jobApplication?.jd_text?.trim()
+  const target = [
+    jobApplication?.target_company?.trim(),
+    jobApplication?.target_title?.trim(),
+  ].filter(Boolean).join(' · ')
+
+  return [
+    '项目讲述稿生成上下文：',
+    `项目名称：${project.name?.trim() || '未命名项目'}`,
+    project.role?.trim() ? `项目角色：${project.role.trim()}` : '',
+    project.duration?.trim() ? `项目时间：${project.duration.trim()}` : '',
+    project.overview?.trim() ? `项目简介：${project.overview.trim()}` : '',
+    technologies.length > 0 ? `技术栈：${technologies.join('、')}` : '',
+    highlights.length > 0
+      ? ['项目要点：', ...highlights.map((item) => `- ${item}`)].join('\n')
+      : '项目要点：暂无，请基于已有项目简介生成；缺失事实必须用 [建议补充：...] 标注。',
+    '',
+    jdText
+      ? [
+          '当前目标岗位：',
+          target ? `岗位：${target}` : '',
+          `JD：${jdText}`,
+        ].filter(Boolean).join('\n')
+      : '未绑定目标 JD，暂不做 JD 能力映射。',
+  ].filter(Boolean).join('\n')
+}
+
+/** 生成固定请求，保证前端入口和 Agent prompt 能稳定对齐。 */
+function buildProjectStoryRequest(hasJd: boolean) {
+  return [
+    '请基于上面的项目事实生成项目面试讲述稿。',
+    '',
+    '输出要求：',
+    '1. 包含「1 分钟版」和「3 分钟版」。',
+    '2. 1 分钟版突出：项目定位、核心技术、解决问题、结果。',
+    '3. 3 分钟版按 STAR 展开：背景、任务、技术方案、关键决策、踩坑和结果。',
+    hasJd
+      ? '4. 输出「JD 能力映射」，说明讲述稿覆盖了目标 JD 的哪些能力点。'
+      : '4. 明确提示“未绑定目标 JD，暂不做 JD 能力映射”。',
+    '5. 只能基于上下文里的项目事实；缺少量化结果或关键事实时，用 `[建议补充：...]` 标注，不要编造数字、经历或技术栈。',
+    '6. 直接输出可复制的面试讲述稿，不要修改简历。',
+  ].join('\n')
 }
 
 /** 编辑页组件用于组装简历编辑、预览和 Agent 面板。 */
@@ -246,6 +297,13 @@ export default function ResumeEditPage() {
     const message = `Q: ${userInputRequest.question}\nA: ${answer}`
     void dispatchMessage(message)
   }, [dispatchMessage, userInputRequest])
+
+  const generateProjectStory = useCallback((project: Project) => {
+    const jdText = resume?.content.job_application?.jd_text?.trim()
+    const context = buildProjectStoryContext(project, resume?.content.job_application)
+    const request = buildProjectStoryRequest(Boolean(jdText))
+    void dispatchMessage(`${context}\n\n${request}`)
+  }, [dispatchMessage, resume?.content.job_application])
 
   useEffect(() => {
     if (!mounted || isLoading || !isAuthenticated || hasValidResumeId) return
@@ -652,6 +710,8 @@ export default function ResumeEditPage() {
                     <ProjectsEditor
                       data={resume.content.projects || []}
                       onChange={(data) => updateResumeContent('projects', data)}
+                      onGenerateStory={generateProjectStory}
+                      storyGenerationDisabled={isSending || isStreaming}
                     />
                   )}
 
@@ -660,6 +720,8 @@ export default function ResumeEditPage() {
                       data={resume.content.open_source || []}
                       onChange={(data) => updateResumeContent('open_source', data)}
                       variant="openSource"
+                      onGenerateStory={generateProjectStory}
+                      storyGenerationDisabled={isSending || isStreaming}
                     />
                   )}
                 </div>

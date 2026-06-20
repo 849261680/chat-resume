@@ -282,6 +282,7 @@
       "demoPlaceholder": "https://your-project-demo.com",
       "overviewPlaceholder": "一句话说明项目背景、目标或你的角色...",
       "highlightPlaceholder": "实现了用户友好的拖拽式简历编辑界面，提升编辑效率50%",
+      "generateStory": "生成讲述稿",
       "addBullet": "添加成果",
       "add": "添加项目"
     },
@@ -302,6 +303,7 @@
       "demoPlaceholder": "https://github.com/org/repo/pull/123",
       "overviewPlaceholder": "说明你为这个开源项目贡献了什么、解决了什么问题...",
       "highlightPlaceholder": "例如：提交 PR 修复流式渲染 bug，被维护者合并并进入 release",
+      "generateStory": "生成讲述稿",
       "addBullet": "添加贡献点",
       "add": "添加开源经验"
     },

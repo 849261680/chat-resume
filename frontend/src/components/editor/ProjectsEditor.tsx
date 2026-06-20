@@ -7,7 +7,8 @@ import {
   PlusIcon,
   TrashIcon,
   LinkIcon,
-  CalendarIcon
+  CalendarIcon,
+  SparklesIcon
 } from '@heroicons/react/24/outline'
 import type { Project, ResumeBullet as Bullet } from '@/types/resume'
 import { useTranslations } from 'next-intl'
@@ -16,6 +17,8 @@ interface ProjectsEditorProps {
   data: Project[]
   onChange: (data: Project[]) => void
   variant?: 'project' | 'openSource'
+  onGenerateStory?: (project: Project) => void
+  storyGenerationDisabled?: boolean
 }
 
 // 用于标准化要点。
@@ -34,7 +37,13 @@ function fitTextareaToContent(element: HTMLTextAreaElement | null) {
 }
 
 // 用于渲染 ProjectsEditor 组件。
-export default function ProjectsEditor({ data, onChange, variant = 'project' }: ProjectsEditorProps) {
+export default function ProjectsEditor({
+  data,
+  onChange,
+  variant = 'project',
+  onGenerateStory,
+  storyGenerationDisabled = false,
+}: ProjectsEditorProps) {
   const [projectsList, setProjectsList] = useState<Project[]>(Array.isArray(data) ? data : [])
   const editorRootRef = useRef<HTMLDivElement>(null)
   const projectT = useTranslations('resume.forms.project')
@@ -139,9 +148,24 @@ export default function ProjectsEditor({ data, onChange, variant = 'project' }: 
         <div className="space-y-6">
           {projectsList.map((project, index) => (
             <div key={project.id || index} className="bg-white rounded-lg p-6 border">
-              <div className="flex items-center justify-end mb-1">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                {onGenerateStory ? (
+                  <button
+                    type="button"
+                    onClick={() => onGenerateStory(project)}
+                    disabled={storyGenerationDisabled}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-primary-200 bg-primary-50 px-3 py-1.5 text-xs font-semibold text-primary-700 transition-colors hover:border-primary-300 hover:bg-primary-100 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-50 disabled:text-gray-400"
+                    title={t('generateStory')}
+                  >
+                    <SparklesIcon className="h-3.5 w-3.5" />
+                    <span>{t('generateStory')}</span>
+                  </button>
+                ) : (
+                  <span />
+                )}
                 {projectsList.length > 1 && (
                   <button
+                    type="button"
                     onClick={() => removeProject(project.id!)}
                     className="text-gray-400 hover:text-gray-600 p-1 transition-colors"
                     title={t('delete')}

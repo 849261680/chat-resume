@@ -282,6 +282,7 @@
       "demoPlaceholder": "https://your-project-demo.com",
       "overviewPlaceholder": "Summarize the project context, goal, or your role...",
       "highlightPlaceholder": "Built a drag-and-drop resume editor and improved editing efficiency by 50%",
+      "generateStory": "Generate story",
       "addBullet": "Add outcome",
       "add": "Add project"
     },
@@ -302,6 +303,7 @@
       "demoPlaceholder": "https://github.com/org/repo/pull/123",
       "overviewPlaceholder": "Summarize what you contributed and what problem it solved...",
       "highlightPlaceholder": "For example: submitted a PR fixing a streaming render bug, merged by maintainers and shipped in release",
+      "generateStory": "Generate story",
       "addBullet": "Add contribution",
       "add": "Add open source contribution"
     },
